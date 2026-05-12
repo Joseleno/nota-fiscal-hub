@@ -1,0 +1,207 @@
+using System.Collections.Generic;
+using VisuFiscalHub.Domain.Common;
+using VisuFiscalHub.Domain.Enums;
+using VisuFiscalHub.Domain.Errors;
+using VisuFiscalHub.Domain.Events;
+using VisuFiscalHub.Domain.Identifiers;
+using VisuFiscalHub.Domain.ValueObjects;
+
+namespace VisuFiscalHub.Domain.Entities;
+
+public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
+{
+    private readonly List<ItemDocumento> _items = [];
+    private readonly List<Pagamento> _pagamentos = [];
+
+    private DocumentoFiscal()
+    {
+        // Para EF Core — inicialização via reflexão.
+        // null! é justificado: EF Core popula estas propriedades via reflexão após instanciar.
+        IdempotencyKey = string.Empty;
+        Serie = string.Empty;
+        ChaveAcesso = null!;
+    }
+
+    private DocumentoFiscal(
+        DocumentoFiscalId id,
+        TenantId tenantId,
+        ClienteAppId clienteAppId,
+        string idempotencyKey,
+        TipoDocumento tipo,
+        ChaveAcesso chaveAcesso,
+        long numero,
+        string serie,
+        List<ItemDocumento> items,
+        List<Pagamento> pagamentos,
+        DateTime createdAt) : base(id)
+    {
+        TenantId = tenantId;
+        ClienteAppId = clienteAppId;
+        IdempotencyKey = idempotencyKey;
+        Tipo = tipo;
+        ChaveAcesso = chaveAcesso;
+        Numero = numero;
+        Serie = serie;
+        Status = StatusDocumento.Criado;
+        _items = items;
+        _pagamentos = pagamentos;
+        CreatedAt = createdAt;
+    }
+
+    public TenantId TenantId { get; private set; }
+
+    // Armazenado para evitar query adicional ao publicar DocumentoFiscalAutorizadoEvent/DenegadoEvent
+    public ClienteAppId ClienteAppId { get; private set; }
+
+    public string IdempotencyKey { get; private set; }
+    public TipoDocumento Tipo { get; private set; }
+    public ChaveAcesso ChaveAcesso { get; private set; }
+    public long Numero { get; private set; }
+    public string Serie { get; private set; }
+    public StatusDocumento Status { get; private set; }
+    public string? XmlAssinado { get; private set; }
+    public string? Protocolo { get; private set; }
+    public QrCode? QrCode { get; private set; }
+    public string? MotivoRejeicao { get; private set; }
+    public DateTime CreatedAt { get; private set; }
+    public DateTime? AuthorizedAt { get; private set; }
+
+    public IReadOnlyList<ItemDocumento> Items => _items.AsReadOnly();
+    public IReadOnlyList<Pagamento> Pagamentos => _pagamentos.AsReadOnly();
+
+    public static Result<DocumentoFiscal> Criar(
+        DocumentoFiscalId id,
+        TenantId tenantId,
+        ClienteAppId clienteAppId,
+        string idempotencyKey,
+        TipoDocumento tipo,
+        ChaveAcesso chaveAcesso,
+        long numero,
+        string serie,
+        IEnumerable<ItemDocumento> items,
+        IEnumerable<Pagamento> pagamentos,
+        TimeProvider timeProvider)
+    {
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+
+        return Result.Success(new DocumentoFiscal(
+            id,
+            tenantId,
+            clienteAppId,
+            idempotencyKey,
+            tipo,
+            chaveAcesso,
+            numero,
+            serie,
+            [.. items],
+            [.. pagamentos],
+            timeProvider.GetUtcNow().UtcDateTime));
+    }
+
+    public Result Enfileirar()
+    {
+        if (Status != StatusDocumento.Criado)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Enfileirado;
+        return Result.Success();
+    }
+
+    public Result IniciarProcessamento()
+    {
+        if (Status != StatusDocumento.Enfileirado)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Processando;
+        return Result.Success();
+    }
+
+    public Result Autorizar(string protocolo, string xmlAssinado, QrCode qrCode, DateTime authorizedAt)
+    {
+        if (Status != StatusDocumento.Processando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        if (string.IsNullOrWhiteSpace(protocolo))
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        if (string.IsNullOrWhiteSpace(xmlAssinado))
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Autorizado;
+        Protocolo = protocolo;
+        XmlAssinado = xmlAssinado;
+        QrCode = qrCode;
+        AuthorizedAt = authorizedAt;
+
+        AddDomainEvent(new DocumentoFiscalAutorizadoEvent(
+            Id,
+            TenantId,
+            ClienteAppId,
+            ChaveAcesso.Valor,
+            protocolo,
+            authorizedAt));
+
+        return Result.Success();
+    }
+
+    public Result Rejeitar(string motivo)
+    {
+        if (Status != StatusDocumento.Processando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Rejeitado;
+        MotivoRejeicao = motivo;
+
+        AddDomainEvent(new DocumentoFiscalRejeitadoEvent(Id, TenantId, motivo));
+
+        return Result.Success();
+    }
+
+    // Cancela o documento se ainda dentro do prazo de 30 minutos após autorização.
+    // Boundary estrito: AuthorizedAt + 30min == utcNow → NÃO pode cancelar (usa <, não <=).
+    public Result Cancelar(TimeProvider timeProvider)
+    {
+        if (Status != StatusDocumento.Autorizado)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        var utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        var prazoLimite = AuthorizedAt!.Value.AddMinutes(30);
+
+        if (utcNow >= prazoLimite)
+            return Result.Failure(DocumentoFiscalErrors.PrazoDeCancelamentoExpirado);
+
+        Status = StatusDocumento.Cancelado;
+
+        AddDomainEvent(new DocumentoFiscalCanceladoEvent(Id, TenantId, utcNow));
+
+        return Result.Success();
+    }
+
+    public Result Falhar(TimeProvider timeProvider)
+    {
+        if (Status != StatusDocumento.Processando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Falhou;
+
+        AddDomainEvent(new DocumentoFiscalFalhouEvent(Id, TenantId, timeProvider.GetUtcNow().UtcDateTime));
+
+        return Result.Success();
+    }
+
+    // cnpjEmitente: necessário para log Critical no DocumentoFiscalDenegadoEventHandler (decisions.md DA-11).
+    // Passado pelo handler que já possui o CNPJ do Tenant sem query adicional.
+    public Result Denegar(string motivo, string cnpjEmitente)
+    {
+        if (Status != StatusDocumento.Processando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Denegado;
+        MotivoRejeicao = motivo;
+
+        AddDomainEvent(new DocumentoFiscalDenegadoEvent(Id, TenantId, cnpjEmitente, motivo));
+
+        return Result.Success();
+    }
+}
