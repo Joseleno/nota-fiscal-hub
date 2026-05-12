@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VisuFiscalHub.Api/VisuFiscalHub.Api.csproj" />
+    <Project Path="src/VisuFiscalHub.Application/VisuFiscalHub.Application.csproj" />
+    <Project Path="src/VisuFiscalHub.Domain/VisuFiscalHub.Domain.csproj" />
+    <Project Path="src/VisuFiscalHub.Infrastructure/VisuFiscalHub.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VisuFiscalHub.Tests/VisuFiscalHub.Tests.csproj" />
+  </Folder>
+</Solution>

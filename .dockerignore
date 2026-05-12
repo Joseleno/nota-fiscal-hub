@@ -1,0 +1,13 @@
+**/.vs
+**/.vscode
+**/.idea
+**/bin
+**/obj
+**/*.user
+**/*.suo
+.git
+.gitignore
+.claude
+docs
+tests
+*.md
