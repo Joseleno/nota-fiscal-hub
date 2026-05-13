@@ -34,13 +34,18 @@ public sealed record ChaveAcesso
         TipoEmissao tpEmis,
         string cNF)
     {
-        if (string.IsNullOrWhiteSpace(aamm) || aamm.Length != 4)
+        if (string.IsNullOrWhiteSpace(aamm) || aamm.Length != 4 || !aamm.All(char.IsDigit))
+            return Result.Failure<ChaveAcesso>(DocumentoFiscalErrors.ChaveAcessoInvalida);
+
+        // Valida mês: caracteres 2-3 do aamm devem ser 01-12
+        var mes = int.Parse(aamm[2..]);
+        if (mes < 1 || mes > 12)
             return Result.Failure<ChaveAcesso>(DocumentoFiscalErrors.ChaveAcessoInvalida);
 
         if (string.IsNullOrWhiteSpace(cnpj) || cnpj.Length != 14)
             return Result.Failure<ChaveAcesso>(DocumentoFiscalErrors.ChaveAcessoInvalida);
 
-        if (string.IsNullOrWhiteSpace(cNF))
+        if (string.IsNullOrWhiteSpace(cNF) || cNF.Length != 8 || !cNF.All(char.IsDigit))
             return Result.Failure<ChaveAcesso>(DocumentoFiscalErrors.ChaveAcessoInvalida);
 
         var quarentaTresDígitos =

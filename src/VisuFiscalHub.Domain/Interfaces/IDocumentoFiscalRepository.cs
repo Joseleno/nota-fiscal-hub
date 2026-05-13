@@ -11,6 +11,7 @@ public interface IDocumentoFiscalRepository
         TenantId tenantId,
         CancellationToken ct = default);
     Task AddAsync(DocumentoFiscal documento, CancellationToken ct = default);
+    Task UpdateAsync(DocumentoFiscal documento, CancellationToken ct = default);
     Task<IReadOnlyList<DocumentoFiscal>> GetProcessandoAntigoAsync(
         TimeSpan timeout,
         CancellationToken ct = default);

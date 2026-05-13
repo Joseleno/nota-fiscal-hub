@@ -36,4 +36,10 @@ public static class TenantErrors
 
     public static readonly Error CIdTokenInvalido =
         new("Tenant.CIdTokenInvalido", "O cIdToken deve ter exatamente 6 dígitos numéricos.");
+
+    public static readonly Error CertificadoInvalido =
+        new("Tenant.CertificadoInvalido", "O certificado digital ou sua senha são inválidos.");
+
+    public static readonly Error CertificadoVencido =
+        new("Tenant.CertificadoVencido", "A data de vencimento do certificado não pode ser no passado.");
 }

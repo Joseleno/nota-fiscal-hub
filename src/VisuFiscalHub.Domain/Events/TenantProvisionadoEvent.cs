@@ -8,6 +8,6 @@ public sealed record TenantProvisionadoEvent(
     ClienteAppId ClienteAppId,
     string Cnpj) : IDomainEvent
 {
-    public Guid EventId { get; } = Guid.NewGuid();
+    public Guid EventId { get; } = Guid.CreateVersion7();
     public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
 }

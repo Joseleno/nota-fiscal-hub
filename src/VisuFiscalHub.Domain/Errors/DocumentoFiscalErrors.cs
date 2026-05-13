@@ -43,4 +43,6 @@ public static class DocumentoFiscalErrors
     public static readonly Error PagamentoInvalido =
         new("DocumentoFiscal.PagamentoInvalido", "Os dados do pagamento são inválidos.");
 
+    public static readonly Error SemItens =
+        new("DocumentoFiscal.SemItens", "O documento fiscal deve conter pelo menos um item.");
 }

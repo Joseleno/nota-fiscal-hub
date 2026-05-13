@@ -69,5 +69,8 @@ public sealed record Cpf
         return (cpf[10] - '0') == dv2;
     }
 
+    // Para reconstituição a partir do banco de dados — bypassa validação.
+    public static Cpf FromStorage(string valor) => new(valor.Trim());
+
     public override string ToString() => Valor;
 }

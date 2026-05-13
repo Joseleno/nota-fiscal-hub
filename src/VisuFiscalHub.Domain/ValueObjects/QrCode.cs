@@ -48,5 +48,12 @@ public sealed record QrCode
         return Result.Success(new QrCode(urlCompleta));
     }
 
+    // Para reconstituição a partir do banco de dados — bypassa validação.
+    public static QrCode FromStorage(string urlCompleta)
+    {
+        ArgumentNullException.ThrowIfNull(urlCompleta);
+        return new(urlCompleta);
+    }
+
     public override string ToString() => UrlCompleta;
 }

@@ -21,7 +21,7 @@ public sealed class ClienteApp : Entity<ClienteAppId>
         string clientSecretHash,
         string? webhookUrl,
         byte[]? webhookSecretCriptografado,
-        DateTime createdAt) : base(id)
+        DateTimeOffset createdAt) : base(id)
     {
         Name = name;
         ClientId = clientId;
@@ -38,15 +38,15 @@ public sealed class ClienteApp : Entity<ClienteAppId>
     public string? WebhookUrl { get; private set; }
     public byte[]? WebhookSecretCriptografado { get; private set; }
     public bool IsActive { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
 
     public static Result<ClienteApp> Criar(
         string name,
         string clientId,
         string clientSecretHash,
-        TimeProvider timeProvider,
         string? webhookUrl = null,
-        byte[]? webhookSecretCriptografado = null)
+        byte[]? webhookSecretCriptografado = null,
+        TimeProvider? timeProvider = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure<ClienteApp>(ClienteAppErrors.NomeInvalido);
@@ -57,6 +57,7 @@ public sealed class ClienteApp : Entity<ClienteAppId>
         if (string.IsNullOrWhiteSpace(clientSecretHash))
             return Result.Failure<ClienteApp>(ClienteAppErrors.ClientSecretHashInvalido);
 
+        var clock = timeProvider ?? TimeProvider.System;
         return Result.Success(new ClienteApp(
             ClienteAppId.New(),
             name.Trim(),
@@ -64,7 +65,7 @@ public sealed class ClienteApp : Entity<ClienteAppId>
             clientSecretHash,
             webhookUrl,
             webhookSecretCriptografado,
-            timeProvider.GetUtcNow().UtcDateTime));
+            clock.GetUtcNow()));
     }
 
     public void Desativar() => IsActive = false;

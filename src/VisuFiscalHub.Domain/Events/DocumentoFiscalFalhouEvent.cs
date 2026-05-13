@@ -6,8 +6,8 @@ namespace VisuFiscalHub.Domain.Events;
 public sealed record DocumentoFiscalFalhouEvent(
     DocumentoFiscalId DocumentoFiscalId,
     TenantId TenantId,
-    DateTime FalhouAt) : IDomainEvent
+    DateTimeOffset FalhouAt) : IDomainEvent
 {
-    public Guid EventId { get; } = Guid.NewGuid();
+    public Guid EventId { get; } = Guid.CreateVersion7();
     public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
 }

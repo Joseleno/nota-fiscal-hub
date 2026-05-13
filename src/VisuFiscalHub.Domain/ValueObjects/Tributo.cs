@@ -50,6 +50,14 @@ public sealed record Tributo
         ValorCofins = valorCofins;
     }
 
+    // Conjunto de valores válidos de CSOSN para Simples Nacional (Anexo I do RICMS)
+    private static readonly IReadOnlySet<int> CsosnValidos =
+        new HashSet<int> { 101, 102, 103, 201, 202, 203, 300, 400, 500, 900 };
+
+    // Conjunto de valores válidos de CST ICMS para regime normal (Tabela B do Convênio 110/2007)
+    private static readonly IReadOnlySet<int> CstIcmsValidos =
+        new HashSet<int> { 0, 10, 20, 30, 40, 41, 50, 51, 60, 70, 90 };
+
     public static Result<Tributo> Criar(
         TipoIcms tipoIcms,
         int csosnOuCst,
@@ -65,6 +73,10 @@ public sealed record Tributo
         decimal aliquotaCofins,
         decimal valorCofins)
     {
+        var valoresValidos = tipoIcms == TipoIcms.CSOSN ? CsosnValidos : CstIcmsValidos;
+        if (!valoresValidos.Contains(csosnOuCst))
+            return Result.Failure<Tributo>(DocumentoFiscalErrors.ProdutoInvalido);
+
         if (aliquotaIcms < 0 || baseCalculoIcms < 0 || valorIcms < 0)
             return Result.Failure<Tributo>(DocumentoFiscalErrors.ProdutoInvalido);
 

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using VisuFiscalHub.Domain.Common;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Errors;
@@ -33,7 +32,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         string serie,
         List<ItemDocumento> items,
         List<Pagamento> pagamentos,
-        DateTime createdAt) : base(id)
+        DateTimeOffset createdAt) : base(id)
     {
         TenantId = tenantId;
         ClienteAppId = clienteAppId;
@@ -63,8 +62,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
     public string? Protocolo { get; private set; }
     public QrCode? QrCode { get; private set; }
     public string? MotivoRejeicao { get; private set; }
-    public DateTime CreatedAt { get; private set; }
-    public DateTime? AuthorizedAt { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset? AuthorizedAt { get; private set; }
 
     public IReadOnlyList<ItemDocumento> Items => _items.AsReadOnly();
     public IReadOnlyList<Pagamento> Pagamentos => _pagamentos.AsReadOnly();
@@ -82,8 +81,20 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         IEnumerable<Pagamento> pagamentos,
         TimeProvider timeProvider)
     {
+        if (tenantId == default)
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+
+        if (clienteAppId == default)
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+
+        var itemList = items.ToList();
+        if (itemList.Count == 0)
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.SemItens);
+
+        var pagamentoList = pagamentos.ToList();
 
         return Result.Success(new DocumentoFiscal(
             id,
@@ -94,9 +105,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             chaveAcesso,
             numero,
             serie,
-            [.. items],
-            [.. pagamentos],
-            timeProvider.GetUtcNow().UtcDateTime));
+            itemList,
+            pagamentoList,
+            timeProvider.GetUtcNow()));
     }
 
     public Result Enfileirar()
@@ -117,7 +128,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         return Result.Success();
     }
 
-    public Result Autorizar(string protocolo, string xmlAssinado, QrCode qrCode, DateTime authorizedAt)
+    public Result Autorizar(string protocolo, string xmlAssinado, QrCode qrCode, DateTimeOffset authorizedAt)
     {
         if (Status != StatusDocumento.Processando)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
@@ -165,7 +176,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         if (Status != StatusDocumento.Autorizado)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
 
-        var utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        var utcNow = timeProvider.GetUtcNow();
         var prazoLimite = AuthorizedAt!.Value.AddMinutes(30);
 
         if (utcNow >= prazoLimite)
@@ -185,7 +196,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 
         Status = StatusDocumento.Falhou;
 
-        AddDomainEvent(new DocumentoFiscalFalhouEvent(Id, TenantId, timeProvider.GetUtcNow().UtcDateTime));
+        AddDomainEvent(new DocumentoFiscalFalhouEvent(Id, TenantId, timeProvider.GetUtcNow()));
 
         return Result.Success();
     }

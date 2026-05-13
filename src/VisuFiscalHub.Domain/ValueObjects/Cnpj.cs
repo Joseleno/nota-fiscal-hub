@@ -72,5 +72,8 @@ public sealed record Cnpj
         return (cnpj[13] - '0') == dv2;
     }
 
+    // Para reconstituição a partir do banco de dados — bypassa validação.
+    public static Cnpj FromStorage(string valor) => new(valor.Trim());
+
     public override string ToString() => Valor;
 }

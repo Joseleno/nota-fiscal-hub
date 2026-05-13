@@ -9,6 +9,6 @@ public sealed record DocumentoFiscalDenegadoEvent(
     string Cnpj,
     string XMotivo) : IDomainEvent
 {
-    public Guid EventId { get; } = Guid.NewGuid();
+    public Guid EventId { get; } = Guid.CreateVersion7();
     public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
 }

@@ -43,7 +43,15 @@ public sealed record Produto(
         if (string.IsNullOrWhiteSpace(cfopSaida) || cfopSaida.Length != 4 || !cfopSaida.All(char.IsDigit))
             return Result.Failure<Produto>(DocumentoFiscalErrors.ProdutoInvalido);
 
-        if (string.IsNullOrWhiteSpace(unidadeComercial))
+        // CFOP de saída deve começar com 5 (estadual) ou 6 (interestadual)
+        if (cfopSaida[0] != '5' && cfopSaida[0] != '6')
+            return Result.Failure<Produto>(DocumentoFiscalErrors.ProdutoInvalido);
+
+        // CEST: 7 dígitos numéricos conforme tabela CONFAZ
+        if (cest is not null && (cest.Length != 7 || !cest.All(char.IsDigit)))
+            return Result.Failure<Produto>(DocumentoFiscalErrors.ProdutoInvalido);
+
+        if (string.IsNullOrWhiteSpace(unidadeComercial) || unidadeComercial.Length > 6)
             return Result.Failure<Produto>(DocumentoFiscalErrors.ProdutoInvalido);
 
         if (quantidade <= 0)

@@ -2,6 +2,6 @@ namespace VisuFiscalHub.Domain.Enums;
 
 public enum TipoIcms
 {
-    CSOSN,
-    CST
+    CSOSN = 1,
+    CST = 2
 }

@@ -14,5 +14,6 @@ public interface ITenantRepository
         int pageSize,
         CancellationToken ct = default);
     Task AddAsync(Tenant tenant, CancellationToken ct = default);
+    Task UpdateAsync(Tenant tenant, CancellationToken ct = default);
     Task<long> GetNextNumeracaoAsync(TenantId tenantId, string serie, CancellationToken ct = default);
 }

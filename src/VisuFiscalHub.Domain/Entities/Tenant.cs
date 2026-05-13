@@ -26,7 +26,7 @@ public sealed class Tenant : Entity<TenantId>
         string? nomeFantasia,
         ConfiguracaoFiscal configuracaoFiscal,
         Endereco endereco,
-        DateTime createdAt) : base(id)
+        DateTimeOffset createdAt) : base(id)
     {
         ClienteAppId = clienteAppId;
         Cnpj = cnpj;
@@ -48,9 +48,9 @@ public sealed class Tenant : Entity<TenantId>
     public string? CIdToken { get; private set; }
     public byte[]? CertificadoPfxCriptografado { get; private set; }
     public byte[]? CertificadoSenhaCriptografada { get; private set; }
-    public DateTime? CertificadoVencimento { get; private set; }
+    public DateTimeOffset? CertificadoVencimento { get; private set; }
     public bool IsActive { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
 
     public static Result<Tenant> Criar(
         ClienteAppId clienteAppId,
@@ -72,7 +72,7 @@ public sealed class Tenant : Entity<TenantId>
             nomeFantasia?.Trim(),
             configuracaoFiscal,
             endereco,
-            timeProvider.GetUtcNow().UtcDateTime);
+            timeProvider.GetUtcNow());
 
         tenant.AddDomainEvent(new TenantProvisionadoEvent(
             tenant.Id,
@@ -82,14 +82,24 @@ public sealed class Tenant : Entity<TenantId>
         return Result.Success(tenant);
     }
 
-    public void AtualizarCertificado(
+    public Result AtualizarCertificado(
         byte[] pfxCriptografado,
         byte[] senhaCriptografada,
-        DateTime vencimento)
+        DateTimeOffset vencimento)
     {
+        if (pfxCriptografado is null || pfxCriptografado.Length == 0)
+            return Result.Failure(TenantErrors.CertificadoInvalido);
+
+        if (senhaCriptografada is null || senhaCriptografada.Length == 0)
+            return Result.Failure(TenantErrors.CertificadoInvalido);
+
+        if (vencimento <= DateTimeOffset.UtcNow)
+            return Result.Failure(TenantErrors.CertificadoVencido);
+
         CertificadoPfxCriptografado = pfxCriptografado;
         CertificadoSenhaCriptografada = senhaCriptografada;
         CertificadoVencimento = vencimento;
+        return Result.Success();
     }
 
     public Result AtualizarCsc(byte[] cscCriptografado, string cIdToken)

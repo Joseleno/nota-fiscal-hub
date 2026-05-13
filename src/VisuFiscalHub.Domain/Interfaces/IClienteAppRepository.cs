@@ -8,4 +8,5 @@ public interface IClienteAppRepository
     Task<ClienteApp?> GetByClientIdAsync(string clientId, CancellationToken ct = default);
     Task<ClienteApp?> GetByIdAsync(ClienteAppId id, CancellationToken ct = default);
     Task AddAsync(ClienteApp clienteApp, CancellationToken ct = default);
+    Task UpdateAsync(ClienteApp clienteApp, CancellationToken ct = default);
 }
