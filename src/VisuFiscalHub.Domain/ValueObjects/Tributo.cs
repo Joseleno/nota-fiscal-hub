@@ -75,13 +75,14 @@ public sealed record Tributo
     {
         var valoresValidos = tipoIcms == TipoIcms.CSOSN ? CsosnValidos : CstIcmsValidos;
         if (!valoresValidos.Contains(csosnOuCst))
-            return Result.Failure<Tributo>(DocumentoFiscalErrors.ProdutoInvalido);
+            return Result.Failure<Tributo>(DocumentoFiscalErrors.TributoInvalido);
 
         if (aliquotaIcms < 0 || baseCalculoIcms < 0 || valorIcms < 0)
-            return Result.Failure<Tributo>(DocumentoFiscalErrors.ProdutoInvalido);
+            return Result.Failure<Tributo>(DocumentoFiscalErrors.TributoInvalido);
 
-        if (aliquotaPis < 0 || valorPis < 0 || aliquotaCofins < 0 || valorCofins < 0)
-            return Result.Failure<Tributo>(DocumentoFiscalErrors.ProdutoInvalido);
+        if (aliquotaPis < 0 || baseCalculoPis < 0 || valorPis < 0
+            || aliquotaCofins < 0 || baseCalculoCofins < 0 || valorCofins < 0)
+            return Result.Failure<Tributo>(DocumentoFiscalErrors.TributoInvalido);
 
         return Result.Success(new Tributo(
             tipoIcms, csosnOuCst,

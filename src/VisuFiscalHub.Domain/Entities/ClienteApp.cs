@@ -1,5 +1,6 @@
 using VisuFiscalHub.Domain.Common;
 using VisuFiscalHub.Domain.Errors;
+using VisuFiscalHub.Domain.Events;
 using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Domain.Entities;
@@ -44,9 +45,9 @@ public sealed class ClienteApp : Entity<ClienteAppId>
         string name,
         string clientId,
         string clientSecretHash,
+        TimeProvider timeProvider,
         string? webhookUrl = null,
-        byte[]? webhookSecretCriptografado = null,
-        TimeProvider? timeProvider = null)
+        byte[]? webhookSecretCriptografado = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure<ClienteApp>(ClienteAppErrors.NomeInvalido);
@@ -57,7 +58,6 @@ public sealed class ClienteApp : Entity<ClienteAppId>
         if (string.IsNullOrWhiteSpace(clientSecretHash))
             return Result.Failure<ClienteApp>(ClienteAppErrors.ClientSecretHashInvalido);
 
-        var clock = timeProvider ?? TimeProvider.System;
         return Result.Success(new ClienteApp(
             ClienteAppId.New(),
             name.Trim(),
@@ -65,7 +65,7 @@ public sealed class ClienteApp : Entity<ClienteAppId>
             clientSecretHash,
             webhookUrl,
             webhookSecretCriptografado,
-            clock.GetUtcNow()));
+            timeProvider.GetUtcNow()));
     }
 
     public void Desativar() => IsActive = false;
@@ -79,6 +79,18 @@ public sealed class ClienteApp : Entity<ClienteAppId>
         return Result.Success();
     }
 
-    public void AtualizarWebhookSecret(byte[] webhookSecretCriptografado) =>
+    public Result AtualizarWebhookSecret(byte[] webhookSecretCriptografado, TimeProvider timeProvider)
+    {
+        if (webhookSecretCriptografado is null || webhookSecretCriptografado.Length == 0)
+            return Result.Failure(ClienteAppErrors.ClientSecretHashInvalido);
+
         WebhookSecretCriptografado = webhookSecretCriptografado;
+
+        AddDomainEvent(new ClienteAppWebhookSecretRotadoEvent(
+            Id,
+            Guid.CreateVersion7(),
+            timeProvider.GetUtcNow()));
+
+        return Result.Success();
+    }
 }

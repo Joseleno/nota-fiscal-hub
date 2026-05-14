@@ -11,11 +11,11 @@ public sealed class DeliveryAttempt : Entity<DeliveryAttemptId>
         // Para EF Core — inicialização via reflexão
     }
 
-    public DeliveryAttempt(
+    private DeliveryAttempt(
         DeliveryAttemptId id,
         DocumentoFiscalId documentoFiscalId,
         TipoTentativa tipoTentativa,
-        DateTime attemptedAt,
+        DateTimeOffset attemptedAt,
         bool success,
         string? responseCode,
         string? responseMessage,
@@ -32,9 +32,27 @@ public sealed class DeliveryAttempt : Entity<DeliveryAttemptId>
 
     public DocumentoFiscalId DocumentoFiscalId { get; private set; }
     public TipoTentativa TipoTentativa { get; private set; }
-    public DateTime AttemptedAt { get; private set; }
+    public DateTimeOffset AttemptedAt { get; private set; }
     public bool Success { get; private set; }
     public string? ResponseCode { get; private set; }
     public string? ResponseMessage { get; private set; }
     public long ElapsedMs { get; private set; }
+
+    public static DeliveryAttempt Criar(
+        DocumentoFiscalId documentoFiscalId,
+        TipoTentativa tipoTentativa,
+        DateTimeOffset attemptedAt,
+        bool success,
+        string? responseCode,
+        string? responseMessage,
+        long elapsedMs)
+        => new(
+            DeliveryAttemptId.New(),
+            documentoFiscalId,
+            tipoTentativa,
+            attemptedAt,
+            success,
+            responseCode,
+            responseMessage,
+            elapsedMs);
 }

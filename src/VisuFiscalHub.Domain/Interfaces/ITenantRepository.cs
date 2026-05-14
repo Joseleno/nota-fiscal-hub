@@ -13,7 +13,7 @@ public interface ITenantRepository
         int page,
         int pageSize,
         CancellationToken ct = default);
+    Task<int> CountByClienteAppIdAsync(ClienteAppId clienteAppId, CancellationToken ct = default);
     Task AddAsync(Tenant tenant, CancellationToken ct = default);
     Task UpdateAsync(Tenant tenant, CancellationToken ct = default);
-    Task<long> GetNextNumeracaoAsync(TenantId tenantId, string serie, CancellationToken ct = default);
 }

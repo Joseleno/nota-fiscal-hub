@@ -1,8 +1,8 @@
-using VisuFiscalHub.Domain.Entities;
+using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Application.Common.Interfaces;
 
 public interface ITokenService
 {
-    string GenerateToken(ClienteApp clienteApp);
+    string GenerateToken(ClienteAppId clienteAppId, string clientId);
 }

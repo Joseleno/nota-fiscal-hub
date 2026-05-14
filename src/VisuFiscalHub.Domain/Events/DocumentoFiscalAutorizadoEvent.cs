@@ -9,8 +9,6 @@ public sealed record DocumentoFiscalAutorizadoEvent(
     ClienteAppId ClienteAppId,
     string ChaveAcesso,
     string Protocolo,
-    DateTimeOffset AuthorizedAt) : IDomainEvent
-{
-    public Guid EventId { get; } = Guid.CreateVersion7();
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    DateTimeOffset AuthorizedAt,
+    Guid EventId,
+    DateTimeOffset OccurredAt) : IDomainEvent;

@@ -1,4 +1,5 @@
-using VisuFiscalHub.Domain.Entities;
+using VisuFiscalHub.Domain.Common;
+using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Application.Common.Interfaces;
 
@@ -18,13 +19,13 @@ public sealed record SefazConsultaRetorno(
 
 public interface ISefazClient
 {
-    Task<SefazRetorno> SubmeterAutorizacaoAsync(
-        DocumentoFiscal documento,
-        Tenant tenant,
+    Task<Result<SefazRetorno>> SubmeterAutorizacaoAsync(
+        DocumentoFiscalId documentoId,
+        TenantId tenantId,
         CancellationToken ct);
 
-    Task<SefazConsultaRetorno> ConsultarNfeAsync(
+    Task<Result<SefazConsultaRetorno>> ConsultarNfeAsync(
         string chaveAcesso,
-        Tenant tenant,
+        TenantId tenantId,
         CancellationToken ct);
 }

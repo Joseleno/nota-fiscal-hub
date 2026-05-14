@@ -5,7 +5,7 @@ namespace VisuFiscalHub.Domain.Identifiers;
 
 public readonly record struct ClienteAppId(Guid Value)
 {
-    public static ClienteAppId New() => new(Guid.NewGuid());
+    public static ClienteAppId New() => new(Guid.CreateVersion7());
     public static ClienteAppId From(Guid value) => new(value);
 
     public static implicit operator Guid(ClienteAppId id) => id.Value;

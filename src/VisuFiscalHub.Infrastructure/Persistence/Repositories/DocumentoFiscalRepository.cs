@@ -9,12 +9,10 @@ namespace VisuFiscalHub.Infrastructure.Persistence.Repositories;
 public sealed class DocumentoFiscalRepository : IDocumentoFiscalRepository
 {
     private readonly ApplicationDbContext _context;
-    private readonly TimeProvider _timeProvider;
 
-    public DocumentoFiscalRepository(ApplicationDbContext context, TimeProvider timeProvider)
+    public DocumentoFiscalRepository(ApplicationDbContext context)
     {
         _context = context;
-        _timeProvider = timeProvider;
     }
 
     public Task<DocumentoFiscal?> GetByIdAsync(DocumentoFiscalId id, CancellationToken ct = default)
@@ -44,12 +42,10 @@ public sealed class DocumentoFiscalRepository : IDocumentoFiscalRepository
     }
 
     public async Task<IReadOnlyList<DocumentoFiscal>> GetProcessandoAntigoAsync(
-        TimeSpan timeout,
+        DateTimeOffset anteriorA,
         CancellationToken ct = default)
-    {
-        var limite = _timeProvider.GetUtcNow().Subtract(timeout);
-        return await _context.DocumentosFiscais
-            .Where(d => d.Status == StatusDocumento.Processando && d.CreatedAt < limite)
+        => await _context.DocumentosFiscais
+            .AsNoTracking()
+            .Where(d => d.Status == StatusDocumento.Processando && d.CreatedAt < anteriorA)
             .ToListAsync(ct);
-    }
 }

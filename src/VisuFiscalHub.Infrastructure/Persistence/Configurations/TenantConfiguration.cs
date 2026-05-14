@@ -28,6 +28,9 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasConstraintName("fk_tenants_cliente_app_id")
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasIndex(t => t.ClienteAppId)
+            .HasDatabaseName("ix_tenants_cliente_app_id");
+
         builder.Property(t => t.Cnpj)
             .HasColumnName("cnpj")
             .HasMaxLength(14)

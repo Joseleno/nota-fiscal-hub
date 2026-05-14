@@ -45,6 +45,9 @@ public sealed record Endereco(
         if (string.IsNullOrWhiteSpace(uf) || uf.Length != 2 || !uf.All(char.IsLetter))
             return Result.Failure<Endereco>(TenantErrors.EnderecoInvalido);
 
+        if (string.IsNullOrWhiteSpace(codigoPais))
+            return Result.Failure<Endereco>(TenantErrors.EnderecoInvalido);
+
         var cepNormalizado = cep?.Replace("-", string.Empty).Trim() ?? string.Empty;
         if (cepNormalizado.Length != 8 || !cepNormalizado.All(char.IsDigit))
             return Result.Failure<Endereco>(TenantErrors.EnderecoInvalido);

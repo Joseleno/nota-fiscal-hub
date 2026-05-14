@@ -1,9 +1,10 @@
+using System.Security.Cryptography.X509Certificates;
+using VisuFiscalHub.Domain.Common;
 using VisuFiscalHub.Domain.Identifiers;
-using VisuFiscalHub.Domain.ValueObjects;
 
 namespace VisuFiscalHub.Application.Common.Interfaces;
 
 public interface ITenantCertificateProvider
 {
-    Task<CertificadoDigital> GetCertificateAsync(TenantId tenantId, CancellationToken ct = default);
+    Task<Result<X509Certificate2>> GetCertificateAsync(TenantId tenantId, CancellationToken ct = default);
 }

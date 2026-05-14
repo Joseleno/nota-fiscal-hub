@@ -45,4 +45,13 @@ public static class DocumentoFiscalErrors
 
     public static readonly Error SemItens =
         new("DocumentoFiscal.SemItens", "O documento fiscal deve conter pelo menos um item.");
+
+    public static readonly Error TenantInvalido =
+        new("DocumentoFiscal.TenantInvalido", "O identificador de tenant é inválido.");
+
+    public static readonly Error ClienteAppInvalido =
+        new("DocumentoFiscal.ClienteAppInvalido", "O identificador de cliente app é inválido.");
+
+    public static readonly Error TributoInvalido =
+        new("DocumentoFiscal.TributoInvalido", "Os dados do tributo são inválidos.");
 }

@@ -5,7 +5,7 @@ namespace VisuFiscalHub.Domain.Identifiers;
 
 public readonly record struct DeliveryAttemptId(Guid Value)
 {
-    public static DeliveryAttemptId New() => new(Guid.NewGuid());
+    public static DeliveryAttemptId New() => new(Guid.CreateVersion7());
     public static DeliveryAttemptId From(Guid value) => new(value);
 
     public static implicit operator Guid(DeliveryAttemptId id) => id.Value;

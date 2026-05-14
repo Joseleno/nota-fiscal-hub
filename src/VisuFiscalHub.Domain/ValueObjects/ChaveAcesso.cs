@@ -104,5 +104,11 @@ public sealed record ChaveAcesso
         return Result.Success(new ChaveAcesso(chave44Digitos));
     }
 
+    /// <summary>
+    /// Bypass para reconstitução a partir do banco de dados quando <see cref="From"/> falha.
+    /// Usa apenas dentro de value converters EF Core para evitar derrubar toda a query em dado corrompido.
+    /// </summary>
+    public static ChaveAcesso FromStorage(string valor) => new(valor);
+
     public override string ToString() => Valor;
 }

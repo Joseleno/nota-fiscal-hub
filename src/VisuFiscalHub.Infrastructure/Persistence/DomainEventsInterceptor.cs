@@ -5,6 +5,9 @@ using VisuFiscalHub.Domain.Common;
 
 namespace VisuFiscalHub.Infrastructure.Persistence;
 
+// Registrado como Singleton junto com DbContext. NÃO injetar dependências Scoped aqui —
+// Scoped services têm lifetime menor que o interceptor e causarão ObjectDisposedException.
+// Para lógica que precisa de Scoped (ex: IPublisher), use o OutboxProcessor separado.
 public sealed class DomainEventsInterceptor : SaveChangesInterceptor
 {
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(

@@ -18,7 +18,9 @@ public sealed class ClienteAppRepository : IClienteAppRepository
         => _context.ClienteApps.FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public Task<ClienteApp?> GetByClientIdAsync(string clientId, CancellationToken ct = default)
-        => _context.ClienteApps.FirstOrDefaultAsync(c => c.ClientId == clientId, ct);
+        => _context.ClienteApps
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.ClientId == clientId, ct);
 
     public Task AddAsync(ClienteApp clienteApp, CancellationToken ct = default)
     {

@@ -77,7 +77,9 @@ public sealed class Tenant : Entity<TenantId>
         tenant.AddDomainEvent(new TenantProvisionadoEvent(
             tenant.Id,
             clienteAppId,
-            cnpj.Valor));
+            cnpj.Valor,
+            Guid.CreateVersion7(),
+            timeProvider.GetUtcNow()));
 
         return Result.Success(tenant);
     }
@@ -85,7 +87,8 @@ public sealed class Tenant : Entity<TenantId>
     public Result AtualizarCertificado(
         byte[] pfxCriptografado,
         byte[] senhaCriptografada,
-        DateTimeOffset vencimento)
+        DateTimeOffset vencimento,
+        TimeProvider timeProvider)
     {
         if (pfxCriptografado is null || pfxCriptografado.Length == 0)
             return Result.Failure(TenantErrors.CertificadoInvalido);
@@ -93,7 +96,7 @@ public sealed class Tenant : Entity<TenantId>
         if (senhaCriptografada is null || senhaCriptografada.Length == 0)
             return Result.Failure(TenantErrors.CertificadoInvalido);
 
-        if (vencimento <= DateTimeOffset.UtcNow)
+        if (vencimento <= timeProvider.GetUtcNow())
             return Result.Failure(TenantErrors.CertificadoVencido);
 
         CertificadoPfxCriptografado = pfxCriptografado;

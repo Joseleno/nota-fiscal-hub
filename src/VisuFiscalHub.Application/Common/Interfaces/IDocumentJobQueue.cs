@@ -4,5 +4,5 @@ namespace VisuFiscalHub.Application.Common.Interfaces;
 
 public interface IDocumentJobQueue
 {
-    void EnqueueProcessing(DocumentoFiscalId id);
+    Task EnqueueProcessingAsync(DocumentoFiscalId id, CancellationToken ct = default);
 }

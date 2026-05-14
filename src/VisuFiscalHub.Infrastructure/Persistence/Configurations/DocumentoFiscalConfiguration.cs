@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.Extensions.Logging;
 using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.ValueObjects;
@@ -9,13 +10,25 @@ namespace VisuFiscalHub.Infrastructure.Persistence.Configurations;
 
 public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<DocumentoFiscal>
 {
-    // Método estático necessário porque ValueConverter requer expression tree — lambdas com statement body não são suportados
-    private static ChaveAcesso ChaveAcessoFromStorage(string valor)
+    private readonly ILogger<DocumentoFiscalConfiguration> _logger;
+
+    public DocumentoFiscalConfiguration(ILogger<DocumentoFiscalConfiguration> logger)
+    {
+        _logger = logger;
+    }
+
+    // ValueConverter não suporta lambdas com statement body, por isso o método auxiliar.
+    // Dado corrompido: loga e usa bypass em vez de derrubar a query inteira.
+    private ChaveAcesso ChaveAcessoFromStorage(string valor)
     {
         var result = ChaveAcesso.From(valor);
         if (result.IsFailure)
-            throw new InvalidOperationException(
-                $"Chave de acesso inválida no banco de dados: '{valor}'. Erro: {result.Error.Code}");
+        {
+            _logger.LogError(
+                "Chave de acesso corrompida no banco de dados: '{Valor}'. Erro: {Codigo}. Documento será carregado com chave inválida.",
+                valor, result.Error.Code);
+            return ChaveAcesso.FromStorage(valor);
+        }
         return result.Value;
     }
 
@@ -120,18 +133,18 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
         {
             items.ToTable("itens_documento");
 
-            items.WithOwner().HasForeignKey("documento_fiscal_id");
-            items.Property<Guid>("documento_fiscal_id").HasColumnName("documento_fiscal_id");
+            // EF Core infere automaticamente o FK shadow property; apenas remapeamos o nome da coluna.
+            items.WithOwner().HasForeignKey("DocumentoFiscalId");
+            items.Property<DocumentoFiscalId>("DocumentoFiscalId")
+                .HasColumnName("documento_fiscal_id")
+                .HasConversion(id => id.Value, value => new DocumentoFiscalId(value));
 
             items.Property(i => i.Numero)
                 .HasColumnName("numero")
                 .IsRequired();
 
-            // ValorTotal é propriedade computada (Produto.ValorLiquido) — persiste desnormalizado para queries
-            items.Property(i => i.ValorTotal)
-                .HasColumnName("valor_total")
-                .HasPrecision(18, 2)
-                .IsRequired();
+            // ValorTotal é derivado de Produto.ValorLiquido — ignorar; EF Core não pode persistir expressão sem setter.
+            items.Ignore(i => i.ValorTotal);
 
             items.OwnsOne(i => i.Produto, prod =>
             {
@@ -174,8 +187,10 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
         {
             pags.ToTable("pagamentos_documento");
 
-            pags.WithOwner().HasForeignKey("documento_fiscal_id");
-            pags.Property<Guid>("documento_fiscal_id").HasColumnName("documento_fiscal_id");
+            pags.WithOwner().HasForeignKey("DocumentoFiscalId");
+            pags.Property<DocumentoFiscalId>("DocumentoFiscalId")
+                .HasColumnName("documento_fiscal_id")
+                .HasConversion(id => id.Value, value => new DocumentoFiscalId(value));
 
             pags.Property(p => p.TipoPagamento)
                 .HasColumnName("tipo_pagamento")

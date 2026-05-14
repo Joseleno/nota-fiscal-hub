@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Infrastructure.Persistence.Configurations;
 
@@ -6,9 +7,14 @@ namespace VisuFiscalHub.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContext : DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    private readonly ILoggerFactory _loggerFactory;
+
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options,
+        ILoggerFactory loggerFactory)
         : base(options)
     {
+        _loggerFactory = loggerFactory;
     }
 
     public DbSet<ClienteApp> ClienteApps => Set<ClienteApp>();
@@ -21,7 +27,8 @@ public sealed class ApplicationDbContext : DbContext
     {
         modelBuilder.ApplyConfiguration(new ClienteAppConfiguration());
         modelBuilder.ApplyConfiguration(new TenantConfiguration());
-        modelBuilder.ApplyConfiguration(new DocumentoFiscalConfiguration());
+        modelBuilder.ApplyConfiguration(new DocumentoFiscalConfiguration(
+            _loggerFactory.CreateLogger<DocumentoFiscalConfiguration>()));
         modelBuilder.ApplyConfiguration(new DeliveryAttemptConfiguration());
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
     }

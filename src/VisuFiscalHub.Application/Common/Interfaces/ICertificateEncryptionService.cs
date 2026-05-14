@@ -1,10 +1,12 @@
+using VisuFiscalHub.Domain.Common;
+
 namespace VisuFiscalHub.Application.Common.Interfaces;
 
 public interface ICertificateEncryptionService
 {
-    byte[] Encrypt(byte[] data);
-    byte[] Decrypt(byte[] encrypted);
+    Result<byte[]> Encrypt(byte[] data);
+    Result<byte[]> Decrypt(byte[] encrypted);
 
-    byte[] EncryptString(string text);
-    string DecryptToString(byte[] encrypted);
+    Result<byte[]> EncryptString(string text);
+    Result<string> DecryptToString(byte[] encrypted);
 }

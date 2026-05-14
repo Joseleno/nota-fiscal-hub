@@ -6,5 +6,5 @@ public sealed class OutboxMessage
     public string EventType { get; init; } = string.Empty;
     public string Payload { get; init; } = string.Empty;
     public DateTimeOffset OccurredAt { get; init; }
-    public DateTime? ProcessedAt { get; set; }
+    public DateTimeOffset? ProcessedAt { get; set; }
 }

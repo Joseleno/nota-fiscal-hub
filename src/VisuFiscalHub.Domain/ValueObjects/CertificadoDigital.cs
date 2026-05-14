@@ -1,3 +1,3 @@
 namespace VisuFiscalHub.Domain.ValueObjects;
 
-public sealed record CertificadoDigital(DateTime VencimentoEm, byte[] PfxBytes);
+public sealed record CertificadoDigital(DateTimeOffset VencimentoEm, byte[] PfxBytes);

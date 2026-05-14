@@ -12,7 +12,12 @@ public interface IDocumentoFiscalRepository
         CancellationToken ct = default);
     Task AddAsync(DocumentoFiscal documento, CancellationToken ct = default);
     Task UpdateAsync(DocumentoFiscal documento, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retorna documentos com status Processando cuja <c>CreatedAt</c> seja anterior a <paramref name="anteriorA"/>.
+    /// O caller calcula o threshold usando <c>TimeProvider</c> antes de chamar o repositório.
+    /// </summary>
     Task<IReadOnlyList<DocumentoFiscal>> GetProcessandoAntigoAsync(
-        TimeSpan timeout,
+        DateTimeOffset anteriorA,
         CancellationToken ct = default);
 }

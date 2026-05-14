@@ -10,6 +10,5 @@ public interface IQrCodeGenerator
         ChaveAcesso chaveAcesso,
         AmbienteSefaz ambiente,
         string csc,
-        string cIdToken,
         string urlConsultaSefaz);
 }

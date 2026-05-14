@@ -5,7 +5,7 @@ namespace VisuFiscalHub.Domain.Identifiers;
 
 public readonly record struct DocumentoFiscalId(Guid Value)
 {
-    public static DocumentoFiscalId New() => new(Guid.NewGuid());
+    public static DocumentoFiscalId New() => new(Guid.CreateVersion7());
     public static DocumentoFiscalId From(Guid value) => new(value);
 
     public static implicit operator Guid(DocumentoFiscalId id) => id.Value;

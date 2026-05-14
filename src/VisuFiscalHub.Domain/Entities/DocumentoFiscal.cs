@@ -82,10 +82,10 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         TimeProvider timeProvider)
     {
         if (tenantId == default)
-            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TenantInvalido);
 
         if (clienteAppId == default)
-            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.ClienteAppInvalido);
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
@@ -128,7 +128,12 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         return Result.Success();
     }
 
-    public Result Autorizar(string protocolo, string xmlAssinado, QrCode qrCode, DateTimeOffset authorizedAt)
+    public Result Autorizar(
+        string protocolo,
+        string xmlAssinado,
+        QrCode qrCode,
+        DateTimeOffset authorizedAt,
+        TimeProvider timeProvider)
     {
         if (Status != StatusDocumento.Processando)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
@@ -151,12 +156,14 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             ClienteAppId,
             ChaveAcesso.Valor,
             protocolo,
-            authorizedAt));
+            authorizedAt,
+            Guid.CreateVersion7(),
+            timeProvider.GetUtcNow()));
 
         return Result.Success();
     }
 
-    public Result Rejeitar(string motivo)
+    public Result Rejeitar(string motivo, TimeProvider timeProvider)
     {
         if (Status != StatusDocumento.Processando)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
@@ -164,7 +171,12 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         Status = StatusDocumento.Rejeitado;
         MotivoRejeicao = motivo;
 
-        AddDomainEvent(new DocumentoFiscalRejeitadoEvent(Id, TenantId, motivo));
+        AddDomainEvent(new DocumentoFiscalRejeitadoEvent(
+            Id,
+            TenantId,
+            motivo,
+            Guid.CreateVersion7(),
+            timeProvider.GetUtcNow()));
 
         return Result.Success();
     }
@@ -184,7 +196,12 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 
         Status = StatusDocumento.Cancelado;
 
-        AddDomainEvent(new DocumentoFiscalCanceladoEvent(Id, TenantId, utcNow));
+        AddDomainEvent(new DocumentoFiscalCanceladoEvent(
+            Id,
+            TenantId,
+            utcNow,
+            Guid.CreateVersion7(),
+            utcNow));
 
         return Result.Success();
     }
@@ -196,14 +213,20 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 
         Status = StatusDocumento.Falhou;
 
-        AddDomainEvent(new DocumentoFiscalFalhouEvent(Id, TenantId, timeProvider.GetUtcNow()));
+        var utcNow = timeProvider.GetUtcNow();
+        AddDomainEvent(new DocumentoFiscalFalhouEvent(
+            Id,
+            TenantId,
+            utcNow,
+            Guid.CreateVersion7(),
+            utcNow));
 
         return Result.Success();
     }
 
     // cnpjEmitente: necessário para log Critical no DocumentoFiscalDenegadoEventHandler (decisions.md DA-11).
     // Passado pelo handler que já possui o CNPJ do Tenant sem query adicional.
-    public Result Denegar(string motivo, string cnpjEmitente)
+    public Result Denegar(string motivo, string cnpjEmitente, TimeProvider timeProvider)
     {
         if (Status != StatusDocumento.Processando)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
@@ -211,7 +234,13 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         Status = StatusDocumento.Denegado;
         MotivoRejeicao = motivo;
 
-        AddDomainEvent(new DocumentoFiscalDenegadoEvent(Id, TenantId, cnpjEmitente, motivo));
+        AddDomainEvent(new DocumentoFiscalDenegadoEvent(
+            Id,
+            TenantId,
+            cnpjEmitente,
+            motivo,
+            Guid.CreateVersion7(),
+            timeProvider.GetUtcNow()));
 
         return Result.Success();
     }
