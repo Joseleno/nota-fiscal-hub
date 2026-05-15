@@ -57,6 +57,10 @@ public sealed class SequenceManager : ISequenceManager
         }
     }
 
+    // SEGURANÇA: serie é validado por SerieRegex antes de BuildSequenceName ser chamado.
+    // O nome da sequência usa apenas hex lowercase (Guid "N") e dígitos (série 1–3 chars) —
+    // não é possível parametrizar nomes de objetos SQL, portanto a validação é a única barreira.
+    // NÃO remover a validação do regex sem substituir por whitelist equivalente.
     private static string BuildSequenceName(TenantId tenantId, string serie)
         => $"seq_nfe_{tenantId.Value.ToString("N")}_{serie}";
 }

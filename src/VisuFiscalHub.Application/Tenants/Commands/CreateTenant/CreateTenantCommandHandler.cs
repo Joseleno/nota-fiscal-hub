@@ -54,10 +54,6 @@ public sealed class CreateTenantCommandHandler
 
         var cnpj = cnpjResult.Value;
 
-        var existente = await _tenantRepository.GetByCnpjAsync(cnpj, command.ClienteAppId, cancellationToken);
-        if (existente is not null)
-            return Result.Failure<TenantResponse>(TenantErrors.CnpjJaCadastrado);
-
         var configResult = ConfiguracaoFiscal.Criar(
             command.RegimeTributario,
             command.Serie,
@@ -96,12 +92,16 @@ public sealed class CreateTenantCommandHandler
             return Result.Failure<TenantResponse>(tenantResult.Error);
 
         var tenant = tenantResult.Value;
-        await _tenantRepository.AddAsync(tenant, cancellationToken);
 
-        // SaveChanges + criação da sequence dentro de uma única transação para garantir atomicidade.
-        // Se a sequence DDL falhar, o Tenant row não é commitado.
+        // Check de CNPJ e insert dentro da mesma transação eliminam race condition.
+        // Violação de unique constraint é tratada no UnitOfWork e retornada como CnpjJaCadastrado.
         var transactionResult = await _unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
+            var existente = await _tenantRepository.GetByCnpjAsync(cnpj, command.ClienteAppId, ct);
+            if (existente is not null)
+                return Result.Failure(TenantErrors.CnpjJaCadastrado);
+
+            await _tenantRepository.AddAsync(tenant, ct);
             await _unitOfWork.SaveChangesAsync(ct);
             return await _sequenceManager.EnsureNumeracaoSequenceAsync(tenant.Id, command.Serie, ct);
         }, cancellationToken);

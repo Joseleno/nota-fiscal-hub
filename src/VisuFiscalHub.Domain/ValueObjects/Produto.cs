@@ -31,10 +31,10 @@ public sealed record Produto(
         decimal valorDesconto,
         OrigemMercadoria origemMercadoria)
     {
-        if (string.IsNullOrWhiteSpace(codigoProduto))
+        if (string.IsNullOrWhiteSpace(codigoProduto) || codigoProduto.Length > 60)
             return Result.Failure<Produto>(DocumentoFiscalErrors.ProdutoInvalido);
 
-        if (string.IsNullOrWhiteSpace(descricao))
+        if (string.IsNullOrWhiteSpace(descricao) || descricao.Length > 120)
             return Result.Failure<Produto>(DocumentoFiscalErrors.ProdutoInvalido);
 
         if (string.IsNullOrWhiteSpace(ncm) || ncm.Length != 8 || !ncm.All(char.IsDigit))

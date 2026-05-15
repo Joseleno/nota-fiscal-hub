@@ -23,11 +23,7 @@ public sealed class ListTenantsQueryHandler
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Min(Math.Max(1, query.PageSize), 100);
 
-        var totalCount = await _tenantRepository.CountByClienteAppIdAsync(
-            query.ClienteAppId,
-            cancellationToken);
-
-        var tenants = await _tenantRepository.GetByClienteAppIdAsync(
+        var (tenants, totalCount) = await _tenantRepository.GetPagedByClienteAppIdAsync(
             query.ClienteAppId,
             page,
             pageSize,

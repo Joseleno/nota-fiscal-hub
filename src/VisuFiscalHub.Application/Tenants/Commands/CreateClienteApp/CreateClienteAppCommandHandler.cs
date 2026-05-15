@@ -59,15 +59,7 @@ public sealed class CreateClienteAppCommandHandler
         var clienteApp = createResult.Value;
 
         await _clienteAppRepository.AddAsync(clienteApp, cancellationToken);
-
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Result.Failure<ClienteAppCreatedResponse>(ClienteAppErrors.ClientIdJaExiste);
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success(new ClienteAppCreatedResponse(
             clienteApp.Id.Value,

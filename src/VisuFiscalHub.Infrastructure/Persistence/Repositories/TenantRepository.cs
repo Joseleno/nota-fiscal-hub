@@ -18,28 +18,35 @@ public sealed class TenantRepository : ITenantRepository
     public Task<Tenant?> GetByIdAsync(TenantId id, CancellationToken ct = default)
         => _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
 
+    // Retorna entidade rastreada — usar apenas quando a entidade será modificada e persistida.
+    public Task<Tenant?> GetByIdForUpdateAsync(TenantId id, CancellationToken ct = default)
+        => _context.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
+
     public Task<Tenant?> GetByCnpjAsync(Cnpj cnpj, ClienteAppId clienteAppId, CancellationToken ct = default)
         => _context.Tenants
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Cnpj == cnpj && t.ClienteAppId == clienteAppId, ct);
 
-    public async Task<IReadOnlyList<Tenant>> GetByClienteAppIdAsync(
+    public async Task<(IReadOnlyList<Tenant> Items, int TotalCount)> GetPagedByClienteAppIdAsync(
         ClienteAppId clienteAppId,
         int page,
         int pageSize,
         CancellationToken ct = default)
-        => await _context.Tenants
+    {
+        var query = _context.Tenants
             .AsNoTracking()
-            .Where(t => t.ClienteAppId == clienteAppId)
+            .Where(t => t.ClienteAppId == clienteAppId);
+
+        // Count e dados na mesma transação implícita do contexto EF — TotalCount é consistente com Items.
+        var totalCount = await query.CountAsync(ct);
+        var items = await query
             .OrderBy(t => t.RazaoSocial)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
 
-    public Task<int> CountByClienteAppIdAsync(ClienteAppId clienteAppId, CancellationToken ct = default)
-        => _context.Tenants
-            .AsNoTracking()
-            .CountAsync(t => t.ClienteAppId == clienteAppId, ct);
+        return (items, totalCount);
+    }
 
     public Task AddAsync(Tenant tenant, CancellationToken ct = default)
     {

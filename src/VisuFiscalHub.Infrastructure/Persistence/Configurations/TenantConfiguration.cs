@@ -61,7 +61,7 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             end.Property(e => e.CodigoMunicipio).HasColumnName("end_codigo_municipio").IsRequired();
             end.Property(e => e.Uf).HasColumnName("end_uf").HasMaxLength(2).IsRequired();
             end.Property(e => e.Cep).HasColumnName("end_cep").HasMaxLength(8).IsRequired();
-            end.Property(e => e.CodigoPais).HasColumnName("end_codigo_pais").HasMaxLength(4);
+            end.Property(e => e.CodigoPais).HasColumnName("end_codigo_pais").HasMaxLength(4).IsRequired();
             end.Property(e => e.Telefone).HasColumnName("end_telefone").HasMaxLength(20);
         });
 

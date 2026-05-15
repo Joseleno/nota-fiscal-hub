@@ -82,7 +82,7 @@ public sealed class ClienteApp : Entity<ClienteAppId>
     public Result AtualizarWebhookSecret(byte[] webhookSecretCriptografado, TimeProvider timeProvider)
     {
         if (webhookSecretCriptografado is null || webhookSecretCriptografado.Length == 0)
-            return Result.Failure(ClienteAppErrors.ClientSecretHashInvalido);
+            return Result.Failure(ClienteAppErrors.WebhookSecretInvalido);
 
         WebhookSecretCriptografado = webhookSecretCriptografado;
 

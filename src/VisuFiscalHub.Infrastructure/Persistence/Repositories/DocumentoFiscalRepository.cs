@@ -16,6 +16,10 @@ public sealed class DocumentoFiscalRepository : IDocumentoFiscalRepository
     }
 
     public Task<DocumentoFiscal?> GetByIdAsync(DocumentoFiscalId id, CancellationToken ct = default)
+        => _context.DocumentosFiscais.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
+
+    // Retorna entidade rastreada — usar apenas quando o documento será mutado e persistido.
+    public Task<DocumentoFiscal?> GetByIdForUpdateAsync(DocumentoFiscalId id, CancellationToken ct = default)
         => _context.DocumentosFiscais.FirstOrDefaultAsync(d => d.Id == id, ct);
 
     public Task<DocumentoFiscal?> GetByIdempotencyKeyAsync(

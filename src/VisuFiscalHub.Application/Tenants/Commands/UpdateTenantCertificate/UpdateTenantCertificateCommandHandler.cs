@@ -30,7 +30,7 @@ public sealed class UpdateTenantCertificateCommandHandler
         UpdateTenantCertificateCommand command,
         CancellationToken cancellationToken)
     {
-        var tenant = await _tenantRepository.GetByIdAsync(command.TenantId, cancellationToken);
+        var tenant = await _tenantRepository.GetByIdForUpdateAsync(command.TenantId, cancellationToken);
         if (tenant is null)
             return Result.Failure(TenantErrors.NaoEncontrado);
 
@@ -55,15 +55,7 @@ public sealed class UpdateTenantCertificateCommandHandler
             return updateResult;
 
         await _tenantRepository.UpdateAsync(tenant, cancellationToken);
-
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Result.Failure(TenantErrors.CertificadoInvalido);
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }

@@ -95,6 +95,9 @@ try
         IMediator mediator,
         CancellationToken ct) =>
     {
+        if (userCtx.ClienteAppId != new ClienteAppId(id))
+            return Results.Forbid();
+
         var command = new RotateClienteAppSecretCommand { ClienteAppId = new ClienteAppId(id) };
         return (await mediator.Send(command, ct)).ToHttpResult(r => Results.Ok(r));
     });
@@ -124,36 +127,36 @@ try
         return (await mediator.Send(query, ct)).ToHttpResult();
     });
 
-    tenants.MapGet("/{id:guid}", async (
-        Guid id,
+    tenants.MapGet("/{tenantId:guid}", async (
+        Guid tenantId,
         ICurrentUserContext userCtx,
         IMediator mediator,
         CancellationToken ct) =>
     {
         var query = new GetTenantQuery
         {
-            TenantId = new TenantId(id),
+            TenantId = new TenantId(tenantId),
             ClienteAppId = userCtx.ClienteAppId
         };
         return (await mediator.Send(query, ct)).ToHttpResult();
     });
 
-    tenants.MapGet("/{id:guid}/certificado/status", async (
-        Guid id,
+    tenants.MapGet("/{tenantId:guid}/certificado/status", async (
+        Guid tenantId,
         ICurrentUserContext userCtx,
         IMediator mediator,
         CancellationToken ct) =>
     {
         var query = new GetCertificadoStatusQuery
         {
-            TenantId = new TenantId(id),
+            TenantId = new TenantId(tenantId),
             ClienteAppId = userCtx.ClienteAppId
         };
         return (await mediator.Send(query, ct)).ToHttpResult();
     });
 
-    tenants.MapPut("/{id:guid}/certificado", async (
-        Guid id,
+    tenants.MapPut("/{tenantId:guid}/certificado", async (
+        Guid tenantId,
         UpdateTenantCertificateCommand command,
         ICurrentUserContext userCtx,
         IMediator mediator,
@@ -161,14 +164,14 @@ try
     {
         var cmd = command with
         {
-            TenantId = new TenantId(id),
+            TenantId = new TenantId(tenantId),
             ClienteAppId = userCtx.ClienteAppId
         };
         return (await mediator.Send(cmd, ct)).ToHttpResult();
     });
 
-    tenants.MapPut("/{id:guid}/csc", async (
-        Guid id,
+    tenants.MapPut("/{tenantId:guid}/csc", async (
+        Guid tenantId,
         UpdateTenantCscCommand command,
         ICurrentUserContext userCtx,
         IMediator mediator,
@@ -176,7 +179,7 @@ try
     {
         var cmd = command with
         {
-            TenantId = new TenantId(id),
+            TenantId = new TenantId(tenantId),
             ClienteAppId = userCtx.ClienteAppId
         };
         return (await mediator.Send(cmd, ct)).ToHttpResult();

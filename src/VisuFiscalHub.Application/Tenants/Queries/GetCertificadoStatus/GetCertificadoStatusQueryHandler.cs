@@ -32,14 +32,16 @@ public sealed class GetCertificadoStatusQueryHandler
             return Result.Failure<CertificadoStatusResponse>(TenantErrors.NaoPertenceAoClienteApp);
 
         if (tenant.CertificadoVencimento is null)
-            return Result.Success(new CertificadoStatusResponse(null, null, false));
+            return Result.Success(new CertificadoStatusResponse(null, null, false, false));
 
         var agora = _timeProvider.GetUtcNow();
         var diasRestantes = Math.Max(0, (int)Math.Floor((tenant.CertificadoVencimento.Value - agora).TotalDays));
+        var expirado = agora > tenant.CertificadoVencimento.Value;
 
         return Result.Success(new CertificadoStatusResponse(
             tenant.CertificadoVencimento,
             diasRestantes,
-            true));
+            true,
+            expirado));
     }
 }

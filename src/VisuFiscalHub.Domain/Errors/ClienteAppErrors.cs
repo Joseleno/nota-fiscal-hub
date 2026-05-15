@@ -21,4 +21,7 @@ public static class ClienteAppErrors
 
     public static readonly Error ClientSecretHashInvalido =
         new("ClienteApp.ClientSecretHashInvalido", "O hash do ClientSecret é inválido.");
+
+    public static readonly Error WebhookSecretInvalido =
+        new("ClienteApp.WebhookSecretInvalido", "O webhook secret criptografado é inválido.");
 }

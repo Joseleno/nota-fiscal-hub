@@ -38,15 +38,7 @@ public sealed class RotateClienteAppSecretCommandHandler
             return Result.Failure<RotateClienteAppSecretResponse>(updateResult.Error);
 
         await _clienteAppRepository.UpdateAsync(clienteApp, cancellationToken);
-
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return Result.Failure<RotateClienteAppSecretResponse>(ClienteAppErrors.ClientSecretHashInvalido);
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success(new RotateClienteAppSecretResponse(
             clienteApp.ClientId,

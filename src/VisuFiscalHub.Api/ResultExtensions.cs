@@ -77,6 +77,7 @@ public static class ResultExtensions
             || code.EndsWith("NomeInvalido")
             || code.EndsWith("ClientIdInvalido")
             || code.EndsWith("ClientSecretHashInvalido")
+            || code.EndsWith("WebhookSecretInvalido")
             || code.EndsWith("StatusInvalidoParaOperacao")
             || code.EndsWith("TotalPagamentosInvalido")
             || code.EndsWith("ValorTotalInvalido")

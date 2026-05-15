@@ -6,6 +6,7 @@ namespace VisuFiscalHub.Domain.Interfaces;
 public interface IDocumentoFiscalRepository
 {
     Task<DocumentoFiscal?> GetByIdAsync(DocumentoFiscalId id, CancellationToken ct = default);
+    Task<DocumentoFiscal?> GetByIdForUpdateAsync(DocumentoFiscalId id, CancellationToken ct = default);
     Task<DocumentoFiscal?> GetByIdempotencyKeyAsync(
         string idempotencyKey,
         TenantId tenantId,

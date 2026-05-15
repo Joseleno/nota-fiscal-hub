@@ -17,7 +17,7 @@ public sealed class CreateTenantCommandValidator
 
         RuleFor(x => x.RazaoSocial)
             .NotEmpty()
-            .MaximumLength(150);
+            .MaximumLength(300);
 
         RuleFor(x => x.RegimeTributario)
             .IsInEnum().WithMessage("Regime tributário inválido");
