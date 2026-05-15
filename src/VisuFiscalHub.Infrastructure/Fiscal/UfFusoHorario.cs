@@ -8,7 +8,7 @@ public static class UfFusoHorario
         new Dictionary<int, TimeSpan>
         {
             // UTC-3: maioria dos estados
-            [11] = TimeSpan.FromHours(-3), // RO
+            [11] = TimeSpan.FromHours(-4), // RO — UTC-4
             [12] = TimeSpan.FromHours(-5), // AC — UTC-5
             [13] = TimeSpan.FromHours(-4), // AM — UTC-4
             [14] = TimeSpan.FromHours(-4), // RR — UTC-4

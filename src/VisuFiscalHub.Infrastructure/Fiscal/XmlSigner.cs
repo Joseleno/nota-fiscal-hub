@@ -5,7 +5,7 @@ using System.Xml;
 
 namespace VisuFiscalHub.Infrastructure.Fiscal;
 
-public sealed class XmlSigner
+internal sealed class XmlSigner
 {
     /// <summary>
     /// Assina o documento XML NFC-e conforme ABNT NBR 6030 / NT SEFAZ.
@@ -41,7 +41,8 @@ public sealed class XmlSigner
 
         signedXml.ComputeSignature();
 
-        var xmlSignature = signedXml.GetXml();
+        var xmlSignature = signedXml.GetXml()
+            ?? throw new InvalidOperationException("ComputeSignature produziu elemento nulo.");
 
         // Insere a assinatura ao final do elemento raiz NFeProc ou NFe
         xmlDoc.DocumentElement!.AppendChild(xmlDoc.ImportNode(xmlSignature, true));

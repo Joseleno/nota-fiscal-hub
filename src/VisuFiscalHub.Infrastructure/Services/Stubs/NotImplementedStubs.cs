@@ -53,13 +53,13 @@ internal sealed class QrCodeGeneratorStub : IQrCodeGenerator
 
 internal sealed class TributacaoCalculatorStub : ITributacaoCalculator
 {
-    public Tributo CalcularParaCrt1(Produto produto, CSOSN csosn = CSOSN.Csosn400)
+    public Result<Tributo> CalcularParaCrt1(Produto produto, CSOSN csosn = CSOSN.Csosn400)
         => throw new NotImplementedException("ITributacaoCalculator não implementado.");
 
-    public Tributo CalcularParaCrt2(Produto produto, decimal aliquotaIcms, decimal aliquotaPis, decimal aliquotaCofins)
+    public Result<Tributo> CalcularParaCrt2(Produto produto, decimal aliquotaIcms, decimal aliquotaPis, decimal aliquotaCofins)
         => throw new NotImplementedException("ITributacaoCalculator não implementado.");
 
-    public Tributo CalcularParaCrt3(Produto produto, decimal aliquotaIcms, decimal aliquotaPis, decimal aliquotaCofins)
+    public Result<Tributo> CalcularParaCrt3(Produto produto, decimal aliquotaIcms, decimal aliquotaPis, decimal aliquotaCofins)
         => throw new NotImplementedException("ITributacaoCalculator não implementado.");
 }
 

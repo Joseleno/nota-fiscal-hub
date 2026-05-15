@@ -6,6 +6,6 @@ namespace VisuFiscalHub.Application.Common.Models;
 public sealed record IssueDocumentResponse(
     DocumentoFiscalId DocumentoId,
     StatusDocumento Status,
-    string ChaveAcesso,
+    string? ChaveAcesso,
     string PollUrl,
     DateTimeOffset CreatedAt);

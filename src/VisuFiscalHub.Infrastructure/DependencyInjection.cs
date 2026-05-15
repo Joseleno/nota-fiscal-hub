@@ -46,10 +46,10 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ISequenceManager, SequenceManager>();
 
-        services.AddScoped<ITokenService, TokenService>();
+        services.AddSingleton<ITokenService, TokenService>();
 
         // Fase 6a — Fiscal infrastructure (real implementations)
-        services.AddScoped<ICertificateEncryptionService, CertificateEncryptionService>();
+        services.AddSingleton<ICertificateEncryptionService, CertificateEncryptionService>();
         services.AddScoped<IQrCodeGenerator, QrCodeGenerator>();
         services.AddScoped<ITributacaoCalculator, TributacaoCalculator>();
         services.AddScoped<INfceXmlBuilder, NfceXmlBuilder>();

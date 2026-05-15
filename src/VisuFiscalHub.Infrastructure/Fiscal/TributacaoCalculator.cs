@@ -1,4 +1,5 @@
 using VisuFiscalHub.Application.Common.Interfaces;
+using VisuFiscalHub.Domain.Common;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.ValueObjects;
 
@@ -8,9 +9,8 @@ internal sealed class TributacaoCalculator : ITributacaoCalculator
 {
     // CRT 1 — Simples Nacional. CSOSN 400: ICMS isento/não tributado.
     // PIS/COFINS: CST 07 (isento de contribuição) — sem valores numéricos.
-    public Tributo CalcularParaCrt1(Produto produto, CSOSN csosn = CSOSN.Csosn400)
-    {
-        var result = Tributo.Criar(
+    public Result<Tributo> CalcularParaCrt1(Produto produto, CSOSN csosn = CSOSN.Csosn400)
+        => Tributo.Criar(
             TipoIcms.CSOSN,
             (int)csosn,
             aliquotaIcms: 0m,
@@ -25,12 +25,9 @@ internal sealed class TributacaoCalculator : ITributacaoCalculator
             aliquotaCofins: 0m,
             valorCofins: 0m);
 
-        return result.Value;
-    }
-
     // CRT 2 — Simples Nacional com excesso de sublimite. CSOSN 900 com base e alíquota calculadas.
     // PIS/COFINS: CST 01 (tributado pela alíquota básica).
-    public Tributo CalcularParaCrt2(
+    public Result<Tributo> CalcularParaCrt2(
         Produto produto,
         decimal aliquotaIcms,
         decimal aliquotaPis,
@@ -41,7 +38,7 @@ internal sealed class TributacaoCalculator : ITributacaoCalculator
         var valorPis = Math.Round(baseCalculo * aliquotaPis / 100m, 2);
         var valorCofins = Math.Round(baseCalculo * aliquotaCofins / 100m, 2);
 
-        var result = Tributo.Criar(
+        return Tributo.Criar(
             TipoIcms.CSOSN,
             (int)CSOSN.Csosn900,
             aliquotaIcms,
@@ -55,13 +52,11 @@ internal sealed class TributacaoCalculator : ITributacaoCalculator
             baseCalculo,
             aliquotaCofins,
             valorCofins);
-
-        return result.Value;
     }
 
     // CRT 3 — Regime Normal. CST ICMS com base de cálculo e alíquota reais.
     // PIS/COFINS: CST 01 (tributado pela alíquota básica).
-    public Tributo CalcularParaCrt3(
+    public Result<Tributo> CalcularParaCrt3(
         Produto produto,
         decimal aliquotaIcms,
         decimal aliquotaPis,
@@ -73,7 +68,7 @@ internal sealed class TributacaoCalculator : ITributacaoCalculator
         var valorCofins = Math.Round(baseCalculo * aliquotaCofins / 100m, 2);
 
         // CST 00: tributação plena. Handler de negócio escolhe o CST correto.
-        var result = Tributo.Criar(
+        return Tributo.Criar(
             TipoIcms.CST,
             (int)CstIcms.Cst00,
             aliquotaIcms,
@@ -87,7 +82,5 @@ internal sealed class TributacaoCalculator : ITributacaoCalculator
             baseCalculo,
             aliquotaCofins,
             valorCofins);
-
-        return result.Value;
     }
 }

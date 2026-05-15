@@ -92,6 +92,10 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
             .HasMaxLength(3)
             .IsRequired();
 
+        builder.Property(d => d.IndPresenca)
+            .HasColumnName("ind_presenca")
+            .IsRequired();
+
         builder.Property(d => d.Status)
             .HasColumnName("status")
             .HasConversion<int>()

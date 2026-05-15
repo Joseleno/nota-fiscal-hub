@@ -68,17 +68,26 @@ public sealed class IssueDocumentCommandHandler
         if (tenant.ClienteAppId != command.ClienteAppId)
             return Result.Failure<IssueDocumentResponse>(TenantErrors.NaoPertenceAoClienteApp);
 
-        // 3. Obter próximo número da sequence
+        // 3. Construir itens e pagamentos antes de consumir a sequence
+        var itemsResult = BuildItems(command.Itens);
+        if (itemsResult.IsFailure)
+            return Result.Failure<IssueDocumentResponse>(itemsResult.Error);
+
+        var pagamentosResult = BuildPagamentos(command.Pagamentos);
+        if (pagamentosResult.IsFailure)
+            return Result.Failure<IssueDocumentResponse>(pagamentosResult.Error);
+
+        // 4. Obter próximo número da sequence (após validações — evita consumir número em caso de falha)
         var numeroResult = await _sequenceManager.GetNextNumeroAsync(
             command.TenantId, tenant.ConfiguracaoFiscal.Serie, cancellationToken);
         if (numeroResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(numeroResult.Error);
 
-        // 4. Gerar cNF com RandomNumberGenerator (nunca Random.Shared)
+        // 5. Gerar cNF com RandomNumberGenerator (nunca Random.Shared)
         var cNFBytes = RandomNumberGenerator.GetBytes(4);
         var cNF = (BitConverter.ToUInt32(cNFBytes, 0) % 100_000_000).ToString("D8");
 
-        // 5. Montar ChaveAcesso
+        // 6. Montar ChaveAcesso
         var now = _timeProvider.GetUtcNow();
         var aamm = now.ToString("yyMM");
         var chaveResult = ChaveAcesso.Gerar(
@@ -94,15 +103,6 @@ public sealed class IssueDocumentCommandHandler
         if (chaveResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(chaveResult.Error);
 
-        // 6. Construir itens e pagamentos
-        var itemsResult = BuildItems(command.Itens);
-        if (itemsResult.IsFailure)
-            return Result.Failure<IssueDocumentResponse>(itemsResult.Error);
-
-        var pagamentosResult = BuildPagamentos(command.Pagamentos);
-        if (pagamentosResult.IsFailure)
-            return Result.Failure<IssueDocumentResponse>(pagamentosResult.Error);
-
         // 7. Criar DocumentoFiscal
         var documentoResult = DocumentoFiscal.Criar(
             new DocumentoFiscalId(Guid.CreateVersion7()),
@@ -113,6 +113,7 @@ public sealed class IssueDocumentCommandHandler
             chaveResult.Value,
             numeroResult.Value,
             tenant.ConfiguracaoFiscal.Serie,
+            command.IndPresenca,
             itemsResult.Value,
             pagamentosResult.Value,
             _timeProvider);
@@ -203,7 +204,7 @@ public sealed class IssueDocumentCommandHandler
         new(
             doc.Id,
             doc.Status,
-            doc.ChaveAcesso.Valor,
+            doc.ChaveAcesso?.Valor,
             $"/api/v1/documentos/{doc.Id.Value}/status",
             doc.CreatedAt);
 }

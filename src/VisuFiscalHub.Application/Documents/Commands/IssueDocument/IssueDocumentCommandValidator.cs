@@ -15,6 +15,9 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
         RuleFor(x => x.Itens)
             .NotEmpty().WithMessage("A lista de itens não pode ser vazia.");
 
+        RuleFor(x => x.Pagamentos)
+            .NotEmpty().WithMessage("A lista de pagamentos não pode ser vazia.");
+
         RuleFor(x => x.IndPresenca)
             .Must(v => IndPresencaValidos.Contains(v))
             .WithMessage("IndPresenca deve ser 1, 3, 4 ou 9. O valor 2 é explicitamente rejeitado.");

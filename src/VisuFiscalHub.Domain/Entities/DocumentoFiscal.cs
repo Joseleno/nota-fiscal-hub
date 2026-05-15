@@ -30,6 +30,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         ChaveAcesso chaveAcesso,
         long numero,
         string serie,
+        int indPresenca,
         List<ItemDocumento> items,
         List<Pagamento> pagamentos,
         DateTimeOffset createdAt) : base(id)
@@ -41,6 +42,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         ChaveAcesso = chaveAcesso;
         Numero = numero;
         Serie = serie;
+        IndPresenca = indPresenca;
         Status = StatusDocumento.Criado;
         _items = items;
         _pagamentos = pagamentos;
@@ -57,6 +59,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
     public ChaveAcesso ChaveAcesso { get; private set; }
     public long Numero { get; private set; }
     public string Serie { get; private set; }
+    public int IndPresenca { get; private set; }
     public StatusDocumento Status { get; private set; }
     public string? XmlAssinado { get; private set; }
     public string? Protocolo { get; private set; }
@@ -77,6 +80,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         ChaveAcesso chaveAcesso,
         long numero,
         string serie,
+        int indPresenca,
         IEnumerable<ItemDocumento> items,
         IEnumerable<Pagamento> pagamentos,
         TimeProvider timeProvider)
@@ -105,6 +109,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             chaveAcesso,
             numero,
             serie,
+            indPresenca,
             itemList,
             pagamentoList,
             timeProvider.GetUtcNow()));

@@ -31,15 +31,26 @@ public sealed class TenantValidationMiddleware(RequestDelegate next)
         var sub = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? context.User.FindFirstValue("sub");
 
-        if (sub is not null && Guid.TryParse(sub, out var clienteAppGuid))
+        if (sub is null)
         {
-            var clienteAppId = new ClienteAppId(clienteAppGuid);
-            if (tenant.ClienteAppId != clienteAppId)
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsJsonAsync(new { title = "Tenant não pertence a este ClienteApp.", status = 403 });
-                return;
-            }
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { title = "Autenticação necessária.", status = 401 });
+            return;
+        }
+
+        if (!Guid.TryParse(sub, out var clienteAppGuid))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new { title = "Token inválido.", status = 401 });
+            return;
+        }
+
+        var clienteAppId = new ClienteAppId(clienteAppGuid);
+        if (tenant.ClienteAppId != clienteAppId)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new { title = "Tenant não pertence a este ClienteApp.", status = 403 });
+            return;
         }
 
         context.Items["TenantContext"] = new TenantContext(tenantId);

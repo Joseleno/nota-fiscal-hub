@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using VisuFiscalHub.Api.Authentication;
@@ -166,6 +167,7 @@ try
             TokenRequest request,
             IClienteAppRepository clienteAppRepo,
             ITokenService tokenService,
+            IOptions<JwtSettings> jwtOptions,
             CancellationToken ct) =>
         {
             var clienteApp = await clienteAppRepo.GetByClientIdAsync(request.ClientId, ct);
@@ -177,13 +179,12 @@ try
                 return Results.Json(new { error = "invalid_client" }, statusCode: StatusCodes.Status401Unauthorized);
 
             var token = tokenService.GenerateToken(clienteApp.Id, clienteApp.ClientId);
-            var expiresIn = app.Configuration.GetValue<int?>($"{JwtSettings.SectionName}:ExpiresInSeconds") ?? 3600;
 
             return Results.Ok(new
             {
                 access_token = token,
                 token_type = "Bearer",
-                expires_in = expiresIn
+                expires_in = jwtOptions.Value.ExpiresInSeconds
             });
         })
         .RequireRateLimiting("auth")
@@ -199,9 +200,7 @@ try
                 ?? throw new InvalidOperationException("AdminKey:Value não configurado.");
             var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
 
-            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-                    System.Text.Encoding.UTF8.GetBytes(providedKey),
-                    System.Text.Encoding.UTF8.GetBytes(adminKey)))
+            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminKey))
                 return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
 
             return (await mediator.Send(command, ct))
@@ -220,14 +219,13 @@ try
                 ?? throw new InvalidOperationException("AdminKey:Value não configurado.");
             var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
 
-            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-                    System.Text.Encoding.UTF8.GetBytes(providedKey),
-                    System.Text.Encoding.UTF8.GetBytes(adminKey)))
+            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminKey))
                 return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
 
             var command = new RotateClienteAppSecretCommand { ClienteAppId = new ClienteAppId(id) };
             return (await mediator.Send(command, ct)).ToHttpResult(r => Results.Ok(r));
-        });
+        })
+        .RequireRateLimiting("admin");
 
     // ── Tenants ───────────────────────────────────────────────────────────────
     var tenants = app.MapGroup("/api/v1/tenants").RequireAuthorization();
@@ -364,3 +362,19 @@ sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
 }
 
 public partial class Program { }
+
+// HMAC-normalize both sides before comparing to eliminate length oracle.
+// FixedTimeEquals requires equal-length inputs; hashing with a fixed key produces
+// same-length MACs regardless of input length while preserving timing safety.
+static class AdminKeyHelper
+{
+    private static readonly byte[] _hmacKey = RandomNumberGenerator.GetBytes(32);
+
+    public static bool VerifyAdminKey(string provided, string expected)
+    {
+        var enc = System.Text.Encoding.UTF8;
+        var providedMac = HMACSHA256.HashData(_hmacKey, enc.GetBytes(provided));
+        var expectedMac = HMACSHA256.HashData(_hmacKey, enc.GetBytes(expected));
+        return CryptographicOperations.FixedTimeEquals(providedMac, expectedMac);
+    }
+}

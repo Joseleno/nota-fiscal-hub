@@ -74,22 +74,26 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         infAdic.AppendChild(infCpl);
         infNFe.AppendChild(infAdic);
 
-        // <infNFeSupl> com QR Code
-        if (tenant.Csc is not null)
-        {
-            var cscResult = _encryptionService.DecryptToString(tenant.Csc);
-            if (cscResult.IsSuccess)
-            {
-                var qrResult = _qrCodeGenerator.Gerar(
-                    documento.ChaveAcesso,
-                    tenant.ConfiguracaoFiscal.Ambiente,
-                    cscResult.Value,
-                    ResolverUrlConsulta(tenant.ConfiguracaoFiscal.UfCodigo, tenant.ConfiguracaoFiscal.Ambiente));
+        // <infNFeSupl> com QR Code — CSC obrigatório para NFC-e
+        if (tenant.Csc is null)
+            return Result.Failure<XmlDocument>(
+                new Error("XmlBuilder.CscAusente", "CSC não configurado para o Tenant."));
 
-                if (qrResult.IsSuccess)
-                    nfeEl.AppendChild(BuildInfNFeSupl(doc, qrResult.Value.UrlCompleta, tenant.ConfiguracaoFiscal.UfCodigo, tenant.ConfiguracaoFiscal.Ambiente));
-            }
-        }
+        var cscResult = _encryptionService.DecryptToString(tenant.Csc);
+        if (cscResult.IsFailure)
+            return Result.Failure<XmlDocument>(cscResult.Error);
+
+        var urlConsulta = ResolverUrlConsulta(tenant.ConfiguracaoFiscal.UfCodigo, tenant.ConfiguracaoFiscal.Ambiente);
+        var qrResult = _qrCodeGenerator.Gerar(
+            documento.ChaveAcesso,
+            tenant.ConfiguracaoFiscal.Ambiente,
+            cscResult.Value,
+            urlConsulta);
+
+        if (qrResult.IsFailure)
+            return Result.Failure<XmlDocument>(qrResult.Error);
+
+        nfeEl.AppendChild(BuildInfNFeSupl(doc, qrResult.Value.UrlCompleta, urlConsulta));
 
         return Result.Success(doc);
     }
@@ -119,9 +123,10 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         Add("tpAmb", ((int)tenant.ConfiguracaoFiscal.Ambiente).ToString());
         Add("finNFe", "1");     // NF-e normal
         Add("indFinal", "1");   // Consumidor final
-        Add("indPres", "1");    // Presencial
+        Add("indPres", ((int)documento.IndPresenca).ToString());
         Add("procEmi", "3");    // Emitido por contribuinte — API NF-e
         Add("verProc", "VisuFiscalHub 1.0");
+        Add("cIdToken", tenant.CIdToken!);
 
         return ide;
     }
@@ -345,11 +350,7 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         return pag;
     }
 
-    private static XmlElement BuildInfNFeSupl(
-        XmlDocument doc,
-        string qrCodeUrl,
-        int ufCodigo,
-        AmbienteSefaz ambiente)
+    private static XmlElement BuildInfNFeSupl(XmlDocument doc, string qrCodeUrl, string urlConsulta)
     {
         var infSupl = doc.CreateElement("infNFeSupl", NfeNs);
 
@@ -358,18 +359,35 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         infSupl.AppendChild(qrCode);
 
         var urlFe = doc.CreateElement("urlFe", NfeNs);
-        urlFe.InnerText = ResolverUrlConsulta(ufCodigo, ambiente);
+        urlFe.InnerText = urlConsulta;
         infSupl.AppendChild(urlFe);
 
         return infSupl;
     }
 
+    // URLs de consulta NFC-e por UF. Fonte: Portal NFC-e / NT SEFAZ.
     private static string ResolverUrlConsulta(int ufCodigo, AmbienteSefaz ambiente)
     {
-        // URLs de consulta NFC-e por ambiente
-        return ambiente == AmbienteSefaz.Producao
-            ? "https://www.nfce.fazenda.sp.gov.br/consulta"
-            : "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta";
+        var producao = ambiente == AmbienteSefaz.Producao;
+        return ufCodigo switch
+        {
+            11 => producao ? "https://www.nfce.sefin.ro.gov.br/nfce/consulta" : "https://www.nfce.sefin.ro.gov.br/nfce/consulta",
+            12 => producao ? "https://www.sefaznet.ac.gov.br/nfce/consulta" : "https://www.sefaznet.ac.gov.br/nfce/consulta",
+            13 => producao ? "https://systems.sefaz.am.gov.br/nfceweb/consultarNFCe.html" : "https://systems.sefaz.am.gov.br/nfceweb-hom/consultarNFCe.html",
+            15 => producao ? "https://appnfc.sefa.pa.gov.br/portal/view/consultas/nfce/consultaNFCe.seam" : "https://appnfchom.sefa.pa.gov.br/portal/view/consultas/nfce/consultaNFCe.seam",
+            23 => producao ? "https://iobot.sefaz.ce.gov.br/nfce/consulta" : "https://iobot.sefaz.ce.gov.br/nfce/consulta",
+            29 => producao ? "https://nfe.sefaz.ba.gov.br/servicos/nfce/default.aspx" : "https://hnfe.sefaz.ba.gov.br/servicos/nfce/default.aspx",
+            31 => producao ? "https://nfce.fazenda.mg.gov.br/portalnfce" : "https://hnfce.fazenda.mg.gov.br/portalnfce",
+            33 => producao ? "https://www.nfce.fazenda.rj.gov.br/consulta" : "https://www.homologacao.nfce.fazenda.rj.gov.br/consulta",
+            35 => producao ? "https://www.nfce.fazenda.sp.gov.br/consulta" : "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta",
+            41 => producao ? "https://www.nfce.pr.gov.br/nfce/consulta" : "https://www.homologacao.nfce.pr.gov.br/nfce/consulta",
+            43 => producao ? "https://www.nfe.se.gov.br/portal/exibirListaConsultaNFCe.do" : "https://www.nfe.se.gov.br/portal/exibirListaConsultaNFCe.do",
+            50 => producao ? "https://www.nfce.fazenda.ms.gov.br/portal/" : "https://www.homologacao.nfce.fazenda.ms.gov.br/portal/",
+            51 => producao ? "https://www.sefaz.mt.gov.br/nfce/consultanfce" : "https://homologacao.sefaz.mt.gov.br/nfce/consultanfce",
+            52 => producao ? "https://nfce.sefaz.go.gov.br/pages/consulta-nfce.jsf" : "https://homologacao.nfce.sefaz.go.gov.br/pages/consulta-nfce.jsf",
+            53 => producao ? "https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx" : "https://hom.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx",
+            _ => producao ? "https://www.nfce.fazenda.sp.gov.br/consulta" : "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta"
+        };
     }
 
     private static string GetIcmsCsosnTagName(CSOSN csosn) => csosn switch
