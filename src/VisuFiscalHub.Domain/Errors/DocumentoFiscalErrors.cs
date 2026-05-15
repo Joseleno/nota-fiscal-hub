@@ -54,4 +54,9 @@ public static class DocumentoFiscalErrors
 
     public static readonly Error TributoInvalido =
         new("DocumentoFiscal.TributoInvalido", "Os dados do tributo são inválidos.");
+
+    // Valores válidos para NFC-e: 1=presencial, 3=telemarketing, 4=entrega domiciliar, 9=outros.
+    // O valor 2 (internet) é explicitamente rejeitado pelo SEFAZ para NFC-e.
+    public static readonly Error IndPresencaInvalido =
+        new("DocumentoFiscal.IndPresencaInvalido", "Indicador de presença inválido. Valores permitidos para NFC-e: 1, 3, 4, 9.");
 }

@@ -1,5 +1,5 @@
-// Stubs pendentes de implementação real. Registrados para que o container resolva
-// as dependências sem crash em startup. Lançam NotImplementedException em runtime.
+// Stubs pendentes de implementação real. Lançam NotImplementedException em runtime (não em startup).
+// CertificateEncryptionService e TokenService foram promovidos a implementações reais — stubs removidos.
 using System.Security.Cryptography.X509Certificates;
 using System.Xml;
 using VisuFiscalHub.Application.Common.Interfaces;
@@ -10,24 +10,10 @@ using VisuFiscalHub.Domain.ValueObjects;
 
 namespace VisuFiscalHub.Infrastructure.Services.Stubs;
 
-internal sealed class CertificateEncryptionServiceStub : ICertificateEncryptionService
-{
-    public Result<byte[]> Encrypt(byte[] data) => throw new NotImplementedException("ICertificateEncryptionService não implementado.");
-    public Result<byte[]> Decrypt(byte[] encrypted) => throw new NotImplementedException("ICertificateEncryptionService não implementado.");
-    public Result<byte[]> EncryptString(string text) => throw new NotImplementedException("ICertificateEncryptionService não implementado.");
-    public Result<string> DecryptToString(byte[] encrypted) => throw new NotImplementedException("ICertificateEncryptionService não implementado.");
-}
-
 internal sealed class TenantCertificateProviderStub : ITenantCertificateProvider
 {
     public Task<Result<X509Certificate2>> GetCertificateAsync(TenantId tenantId, CancellationToken ct = default)
         => throw new NotImplementedException("ITenantCertificateProvider não implementado.");
-}
-
-internal sealed class TokenServiceStub : ITokenService
-{
-    public string GenerateToken(ClienteAppId clienteAppId, string clientId)
-        => throw new NotImplementedException("ITokenService não implementado.");
 }
 
 internal sealed class SefazClientStub : ISefazClient

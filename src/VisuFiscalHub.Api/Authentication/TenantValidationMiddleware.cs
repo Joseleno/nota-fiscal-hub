@@ -28,8 +28,9 @@ public sealed class TenantValidationMiddleware(RequestDelegate next)
         }
 
         // Validate that this tenant belongs to the authenticated ClienteApp.
-        var sub = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? context.User.FindFirstValue("sub");
+        // NameClaimType = ClaimTypes.NameIdentifier mapeado em Program.cs — o claim "sub" do JWT
+        // já está disponível via FindFirstValue(ClaimTypes.NameIdentifier) após validação do bearer.
+        var sub = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (sub is null)
         {

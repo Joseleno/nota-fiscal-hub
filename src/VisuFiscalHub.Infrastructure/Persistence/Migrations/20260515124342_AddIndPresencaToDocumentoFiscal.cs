@@ -15,7 +15,7 @@ namespace VisuFiscalHub.Infrastructure.Persistence.Migrations
                 table: "documentos_fiscais",
                 type: "integer",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: 1); // 1 = presencial — único default semanticamente válido para NFC-e
         }
 
         /// <inheritdoc />

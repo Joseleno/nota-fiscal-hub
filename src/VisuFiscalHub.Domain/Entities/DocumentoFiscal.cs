@@ -9,6 +9,9 @@ namespace VisuFiscalHub.Domain.Entities;
 
 public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 {
+    // Valores válidos para NFC-e per SEFAZ NT 2019.001. O valor 2 (internet) é rejeitado.
+    private static readonly IReadOnlySet<int> IndPresencaValidos = new HashSet<int> { 1, 3, 4, 9 };
+
     private readonly List<ItemDocumento> _items = [];
     private readonly List<Pagamento> _pagamentos = [];
 
@@ -93,6 +96,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
+
+        if (!IndPresencaValidos.Contains(indPresenca))
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IndPresencaInvalido);
 
         var itemList = items.ToList();
         if (itemList.Count == 0)

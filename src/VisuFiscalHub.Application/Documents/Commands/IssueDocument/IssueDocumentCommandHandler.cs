@@ -77,7 +77,11 @@ public sealed class IssueDocumentCommandHandler
         if (pagamentosResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(pagamentosResult.Error);
 
-        // 4. Obter próximo número da sequence (após validações — evita consumir número em caso de falha)
+        // 4. Obter próximo número da sequence (após validações — evita consumir número em caso de falha).
+        // ATENÇÃO: sequences PostgreSQL são não-transacionais. A partir deste ponto, qualquer falha
+        // (ChaveAcesso.Gerar, DocumentoFiscal.Criar) produz uma lacuna permanente na numeração.
+        // Manter ChaveAcesso.Gerar e DocumentoFiscal.Criar com invariantes estritos e sem novas
+        // operações fallíveis entre aqui e SaveChangesAsync.
         var numeroResult = await _sequenceManager.GetNextNumeroAsync(
             command.TenantId, tenant.ConfiguracaoFiscal.Serie, cancellationToken);
         if (numeroResult.IsFailure)

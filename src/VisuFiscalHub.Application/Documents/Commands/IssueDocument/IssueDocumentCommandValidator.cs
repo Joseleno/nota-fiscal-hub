@@ -38,11 +38,12 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
             pag.RuleFor(p => p.Valor).GreaterThan(0);
         });
 
-        // Total de pagamentos deve fechar com o total dos itens (tolerância R$ 0,01)
+        // Total de pagamentos deve fechar com o total dos itens (tolerância R$ 0,01).
+        // Itens vazios são capturados pelo NotEmpty acima — o guard protege apenas o Sum.
         RuleFor(x => x)
             .Must(cmd =>
             {
-                if (cmd.Itens.Count == 0 || cmd.Pagamentos.Count == 0) return true;
+                if (cmd.Itens.Count == 0) return true;
                 var totalItens = cmd.Itens.Sum(i => (i.Quantidade * i.ValorUnitario) - i.ValorDesconto);
                 var totalPagamentos = cmd.Pagamentos.Sum(p => p.Valor);
                 return Math.Abs(totalItens - totalPagamentos) <= 0.01m;

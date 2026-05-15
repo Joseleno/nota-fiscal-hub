@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Mediator;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,8 @@ using VisuFiscalHub.Application;
 using VisuFiscalHub.Api;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Application.Common.Models;
+using VisuFiscalHub.Application.Documents.Commands.IssueDocument;
+using VisuFiscalHub.Application.Documents.Queries.GetDocumentStatus;
 using VisuFiscalHub.Application.Common.Security;
 using VisuFiscalHub.Application.Tenants.Commands.CreateClienteApp;
 using VisuFiscalHub.Application.Tenants.Commands.CreateTenant;
@@ -48,8 +51,16 @@ try
         .AddOptions<JwtSettings>()
         .Bind(builder.Configuration.GetSection(JwtSettings.SectionName))
         .Validate(s =>
-            !string.IsNullOrWhiteSpace(s.PrivateKeyPem) && s.PublicKeyPems.Length > 0,
-            "Jwt:PrivateKeyPem e Jwt:PublicKeyPems são obrigatórios.")
+            !string.IsNullOrWhiteSpace(s.PrivateKeyPem)
+            && s.PublicKeyPems.Length > 0
+            && s.ExpiresInSeconds > 0,
+            "Jwt: PrivateKeyPem, PublicKeyPems e ExpiresInSeconds > 0 são obrigatórios.")
+        .ValidateOnStart();
+
+    builder.Services
+        .AddOptions<AdminKeySettings>()
+        .Bind(builder.Configuration.GetSection(AdminKeySettings.SectionName))
+        .Validate(s => !string.IsNullOrWhiteSpace(s.Value), "AdminKey:Value é obrigatório.")
         .ValidateOnStart();
 
     builder.Services.AddInfrastructure(builder.Configuration);
@@ -64,11 +75,15 @@ try
     var jwtConfig = builder.Configuration.GetSection(JwtSettings.SectionName);
     var publicKeyPems = jwtConfig.GetSection("PublicKeyPems").Get<string[]>() ?? [];
 
+    // RSA instances transferidas para RsaSecurityKey com ownership — registradas para
+    // dispose no shutdown do host via IHostApplicationLifetime para evitar resource leak.
+    var rsaInstances = new List<RSA>();
     var signingKeys = publicKeyPems
         .Select(pem =>
         {
             var rsa = RSA.Create();
             rsa.ImportFromPem(pem);
+            rsaInstances.Add(rsa);
             return (SecurityKey)new RsaSecurityKey(rsa);
         })
         .ToList();
@@ -145,15 +160,31 @@ try
                 }));
     });
 
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        // KnownProxies/KnownNetworks devem ser configurados com os CIDRs reais do ingress em produção.
+        // Por segurança, limpar as defaults (qualquer rede) e adicionar explicitamente quando necessário.
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+
     builder.Services.AddOpenApi();
 
     var app = builder.Build();
+
+    app.Lifetime.ApplicationStopped.Register(() =>
+    {
+        foreach (var rsa in rsaInstances)
+            rsa.Dispose();
+    });
 
     app.UseExceptionHandler();
 
     if (app.Environment.IsDevelopment())
         app.MapOpenApi();
 
+    app.UseForwardedHeaders();
     app.UseHttpsRedirection();
     app.UseSerilogRequestLogging();
     app.UseRateLimiter();
@@ -194,13 +225,15 @@ try
     var clienteApps = app.MapGroup("/api/v1/clientes");
 
     clienteApps.MapPost("/",
-        async (CreateClienteAppCommand command, IMediator mediator, HttpContext ctx, CancellationToken ct) =>
+        async (
+            CreateClienteAppCommand command,
+            IMediator mediator,
+            HttpContext ctx,
+            IOptions<AdminKeySettings> adminOptions,
+            CancellationToken ct) =>
         {
-            var adminKey = app.Configuration["AdminKey:Value"]
-                ?? throw new InvalidOperationException("AdminKey:Value não configurado.");
             var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
-
-            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminKey))
+            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminOptions.Value.Value))
                 return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
 
             return (await mediator.Send(command, ct))
@@ -213,13 +246,11 @@ try
             Guid id,
             HttpContext ctx,
             IMediator mediator,
+            IOptions<AdminKeySettings> adminOptions,
             CancellationToken ct) =>
         {
-            var adminKey = app.Configuration["AdminKey:Value"]
-                ?? throw new InvalidOperationException("AdminKey:Value não configurado.");
             var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
-
-            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminKey))
+            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminOptions.Value.Value))
                 return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
 
             var command = new RotateClienteAppSecretCommand { ClienteAppId = new ClienteAppId(id) };
@@ -324,7 +355,8 @@ try
         .RequireRateLimiting("api");
 
     // ── Health ────────────────────────────────────────────────────────────────
-    app.MapGet("/health", () => TypedResults.Ok(new { status = "Healthy" }));
+    app.MapGet("/health", () => TypedResults.Ok(new { status = "Healthy" }))
+        .RequireRateLimiting("api");
 
     app.Run();
 }

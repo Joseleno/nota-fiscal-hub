@@ -27,6 +27,11 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
             return Result.Failure<XmlDocument>(
                 new Error("XmlBuilder.CIdTokenAusente", "cIdToken não configurado para o Tenant."));
 
+        // Verificação antecipada do CSC evita construir todo o XML para depois descartar em caso de falha.
+        if (tenant.Csc is null)
+            return Result.Failure<XmlDocument>(
+                new Error("XmlBuilder.CscAusente", "CSC não configurado para o Tenant."));
+
         var doc = new XmlDocument { PreserveWhitespace = false };
         var decl = doc.CreateXmlDeclaration("1.0", "UTF-8", null);
         doc.AppendChild(decl);
@@ -74,12 +79,8 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         infAdic.AppendChild(infCpl);
         infNFe.AppendChild(infAdic);
 
-        // <infNFeSupl> com QR Code — CSC obrigatório para NFC-e
-        if (tenant.Csc is null)
-            return Result.Failure<XmlDocument>(
-                new Error("XmlBuilder.CscAusente", "CSC não configurado para o Tenant."));
-
-        var cscResult = _encryptionService.DecryptToString(tenant.Csc);
+        // <infNFeSupl> com QR Code (CSC garantido não-nulo pelo guard no topo do método)
+        var cscResult = _encryptionService.DecryptToString(tenant.Csc!);
         if (cscResult.IsFailure)
             return Result.Failure<XmlDocument>(cscResult.Error);
 
@@ -365,28 +366,52 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         return infSupl;
     }
 
-    // URLs de consulta NFC-e por UF. Fonte: Portal NFC-e / NT SEFAZ.
+    // URLs de consulta NFC-e por UF (IBGE). Fonte: Portais estaduais NFC-e / NT SEFAZ.
+    // Estados sem URL de homologação distinta usam a mesma URL de produção (comportamento confirmado).
     private static string ResolverUrlConsulta(int ufCodigo, AmbienteSefaz ambiente)
     {
-        var producao = ambiente == AmbienteSefaz.Producao;
+        var p = ambiente == AmbienteSefaz.Producao;
         return ufCodigo switch
         {
-            11 => producao ? "https://www.nfce.sefin.ro.gov.br/nfce/consulta" : "https://www.nfce.sefin.ro.gov.br/nfce/consulta",
-            12 => producao ? "https://www.sefaznet.ac.gov.br/nfce/consulta" : "https://www.sefaznet.ac.gov.br/nfce/consulta",
-            13 => producao ? "https://systems.sefaz.am.gov.br/nfceweb/consultarNFCe.html" : "https://systems.sefaz.am.gov.br/nfceweb-hom/consultarNFCe.html",
-            15 => producao ? "https://appnfc.sefa.pa.gov.br/portal/view/consultas/nfce/consultaNFCe.seam" : "https://appnfchom.sefa.pa.gov.br/portal/view/consultas/nfce/consultaNFCe.seam",
-            23 => producao ? "https://iobot.sefaz.ce.gov.br/nfce/consulta" : "https://iobot.sefaz.ce.gov.br/nfce/consulta",
-            29 => producao ? "https://nfe.sefaz.ba.gov.br/servicos/nfce/default.aspx" : "https://hnfe.sefaz.ba.gov.br/servicos/nfce/default.aspx",
-            31 => producao ? "https://nfce.fazenda.mg.gov.br/portalnfce" : "https://hnfce.fazenda.mg.gov.br/portalnfce",
-            33 => producao ? "https://www.nfce.fazenda.rj.gov.br/consulta" : "https://www.homologacao.nfce.fazenda.rj.gov.br/consulta",
-            35 => producao ? "https://www.nfce.fazenda.sp.gov.br/consulta" : "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta",
-            41 => producao ? "https://www.nfce.pr.gov.br/nfce/consulta" : "https://www.homologacao.nfce.pr.gov.br/nfce/consulta",
-            43 => producao ? "https://www.nfe.se.gov.br/portal/exibirListaConsultaNFCe.do" : "https://www.nfe.se.gov.br/portal/exibirListaConsultaNFCe.do",
-            50 => producao ? "https://www.nfce.fazenda.ms.gov.br/portal/" : "https://www.homologacao.nfce.fazenda.ms.gov.br/portal/",
-            51 => producao ? "https://www.sefaz.mt.gov.br/nfce/consultanfce" : "https://homologacao.sefaz.mt.gov.br/nfce/consultanfce",
-            52 => producao ? "https://nfce.sefaz.go.gov.br/pages/consulta-nfce.jsf" : "https://homologacao.nfce.sefaz.go.gov.br/pages/consulta-nfce.jsf",
-            53 => producao ? "https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx" : "https://hom.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx",
-            _ => producao ? "https://www.nfce.fazenda.sp.gov.br/consulta" : "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta"
+            // Região Norte
+            11 => "https://www.nfce.sefin.ro.gov.br/nfce/consulta",                                                               // RO — URL única p/ prod e hom
+            12 => "https://www.sefaznet.ac.gov.br/nfce/consulta",                                                                 // AC — URL única
+            13 => p ? "https://systems.sefaz.am.gov.br/nfceweb/consultarNFCe.html"    : "https://systems.sefaz.am.gov.br/nfceweb-hom/consultarNFCe.html",    // AM
+            14 => p ? "https://www.sefaz.rr.gov.br/nfce/consulta.do"                  : "https://www.sefaz.rr.gov.br/nfce/consulta.do",                      // RR — URL única
+            15 => p ? "https://appnfc.sefa.pa.gov.br/portal/view/consultas/nfce/consultaNFCe.seam" : "https://appnfchom.sefa.pa.gov.br/portal/view/consultas/nfce/consultaNFCe.seam", // PA
+            16 => p ? "https://www.sefaz.ap.gov.br/nfce/consulta.do"                  : "https://www.sefaz.ap.gov.br/nfce/consulta.do",                      // AP — URL única
+            17 => p ? "https://www.sefaz.to.gov.br/nfce/consulta.jsf"                 : "https://homologacao.sefaz.to.gov.br/nfce/consulta.jsf",             // TO
+
+            // Região Nordeste
+            21 => p ? "https://www.nfce.sefaz.ma.gov.br/portal/consultaNFCe.do"       : "https://homologacao.nfce.sefaz.ma.gov.br/portal/consultaNFCe.do",   // MA
+            22 => p ? "https://www.sefaz.pi.gov.br/nfce/consulta.do"                  : "https://www.sefaz.pi.gov.br/nfce/consulta.do",                      // PI — URL única
+            23 => p ? "https://iobot.sefaz.ce.gov.br/nfce/consulta"                   : "https://iobot.sefaz.ce.gov.br/nfce/consulta",                       // CE — URL única
+            24 => p ? "https://nfce.set.rn.gov.br/portalDFE/NFCe/consultaNFCe.aspx"   : "https://nfce.set.rn.gov.br/portalDFE/NFCe/consultaNFCe.aspx",       // RN — URL única
+            25 => p ? "https://www.receita.pb.gov.br/nfce"                             : "https://www.receita.pb.gov.br/nfce",                                // PB — URL única
+            26 => p ? "https://nfce.sefaz.pe.gov.br/nfce-web/consultarNFCe"           : "https://nfcehomolog.sefaz.pe.gov.br/nfce-web/consultarNFCe",        // PE
+            27 => p ? "https://nfce.sefaz.al.gov.br/consultaNFCe.htm"                 : "https://nfce.sefaz.al.gov.br/consultaNFCe.htm",                     // AL — URL única
+            28 => p ? "https://www.nfe.se.gov.br/portal/exibirListaConsultaNFCe.do"   : "https://www.nfe.se.gov.br/portal/exibirListaConsultaNFCe.do",        // SE — URL única
+            29 => p ? "https://nfe.sefaz.ba.gov.br/servicos/nfce/default.aspx"        : "https://hnfe.sefaz.ba.gov.br/servicos/nfce/default.aspx",           // BA
+
+            // Região Sudeste
+            31 => p ? "https://nfce.fazenda.mg.gov.br/portalnfce"                     : "https://hnfce.fazenda.mg.gov.br/portalnfce",                        // MG
+            32 => p ? "https://app.sefaz.es.gov.br/ConsultaNFCe"                      : "https://app.sefaz.es.gov.br/ConsultaNFCe",                          // ES — URL única
+            33 => p ? "https://www.nfce.fazenda.rj.gov.br/consulta"                   : "https://www.homologacao.nfce.fazenda.rj.gov.br/consulta",           // RJ
+            35 => p ? "https://www.nfce.fazenda.sp.gov.br/consulta"                   : "https://www.homologacao.nfce.fazenda.sp.gov.br/consulta",           // SP
+
+            // Região Sul
+            41 => p ? "https://www.nfce.pr.gov.br/nfce/consulta"                      : "https://www.homologacao.nfce.pr.gov.br/nfce/consulta",              // PR
+            42 => p ? "https://sat.sef.sc.gov.br/tax.NET/Sat.NFCe.Consulta.aspx"      : "https://hom.sat.sef.sc.gov.br/tax.NET/Sat.NFCe.Consulta.aspx",      // SC
+            43 => p ? "https://www.sefaz.rs.gov.br/NFCE/NFCE-COM.aspx"               : "https://www.sefaz.rs.gov.br/NFCE/NFCE-COM.aspx",                    // RS — URL única
+
+            // Região Centro-Oeste + DF
+            50 => p ? "https://www.nfce.fazenda.ms.gov.br/portal/"                    : "https://www.homologacao.nfce.fazenda.ms.gov.br/portal/",            // MS
+            51 => p ? "https://www.sefaz.mt.gov.br/nfce/consultanfce"                 : "https://homologacao.sefaz.mt.gov.br/nfce/consultanfce",             // MT
+            52 => p ? "https://nfce.sefaz.go.gov.br/pages/consulta-nfce.jsf"          : "https://homologacao.nfce.sefaz.go.gov.br/pages/consulta-nfce.jsf",  // GO
+            53 => p ? "https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx"  : "https://hom.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx",      // DF
+
+            // Fallback explícito: lança para que o problema apareça em tempo de emissão
+            _ => throw new InvalidOperationException($"Código IBGE de UF não mapeado para URL NFC-e: {ufCodigo}.")
         };
     }
 

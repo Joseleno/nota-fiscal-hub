@@ -87,7 +87,10 @@ public static class ResultExtensions
             || code.EndsWith("IdempotencyKeyInvalida")
             || code.EndsWith("SemCertificado")
             || code.EndsWith("TenantInvalido")
-            || code.EndsWith("ClienteAppInvalido"))
+            || code.EndsWith("ClienteAppInvalido")
+            || code.EndsWith("IndPresencaInvalido")
+            // Erros de configuração do Tenant (CSC/cIdToken ausente) são falha do cliente, não do servidor
+            || code.StartsWith("XmlBuilder."))
             return TypedResults.UnprocessableEntity(new ProblemDetails
             {
                 Title = error.Message,

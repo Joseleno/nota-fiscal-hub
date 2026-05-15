@@ -2,7 +2,7 @@ namespace VisuFiscalHub.Infrastructure.Fiscal;
 
 // Mapa de fuso horário por código IBGE de UF (offsets fixos — Brasil não observa DST desde 2019).
 // Fonte: decisions.md seção 5.1
-public static class UfFusoHorario
+internal static class UfFusoHorario
 {
     public static readonly IReadOnlyDictionary<int, TimeSpan> Mapa =
         new Dictionary<int, TimeSpan>

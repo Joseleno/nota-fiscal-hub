@@ -9,26 +9,33 @@ using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Infrastructure.Services;
 
-internal sealed class TokenService : ITokenService, IDisposable
+internal sealed class TokenService : ITokenService
 {
     private readonly JwtSettings _settings;
     private readonly TimeProvider _timeProvider;
-    private readonly RSA _rsa;
-    private readonly SigningCredentials _credentials;
+    // RSAParameters é imutável após exportação — seguro para leitura concorrente em Singleton.
+    // Uma nova instância RSA é criada por chamada para evitar problemas de thread-safety
+    // do RSAOpenSsl no Linux (RSACng no Windows serializa internamente, mas RSAOpenSsl não garante).
+    private readonly RSAParameters _keyParams;
 
     public TokenService(IOptions<JwtSettings> settings, TimeProvider timeProvider)
     {
         _settings = settings.Value;
         _timeProvider = timeProvider;
 
-        _rsa = RSA.Create();
-        _rsa.ImportFromPem(_settings.PrivateKeyPem);
-        var key = new RsaSecurityKey(_rsa);
-        _credentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(_settings.PrivateKeyPem);
+        _keyParams = rsa.ExportParameters(includePrivateParameters: true);
     }
 
     public string GenerateToken(ClienteAppId clienteAppId, string clientId)
     {
+        using var rsa = RSA.Create();
+        rsa.ImportParameters(_keyParams);
+        var credentials = new SigningCredentials(
+            new RsaSecurityKey(rsa),
+            SecurityAlgorithms.RsaSha256);
+
         var now = _timeProvider.GetUtcNow();
         var claims = new[]
         {
@@ -45,10 +52,8 @@ internal sealed class TokenService : ITokenService, IDisposable
             claims: claims,
             notBefore: now.UtcDateTime,
             expires: now.UtcDateTime.AddSeconds(_settings.ExpiresInSeconds),
-            signingCredentials: _credentials);
+            signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-
-    public void Dispose() => _rsa.Dispose();
 }
