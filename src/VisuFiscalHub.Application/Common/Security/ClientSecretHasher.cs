@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace VisuFiscalHub.Application.Common.Security;
 
-internal static class ClientSecretHasher
+public static class ClientSecretHasher
 {
     private const int Iterations = 600_000;
     private const int SaltSize = 32;

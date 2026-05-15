@@ -1,14 +1,19 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Threading.RateLimiting;
 using Mediator;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using VisuFiscalHub.Api.Authentication;
 using VisuFiscalHub.Application;
 using VisuFiscalHub.Api;
 using VisuFiscalHub.Application.Common.Interfaces;
+using VisuFiscalHub.Application.Common.Models;
+using VisuFiscalHub.Application.Common.Security;
 using VisuFiscalHub.Application.Tenants.Commands.CreateClienteApp;
 using VisuFiscalHub.Application.Tenants.Commands.CreateTenant;
 using VisuFiscalHub.Application.Tenants.Commands.RotateClienteAppSecret;
@@ -18,6 +23,7 @@ using VisuFiscalHub.Application.Tenants.Queries.GetCertificadoStatus;
 using VisuFiscalHub.Application.Tenants.Queries.GetTenant;
 using VisuFiscalHub.Application.Tenants.Queries.ListTenants;
 using VisuFiscalHub.Domain.Identifiers;
+using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Infrastructure;
 
 Log.Logger = new LoggerConfiguration()
@@ -34,21 +40,37 @@ try
               .Enrich.FromLogContext()
               .WriteTo.Console());
 
+    // ── Application + Infrastructure ────────────────────────────────────────
     builder.Services.AddApplication();
+
+    builder.Services
+        .AddOptions<JwtSettings>()
+        .Bind(builder.Configuration.GetSection(JwtSettings.SectionName))
+        .Validate(s =>
+            !string.IsNullOrWhiteSpace(s.PrivateKeyPem) && s.PublicKeyPems.Length > 0,
+            "Jwt:PrivateKeyPem e Jwt:PublicKeyPems são obrigatórios.")
+        .ValidateOnStart();
+
     builder.Services.AddInfrastructure(builder.Configuration);
 
+    // ── HTTP helpers ─────────────────────────────────────────────────────────
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
-
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-    var jwtSection = builder.Configuration.GetSection("Jwt");
-    var signingKeyBytes = System.Text.Encoding.UTF8.GetBytes(
-        jwtSection["SigningKey"]
-        ?? throw new InvalidOperationException("Jwt:SigningKey não configurado."));
-    if (signingKeyBytes.Length < 32)
-        throw new InvalidOperationException("Jwt:SigningKey deve ter no mínimo 32 bytes (256 bits).");
+    // ── JWT RS256 ─────────────────────────────────────────────────────────────
+    var jwtConfig = builder.Configuration.GetSection(JwtSettings.SectionName);
+    var publicKeyPems = jwtConfig.GetSection("PublicKeyPems").Get<string[]>() ?? [];
+
+    var signingKeys = publicKeyPems
+        .Select(pem =>
+        {
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(pem);
+            return (SecurityKey)new RsaSecurityKey(rsa);
+        })
+        .ToList();
 
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -57,17 +79,71 @@ try
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
-                ValidIssuer = jwtSection["Issuer"],
+                ValidIssuer = jwtConfig["Issuer"],
                 ValidateAudience = true,
-                ValidAudience = jwtSection["Audience"],
+                ValidAudience = jwtConfig["Audience"],
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(signingKeyBytes),
+                IssuerSigningKeys = signingKeys,
                 NameClaimType = ClaimTypes.NameIdentifier,
             };
         });
 
     builder.Services.AddAuthorization();
+
+    // ── Rate Limiting ─────────────────────────────────────────────────────────
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        options.OnRejected = async (ctx, ct) =>
+        {
+            ctx.HttpContext.Response.Headers["Retry-After"] = "60";
+            await ctx.HttpContext.Response.WriteAsJsonAsync(
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests,
+                    Title = "Muitas requisições.",
+                    Detail = "Tente novamente em 60 segundos."
+                }, ct);
+        };
+
+        options.AddPolicy("auth", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                }));
+
+        options.AddPolicy("api", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                httpContext.User.FindFirstValue("client_id")
+                    ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 100,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                }));
+
+        options.AddPolicy("admin", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                }));
+    });
+
     builder.Services.AddOpenApi();
 
     var app = builder.Build();
@@ -79,111 +155,178 @@ try
 
     app.UseHttpsRedirection();
     app.UseSerilogRequestLogging();
+    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseMiddleware<TenantValidationMiddleware>();
 
+    // ── POST /auth/token ──────────────────────────────────────────────────────
+    app.MapPost("/auth/token",
+        async (
+            TokenRequest request,
+            IClienteAppRepository clienteAppRepo,
+            ITokenService tokenService,
+            CancellationToken ct) =>
+        {
+            var clienteApp = await clienteAppRepo.GetByClientIdAsync(request.ClientId, ct);
+
+            if (clienteApp is null || !clienteApp.IsActive)
+                return Results.Json(new { error = "invalid_client" }, statusCode: StatusCodes.Status401Unauthorized);
+
+            if (!ClientSecretHasher.VerificarHash(request.ClientSecret, clienteApp.ClientSecretHash))
+                return Results.Json(new { error = "invalid_client" }, statusCode: StatusCodes.Status401Unauthorized);
+
+            var token = tokenService.GenerateToken(clienteApp.Id, clienteApp.ClientId);
+            var expiresIn = app.Configuration.GetValue<int?>($"{JwtSettings.SectionName}:ExpiresInSeconds") ?? 3600;
+
+            return Results.Ok(new
+            {
+                access_token = token,
+                token_type = "Bearer",
+                expires_in = expiresIn
+            });
+        })
+        .RequireRateLimiting("auth")
+        .WithName("PostAuthToken");
+
     // ── ClienteApps ──────────────────────────────────────────────────────────
-    var clienteApps = app.MapGroup("/cliente-apps").RequireAuthorization();
+    var clienteApps = app.MapGroup("/api/v1/clientes");
 
-    clienteApps.MapPost("/", async (CreateClienteAppCommand command, IMediator mediator, CancellationToken ct) =>
-        (await mediator.Send(command, ct)).ToHttpResult(r => Results.Created($"/cliente-apps/{r.Id}", r)));
+    clienteApps.MapPost("/",
+        async (CreateClienteAppCommand command, IMediator mediator, HttpContext ctx, CancellationToken ct) =>
+        {
+            var adminKey = app.Configuration["AdminKey:Value"]
+                ?? throw new InvalidOperationException("AdminKey:Value não configurado.");
+            var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
 
-    clienteApps.MapPost("/{id:guid}/rotate-secret", async (
-        Guid id,
-        ICurrentUserContext userCtx,
-        IMediator mediator,
-        CancellationToken ct) =>
-    {
-        if (userCtx.ClienteAppId != new ClienteAppId(id))
-            return Results.Forbid();
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(providedKey),
+                    System.Text.Encoding.UTF8.GetBytes(adminKey)))
+                return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
 
-        var command = new RotateClienteAppSecretCommand { ClienteAppId = new ClienteAppId(id) };
-        return (await mediator.Send(command, ct)).ToHttpResult(r => Results.Ok(r));
-    });
+            return (await mediator.Send(command, ct))
+                .ToHttpResult(r => Results.Created($"/api/v1/clientes/{r.Id}", r));
+        })
+        .RequireRateLimiting("admin");
+
+    clienteApps.MapPost("/{id:guid}/rotate-secret",
+        async (
+            Guid id,
+            HttpContext ctx,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var adminKey = app.Configuration["AdminKey:Value"]
+                ?? throw new InvalidOperationException("AdminKey:Value não configurado.");
+            var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
+
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(providedKey),
+                    System.Text.Encoding.UTF8.GetBytes(adminKey)))
+                return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
+
+            var command = new RotateClienteAppSecretCommand { ClienteAppId = new ClienteAppId(id) };
+            return (await mediator.Send(command, ct)).ToHttpResult(r => Results.Ok(r));
+        });
 
     // ── Tenants ───────────────────────────────────────────────────────────────
-    var tenants = app.MapGroup("/tenants").RequireAuthorization();
+    var tenants = app.MapGroup("/api/v1/tenants").RequireAuthorization();
 
-    tenants.MapPost("/", async (CreateTenantCommand command, ICurrentUserContext userCtx, IMediator mediator, CancellationToken ct) =>
-    {
-        var cmd = command with { ClienteAppId = userCtx.ClienteAppId };
-        return (await mediator.Send(cmd, ct)).ToHttpResult(r => Results.Created($"/tenants/{r.Id}", r));
-    });
-
-    tenants.MapGet("/", async (
-        int? page,
-        int? pageSize,
-        ICurrentUserContext userCtx,
-        IMediator mediator,
-        CancellationToken ct) =>
-    {
-        var query = new ListTenantsQuery
+    tenants.MapPost("/",
+        async (CreateTenantCommand command, ICurrentUserContext userCtx, IMediator mediator, CancellationToken ct) =>
         {
-            ClienteAppId = userCtx.ClienteAppId,
-            Page = page ?? 1,
-            PageSize = pageSize ?? 20
-        };
-        return (await mediator.Send(query, ct)).ToHttpResult();
-    });
+            var cmd = command with { ClienteAppId = userCtx.ClienteAppId };
+            return (await mediator.Send(cmd, ct))
+                .ToHttpResult(r => Results.Created($"/api/v1/tenants/{r.Id}", r));
+        })
+        .RequireRateLimiting("api");
 
-    tenants.MapGet("/{tenantId:guid}", async (
-        Guid tenantId,
-        ICurrentUserContext userCtx,
-        IMediator mediator,
-        CancellationToken ct) =>
-    {
-        var query = new GetTenantQuery
+    tenants.MapGet("/",
+        async (
+            int? page,
+            int? pageSize,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
         {
-            TenantId = new TenantId(tenantId),
-            ClienteAppId = userCtx.ClienteAppId
-        };
-        return (await mediator.Send(query, ct)).ToHttpResult();
-    });
+            var query = new ListTenantsQuery
+            {
+                ClienteAppId = userCtx.ClienteAppId,
+                Page = page ?? 1,
+                PageSize = pageSize ?? 20
+            };
+            return (await mediator.Send(query, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("api");
 
-    tenants.MapGet("/{tenantId:guid}/certificado/status", async (
-        Guid tenantId,
-        ICurrentUserContext userCtx,
-        IMediator mediator,
-        CancellationToken ct) =>
-    {
-        var query = new GetCertificadoStatusQuery
+    tenants.MapGet("/{id:guid}",
+        async (
+            Guid id,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
         {
-            TenantId = new TenantId(tenantId),
-            ClienteAppId = userCtx.ClienteAppId
-        };
-        return (await mediator.Send(query, ct)).ToHttpResult();
-    });
+            var query = new GetTenantQuery
+            {
+                TenantId = new TenantId(id),
+                ClienteAppId = userCtx.ClienteAppId
+            };
+            return (await mediator.Send(query, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("api");
 
-    tenants.MapPut("/{tenantId:guid}/certificado", async (
-        Guid tenantId,
-        UpdateTenantCertificateCommand command,
-        ICurrentUserContext userCtx,
-        IMediator mediator,
-        CancellationToken ct) =>
-    {
-        var cmd = command with
+    tenants.MapGet("/{id:guid}/certificado/status",
+        async (
+            Guid id,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
         {
-            TenantId = new TenantId(tenantId),
-            ClienteAppId = userCtx.ClienteAppId
-        };
-        return (await mediator.Send(cmd, ct)).ToHttpResult();
-    });
+            var query = new GetCertificadoStatusQuery
+            {
+                TenantId = new TenantId(id),
+                ClienteAppId = userCtx.ClienteAppId
+            };
+            return (await mediator.Send(query, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("api");
 
-    tenants.MapPut("/{tenantId:guid}/csc", async (
-        Guid tenantId,
-        UpdateTenantCscCommand command,
-        ICurrentUserContext userCtx,
-        IMediator mediator,
-        CancellationToken ct) =>
-    {
-        var cmd = command with
+    tenants.MapPut("/{id:guid}/certificado",
+        async (
+            Guid id,
+            UpdateTenantCertificateCommand command,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
         {
-            TenantId = new TenantId(tenantId),
-            ClienteAppId = userCtx.ClienteAppId
-        };
-        return (await mediator.Send(cmd, ct)).ToHttpResult();
-    });
+            var cmd = command with
+            {
+                TenantId = new TenantId(id),
+                ClienteAppId = userCtx.ClienteAppId
+            };
+            return (await mediator.Send(cmd, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("api");
+
+    tenants.MapPut("/{id:guid}/csc",
+        async (
+            Guid id,
+            UpdateTenantCscCommand command,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var cmd = command with
+            {
+                TenantId = new TenantId(id),
+                ClienteAppId = userCtx.ClienteAppId
+            };
+            return (await mediator.Send(cmd, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("api");
+
+    // ── Health ────────────────────────────────────────────────────────────────
+    app.MapGet("/health", () => TypedResults.Ok(new { status = "Healthy" }));
 
     app.Run();
 }
@@ -196,10 +339,9 @@ finally
     Log.CloseAndFlush();
 }
 
-// Global exception handler — converte exceções não tratadas em ProblemDetails 500
-// sem vazar stack traces para o cliente.
-sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
-    : IExceptionHandler
+internal sealed record TokenRequest(string ClientId, string ClientSecret);
+
+sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -220,3 +362,5 @@ sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
         return true;
     }
 }
+
+public partial class Program { }

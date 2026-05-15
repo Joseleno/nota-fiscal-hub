@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using VisuFiscalHub.Application.Common.Interfaces;
+using VisuFiscalHub.Application.Common.Models;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Infrastructure.Persistence;
 using VisuFiscalHub.Infrastructure.Persistence.Repositories;
+using VisuFiscalHub.Infrastructure.Services;
 using VisuFiscalHub.Infrastructure.Services.Stubs;
 
 namespace VisuFiscalHub.Infrastructure;
@@ -40,10 +43,11 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ISequenceManager, SequenceManager>();
 
+        services.AddScoped<ITokenService, TokenService>();
+
         // Stubs — substituir por implementações reais em fases futuras
         services.AddScoped<ICertificateEncryptionService, CertificateEncryptionServiceStub>();
         services.AddScoped<ITenantCertificateProvider, TenantCertificateProviderStub>();
-        services.AddScoped<ITokenService, TokenServiceStub>();
         services.AddScoped<ISefazClient, SefazClientStub>();
         services.AddScoped<INfceXmlBuilder, NfceXmlBuilderStub>();
         services.AddScoped<IQrCodeGenerator, QrCodeGeneratorStub>();
