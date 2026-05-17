@@ -1,13 +1,15 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using VisuFiscalHub.Application.Common.Interfaces;
-using VisuFiscalHub.Application.Common.Models;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Infrastructure.Fiscal;
 using VisuFiscalHub.Infrastructure.Fiscal.Certificates;
+using VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
 using VisuFiscalHub.Infrastructure.Fiscal.XmlBuilder;
+using VisuFiscalHub.Infrastructure.Jobs;
 using VisuFiscalHub.Infrastructure.Persistence;
 using VisuFiscalHub.Infrastructure.Persistence.Repositories;
 using VisuFiscalHub.Infrastructure.Services;
@@ -48,18 +50,51 @@ public static class DependencyInjection
 
         services.AddSingleton<ITokenService, TokenService>();
 
-        // Fase 6a — Fiscal infrastructure (real implementations)
+        // Fase 6a — Fiscal infrastructure
         services.AddSingleton<ICertificateEncryptionService, CertificateEncryptionService>();
         services.AddScoped<IQrCodeGenerator, QrCodeGenerator>();
         services.AddScoped<ITributacaoCalculator, TributacaoCalculator>();
         services.AddScoped<INfceXmlBuilder, NfceXmlBuilder>();
         services.AddSingleton<XmlSigner>();
 
-        // Stubs — substituir por implementações reais em fases futuras
-        services.AddScoped<ITenantCertificateProvider, TenantCertificateProviderStub>();
-        services.AddScoped<ISefazClient, SefazClientStub>();
-        services.AddScoped<IWebhookDeliveryService, WebhookDeliveryServiceStub>();
-        services.AddScoped<IDocumentJobQueue, DocumentJobQueueStub>();
+        // Fase 6b — Certificados com cache
+        services.AddMemoryCache();
+        services.AddScoped<ITenantCertificateProvider, TenantCertificateProvider>();
+
+        // Fase 6b — Webhook delivery
+        services.AddHttpClient("webhook", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.Add("User-Agent", "VisuFiscalHub-Webhook/1.0");
+        });
+        services.AddScoped<IWebhookDeliveryService, WebhookDeliveryService>();
+
+        // Fase 6b — Hangfire (job queue + outbox relay)
+        services.AddHangfire(config => config
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(connectionString)));
+
+        services.AddHangfireServer(opts =>
+        {
+            opts.WorkerCount = 4;
+            opts.Queues = ["default"];
+        });
+
+        services.AddScoped<IDocumentJobQueue, DocumentJobQueue>();
+        services.AddScoped<OutboxRelayJob>();
+        services.AddScoped<NfceProcessingJob>();
+        services.AddScoped<ReconciliacaoJobProcessor>();
+
+        // Fase 7 — Integração SEFAZ
+        // "sefaz-base": client base sem certificado — SefazHttpClient adiciona mTLS por request.
+        services.AddHttpClient("sefaz-base", client =>
+        {
+            client.DefaultRequestHeaders.Add("User-Agent", "VisuFiscalHub/1.0 NfceEmissor");
+        });
+        services.AddScoped<SefazHttpClient>();
+        services.AddScoped<ISefazClient, SefazClient>();
 
         return services;
     }
