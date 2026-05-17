@@ -62,10 +62,14 @@ public static class DependencyInjection
         services.AddScoped<ITenantCertificateProvider, TenantCertificateProvider>();
 
         // Fase 6b — Webhook delivery
+        // AllowAutoRedirect = false: previne bypass de SSRF via redirect (e.g., 301 → 169.254.x.x).
         services.AddHttpClient("webhook", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(15);
             client.DefaultRequestHeaders.Add("User-Agent", "VisuFiscalHub-Webhook/1.0");
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            AllowAutoRedirect = false
         });
         services.AddScoped<IWebhookDeliveryService, WebhookDeliveryService>();
 
