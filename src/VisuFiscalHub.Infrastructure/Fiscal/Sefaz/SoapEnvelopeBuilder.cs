@@ -15,10 +15,11 @@ internal static class SoapEnvelopeBuilder
     /// <summary>
     /// Monta o envelope NfeAutorizacao4 para envio em lote de 1 NFC-e.
     /// cUF e tpAmb são obrigatórios no cabeçalho conforme esquema nfeCabMsg.xsd.
+    /// idLote deve ser fornecido pelo chamador (gerado via TimeProvider) para garantir testabilidade.
     /// </summary>
-    public static string BuildAutorizacao(string xmlNfe, int cUF, int tpAmb)
+    public static string BuildAutorizacao(string xmlNfe, int cUF, int tpAmb, string idLote)
     {
-        var envXml = BuildEnviNFe(xmlNfe, cUF, tpAmb);
+        var envXml = BuildEnviNFe(xmlNfe, idLote);
 
         var doc = new XmlDocument();
         var envelope = doc.CreateElement("soap12", "Envelope", SoapNs);
@@ -40,8 +41,8 @@ internal static class SoapEnvelopeBuilder
         return doc.OuterXml;
     }
 
-    // Monta o lote EnviNFe com 1 NFC-e (idLote gerado com 15 dígitos aleatórios).
-    private static string BuildEnviNFe(string xmlNfe, int cUF, int tpAmb)
+    // Monta o lote EnviNFe com 1 NFC-e. idLote (15 dígitos) fornecido pelo chamador.
+    private static string BuildEnviNFe(string xmlNfe, string idLote)
     {
         var doc = new XmlDocument();
         doc.LoadXml(xmlNfe);
@@ -50,8 +51,7 @@ internal static class SoapEnvelopeBuilder
         var env = enviNFe.CreateElement("enviNFe", NfeNs);
         env.SetAttribute("versao", "4.00");
 
-        var idLote = DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "0";
-        AddChild(enviNFe, env, NfeNs, "idLote", idLote.PadRight(15, '0')[..15]);
+        AddChild(enviNFe, env, NfeNs, "idLote", idLote);
         AddChild(enviNFe, env, NfeNs, "indSinc", "1"); // Síncrono — recomendado para NFC-e
 
         env.AppendChild(enviNFe.ImportNode(doc.DocumentElement!, true));

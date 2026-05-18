@@ -1,7 +1,6 @@
 using Hangfire;
 using Microsoft.Extensions.Logging;
 using VisuFiscalHub.Application.Common.Interfaces;
-using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Domain.ValueObjects;
 
@@ -22,7 +21,6 @@ public sealed class ReconciliacaoJobProcessor
     private static readonly TimeSpan ThresholdTravado = TimeSpan.FromMinutes(10);
 
     private readonly IDocumentoFiscalRepository _documentoRepo;
-    private readonly ITenantRepository _tenantRepo;
     private readonly ISefazClient _sefazClient;
     private readonly IDocumentJobQueue _documentJobQueue;
     private readonly IUnitOfWork _unitOfWork;
@@ -31,7 +29,6 @@ public sealed class ReconciliacaoJobProcessor
 
     public ReconciliacaoJobProcessor(
         IDocumentoFiscalRepository documentoRepo,
-        ITenantRepository tenantRepo,
         ISefazClient sefazClient,
         IDocumentJobQueue documentJobQueue,
         IUnitOfWork unitOfWork,
@@ -39,7 +36,6 @@ public sealed class ReconciliacaoJobProcessor
         ILogger<ReconciliacaoJobProcessor> logger)
     {
         _documentoRepo = documentoRepo;
-        _tenantRepo = tenantRepo;
         _sefazClient = sefazClient;
         _documentJobQueue = documentJobQueue;
         _unitOfWork = unitOfWork;

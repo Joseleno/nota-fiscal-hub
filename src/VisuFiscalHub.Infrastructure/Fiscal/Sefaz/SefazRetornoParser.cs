@@ -29,6 +29,9 @@ internal static class SefazRetornoParser
     private static readonly IReadOnlySet<string> CStatDuplicidade = new HashSet<string>
         { "204", "572" };
 
+    // cStat=217: NF-e não encontrada na base SEFAZ.
+    private static readonly IReadOnlySet<string> CStatNaoEncontrado = new HashSet<string> { "217" };
+
     public static Result<SefazRetorno> Parse(string soapResponse)
     {
         try
@@ -45,16 +48,15 @@ internal static class SefazRetornoParser
                 return Result.Failure<SefazRetorno>(
                     new Error("Sefaz.RetornoInvalido", "Resposta SOAP não contém retEnviNFe."));
 
-            var cStat  = retNode.SelectSingleNode("nfe:cStat",  ns)?.InnerText ?? string.Empty;
+            var cStat   = retNode.SelectSingleNode("nfe:cStat",  ns)?.InnerText ?? string.Empty;
             var xMotivo = retNode.SelectSingleNode("nfe:xMotivo", ns)?.InnerText ?? string.Empty;
 
             // Protocolo de autorização — pode estar em retNFe/infRec/nProt ou protNFe/infProt/nProt
-            var nProt      = retNode.SelectSingleNode(".//nfe:nProt", ns)?.InnerText;
+            var nProt       = retNode.SelectSingleNode(".//nfe:nProt", ns)?.InnerText;
             var xmlProtNode = retNode.SelectSingleNode(".//nfe:protNFe", ns);
             var xmlProt     = xmlProtNode?.OuterXml;
 
             var autorizado = CStatAutorizado.Contains(cStat);
-            var denegado   = CStatDenegado.Contains(cStat);
 
             return Result.Success(new SefazRetorno(
                 Autorizado:    autorizado,
@@ -73,6 +75,12 @@ internal static class SefazRetornoParser
     public static bool IsDuplicidade(string cStat) => CStatDuplicidade.Contains(cStat);
 
     public static bool IsDenegado(string cStat) => CStatDenegado.Contains(cStat);
+
+    /// <summary>
+    /// Verifica se o cStat indica que a NF-e não foi encontrada na base SEFAZ (cStat=217).
+    /// Usado em ParseConsultaResponse para determinar o campo Encontrado da consulta.
+    /// </summary>
+    public static bool IsNaoEncontrado(string cStat) => CStatNaoEncontrado.Contains(cStat);
 
     /// <summary>
     /// Verifica se o cStat é uma rejeição recuperável (tentar novamente) vs definitiva.

@@ -16,13 +16,13 @@ namespace VisuFiscalHub.Infrastructure.Services;
 
 internal sealed class WebhookDeliveryService : IWebhookDeliveryService
 {
-    // Spec fase-06b: 3 tentativas com backoff 30s / 5min / 30min.
-    // attemptNumber é 1-based: 1 = primeira entrega (da interface pública), 2 e 3 = retries.
+    // Spec fase-06b: 3 tentativas totais (1 inicial + 2 retries) com backoff 30s / 5min.
+    // RetryDelays[i] é o intervalo antes da tentativa i+2 (attemptNumber 1 → delay[0] → attempt 2, etc.).
+    // O array tem MaxAttempts-1 elementos: um delay por retry agendado, nunca por tentativa final.
     private static readonly TimeSpan[] RetryDelays =
     [
-        TimeSpan.FromSeconds(30),
-        TimeSpan.FromMinutes(5),
-        TimeSpan.FromMinutes(30),
+        TimeSpan.FromSeconds(30),   // antes da 2ª tentativa
+        TimeSpan.FromMinutes(5),    // antes da 3ª tentativa (última)
     ];
 
     private const int MaxAttempts = 3;
@@ -35,9 +35,11 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         (IPAddress.Parse("172.16.0.0"),   12),
         (IPAddress.Parse("192.168.0.0"),  16),
         (IPAddress.Parse("127.0.0.0"),     8),
-        (IPAddress.Parse("169.254.0.0"),  16),  // link-local
+        (IPAddress.Parse("169.254.0.0"),  16),  // IPv4 link-local
         (IPAddress.Parse("::1"),          128),  // IPv6 loopback
-        (IPAddress.Parse("fc00::"),         7),  // IPv6 ULA
+        (IPAddress.Parse("fc00::"),         7),  // IPv6 ULA (fc00::/7 cobre fc00:: e fd00::)
+        (IPAddress.Parse("fe80::"),        10),  // IPv6 link-local (equivalente ao 169.254.0.0/16)
+        (IPAddress.Parse("ff00::"),         8),  // IPv6 multicast
     ];
 
     private readonly IClienteAppRepository _clienteAppRepo;

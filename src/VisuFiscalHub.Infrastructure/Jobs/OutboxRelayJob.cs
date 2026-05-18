@@ -59,13 +59,15 @@ public sealed class OutboxRelayJob
             if (message.ProcessedAt is not null)
                 continue;
 
+            var published = false;
+
             try
             {
                 var eventType = ResolveEventType(message.EventType);
                 if (eventType is null)
                 {
                     _logger.LogWarning(
-                        "OutboxRelayJob: tipo desconhecido '{EventType}' (Id={MessageId}) — marcado como processado.",
+                        "OutboxRelayJob: tipo '{EventType}' não encontrado ou não implementa INotification (Id={MessageId}) — marcado como processado.",
                         message.EventType, message.Id);
                     message.ProcessedAt = _timeProvider.GetUtcNow();
                     await _dbContext.SaveChangesAsync(ct);
@@ -84,21 +86,28 @@ public sealed class OutboxRelayJob
                 }
 
                 await _publisher.Publish(domainEvent, ct);
-
-                // SaveChanges por mensagem — falha no próximo item não afeta este.
-                message.ProcessedAt = _timeProvider.GetUtcNow();
-                await _dbContext.SaveChangesAsync(ct);
-
-                _logger.LogDebug(
-                    "OutboxRelayJob: Id={MessageId} Type={EventType} publicado.",
-                    message.Id, message.EventType);
+                published = true;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // Isola falha de Publish ou de deserialização: não cancela as demais mensagens do batch.
                 _logger.LogError(ex,
                     "OutboxRelayJob: erro ao processar Id={MessageId}, Type={EventType}. Permanece na fila.",
                     message.Id, message.EventType);
+                continue;
             }
+
+            // SaveChangesAsync está fora do catch de Publish intencionalmente.
+            // Se Publish sucedeu mas SaveChanges falha, a exceção propaga para o Hangfire retry —
+            // o batch inteiro será reprocessado. Handlers de evento devem ser idempotentes (at-least-once).
+            // Este é o contrato correto: nunca silenciar falha de persistência após publicação.
+            message.ProcessedAt = _timeProvider.GetUtcNow();
+            await _dbContext.SaveChangesAsync(ct);
+
+            if (published)
+                _logger.LogDebug(
+                    "OutboxRelayJob: Id={MessageId} Type={EventType} publicado.",
+                    message.Id, message.EventType);
         }
 
         await transaction.CommitAsync(ct);
@@ -106,13 +115,17 @@ public sealed class OutboxRelayJob
 
     // Type.GetType é mais robusto que AppDomain.GetAssemblies() para assemblies lazy-loaded.
     // Fallback para busca em assemblies carregados se GetType direto falhar.
+    // Retorna null se o tipo não for encontrado OU não implementar INotification —
+    // evita Publish silencioso de tipos incompatíveis desserializados como object.
     private static Type? ResolveEventType(string typeName)
     {
-        var t = Type.GetType(typeName);
-        if (t is not null) return t;
+        var t = Type.GetType(typeName)
+            ?? AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType(typeName))
+                .FirstOrDefault(x => x is not null);
 
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetType(typeName))
-            .FirstOrDefault(x => x is not null);
+        if (t is null) return null;
+
+        return typeof(INotification).IsAssignableFrom(t) ? t : null;
     }
 }

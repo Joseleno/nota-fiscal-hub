@@ -19,6 +19,7 @@ internal sealed class SefazClient : ISefazClient
     private readonly INfceXmlBuilder _xmlBuilder;
     private readonly XmlSigner _signer;
     private readonly SefazHttpClient _httpClient;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<SefazClient> _logger;
 
     public SefazClient(
@@ -28,6 +29,7 @@ internal sealed class SefazClient : ISefazClient
         INfceXmlBuilder xmlBuilder,
         XmlSigner signer,
         SefazHttpClient httpClient,
+        TimeProvider timeProvider,
         ILogger<SefazClient> logger)
     {
         _documentoRepo = documentoRepo;
@@ -36,6 +38,7 @@ internal sealed class SefazClient : ISefazClient
         _xmlBuilder = xmlBuilder;
         _signer = signer;
         _httpClient = httpClient;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -89,7 +92,8 @@ internal sealed class SefazClient : ISefazClient
         var ufCodigo = tenant.ConfiguracaoFiscal.UfCodigo;
         var tpAmb    = (int)tenant.ConfiguracaoFiscal.Ambiente;
         var url      = SefazEndpointResolver.Autorizacao(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
-        var envelope = SoapEnvelopeBuilder.BuildAutorizacao(xmlStr, ufCodigo, tpAmb);
+        var idLote   = _timeProvider.GetUtcNow().ToString("yyyyMMddHHmmss") + "0";
+        var envelope = SoapEnvelopeBuilder.BuildAutorizacao(xmlStr, ufCodigo, tpAmb, idLote);
 
         string soapResponse;
         try
@@ -191,8 +195,11 @@ internal sealed class SefazClient : ISefazClient
             var nProt   = retNode.SelectSingleNode(".//nfe:nProt", ns)?.InnerText;
             var xmlProt = retNode.SelectSingleNode(".//nfe:protNFe", ns)?.OuterXml;
 
-            var autorizado = cStat == "100" || cStat == "204";
-            var encontrado = cStat != "217"; // 217 = NF-e não encontrada
+            // Semântica idêntica à de SefazRetornoParser: apenas cStat=100 é Autorizado.
+            // cStat=204/572 = duplicidade na consulta — Encontrado=true, Autorizado=false.
+            // ReconciliacaoJobProcessor trata Encontrado+!Autorizado como rejeição definitiva.
+            var autorizado = cStat == "100";
+            var encontrado = !SefazRetornoParser.IsNaoEncontrado(cStat);
 
             return Result.Success(new SefazConsultaRetorno(
                 Encontrado: encontrado,
