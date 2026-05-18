@@ -7,8 +7,8 @@ using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
-using VisuFiscalHub.Domain.ValueObjects;
 using VisuFiscalHub.Infrastructure.Jobs;
+using VisuFiscalHub.Tests.Helpers;
 
 namespace VisuFiscalHub.Tests.Infrastructure.Jobs;
 
@@ -41,9 +41,7 @@ public class ReconciliacaoJobProcessorTests
             .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<DocumentoFiscal>());
 
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         await _sefazClient.DidNotReceiveWithAnyArgs()
             .ConsultarNfeAsync(default!, default, default);
@@ -54,45 +52,36 @@ public class ReconciliacaoJobProcessorTests
     [Fact]
     public async Task ExecuteAsync_PassaThresholdCorreto_10MinutosAtras()
     {
-        // Threshold = FixedNow − 10 min.
         var expectedThreshold = FixedNow.AddMinutes(-10);
-
         _documentoRepo
             .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<DocumentoFiscal>());
 
-        var processor = CreateProcessor();
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
-        await processor.ExecuteAsync(CancellationToken.None);
-
-        await _documentoRepo.Received(1)
-            .GetProcessandoAntigoAsync(
-                Arg.Is<DateTimeOffset>(t => t == expectedThreshold),
-                Arg.Any<CancellationToken>());
+        await _documentoRepo.Received(1).GetProcessandoAntigoAsync(
+            Arg.Is<DateTimeOffset>(t => t == expectedThreshold),
+            Arg.Any<CancellationToken>());
     }
 
-    // ── consulta SEFAZ falhou → reenfileira ──────────────────────────────────────
+    // ── consulta SEFAZ falhou → reenfileira, não salva ───────────────────────────
 
     [Fact]
     public async Task ExecuteAsync_ConsultaSefazFalhou_ReenfileiraProcessingJob()
     {
-        var documento = BuildDocumentoProcessando();
-        _documentoRepo
-            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { documento });
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
 
-        _sefazClient.ConsultarNfeAsync(
-                documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
             .Returns(Result.Failure<SefazConsultaRetorno>(
                 new Error("Sefaz.Timeout", "Timeout na consulta.")));
 
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         await _documentJobQueue.Received(1)
             .EnqueueProcessingAsync(documento.Id, Arg.Any<CancellationToken>());
-        await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── SEFAZ autorizado → Autorizado ────────────────────────────────────────────
@@ -100,27 +89,15 @@ public class ReconciliacaoJobProcessorTests
     [Fact]
     public async Task ExecuteAsync_SefazAutorizado_TransicionaParaAutorizado()
     {
-        var documento = BuildDocumentoProcessando();
-        _documentoRepo
-            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { documento });
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
+        ConfigurarConsultaAutorizado(documento, protocolo: "315260000000001");
 
-        _sefazClient.ConsultarNfeAsync(
-                documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
-            .Returns(Result.Success(new SefazConsultaRetorno(
-                Encontrado:  true,
-                Autorizado:  true,
-                CStat:       "100",
-                NProt:       "315260000000001",
-                XmlProtocolo: "<nfeProc/>")));
-
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         documento.Status.ShouldBe(StatusDocumento.Autorizado);
         documento.Protocolo.ShouldBe("315260000000001");
-        await _unitOfWork.Received().SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── SEFAZ autorizado mas NProt ausente → Falhou ───────────────────────────────
@@ -128,25 +105,23 @@ public class ReconciliacaoJobProcessorTests
     [Fact]
     public async Task ExecuteAsync_SefazAutorizadoSemNProt_TransicionaParaFalhou()
     {
-        var documento = BuildDocumentoProcessando();
-        _documentoRepo
-            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { documento });
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
 
-        _sefazClient.ConsultarNfeAsync(
-                documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
-                Encontrado:  true,
-                Autorizado:  true,
-                CStat:       "100",
-                NProt:       null,
+                Encontrado:   true,
+                Autorizado:   true,
+                CStat:        "100",
+                NProt:        null,
                 XmlProtocolo: null)));
 
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         documento.Status.ShouldBe(StatusDocumento.Falhou);
+        // FalharAsync salva após transição bem-sucedida.
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── documento não encontrado na SEFAZ → Falhou ────────────────────────────────
@@ -154,25 +129,14 @@ public class ReconciliacaoJobProcessorTests
     [Fact]
     public async Task ExecuteAsync_NaoEncontradoNaSefaz_TransicionaParaFalhou()
     {
-        var documento = BuildDocumentoProcessando();
-        _documentoRepo
-            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { documento });
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
+        ConfigurarConsultaNaoEncontrado(documento);
 
-        _sefazClient.ConsultarNfeAsync(
-                documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
-            .Returns(Result.Success(new SefazConsultaRetorno(
-                Encontrado:  false,
-                Autorizado:  false,
-                CStat:       "217",
-                NProt:       null,
-                XmlProtocolo: null)));
-
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         documento.Status.ShouldBe(StatusDocumento.Falhou);
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── encontrado mas não autorizado (rejeição definitiva) → Falhou ─────────────
@@ -180,166 +144,132 @@ public class ReconciliacaoJobProcessorTests
     [Fact]
     public async Task ExecuteAsync_EncontradoNaoAutorizado_TransicionaParaFalhou()
     {
-        var documento = BuildDocumentoProcessando();
-        _documentoRepo
-            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { documento });
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
 
-        _sefazClient.ConsultarNfeAsync(
-                documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
-                Encontrado:  true,
-                Autorizado:  false,
-                CStat:       "110",
-                NProt:       null,
+                Encontrado:   true,
+                Autorizado:   false,
+                CStat:        "110",
+                NProt:        null,
                 XmlProtocolo: null)));
 
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         documento.Status.ShouldBe(StatusDocumento.Falhou);
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
-    // ── transição concorrente: Falhar() retorna falha → não propaga exceção ───────
-    // Representa o cenário onde NfceProcessingJob já transitou o documento entre
-    // GetProcessandoAntigoAsync e a chamada de Falhar() na reconciliação.
+    // ── Autorizar() retorna falha → não salva, não propaga exceção ───────────────
+    // Testa o ramo AuthResult.IsFailure em AutorizarPorConsultaAsync: o documento não
+    // está em Processando quando o método Autorizar() é invocado, então a transição falha.
+
+    [Fact]
+    public async Task ExecuteAsync_AutorizarRetornaFailure_NaoSalvaENaoPropagaExcecao()
+    {
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
+
+        // Força status para fora de Processando antes da reconciliação: Autorizar() vai falhar.
+        ForcarStatus(documento, StatusDocumento.Autorizado);
+
+        ConfigurarConsultaAutorizado(documento, protocolo: "315260000000001");
+
+        await Should.NotThrowAsync(() => CreateProcessor().ExecuteAsync(CancellationToken.None));
+
+        // authResult.IsFailure → retorna silenciosamente, sem salvar.
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ── transição concorrente em Falhar() → LogInformation, não propaga exceção ──
+    // Representa o cenário onde NfceProcessingJob transitou o documento para um status
+    // final entre GetProcessandoAntigoAsync e a chamada FalharAsync na reconciliação.
 
     [Fact]
     public async Task ExecuteAsync_FalharRetornaFailure_NaoPropagaExcecao()
     {
-        var documento = BuildDocumentoProcessando();
+        var documento = DocumentoFiscalBuilder.Processando();
+        ConfigurarDocumentosTravados(documento);
 
-        // Simular transição concorrente: levar o documento para Autorizado antes da reconciliação
-        // de modo que Falhar() retorne failure (status não é Processando).
-        var forcaTransicao = typeof(DocumentoFiscal).GetProperty(
-            nameof(DocumentoFiscal.Status),
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
-        forcaTransicao.SetValue(documento, StatusDocumento.Autorizado);
+        // Simula que NfceProcessingJob transitou concorrentemente para Autorizado.
+        ForcarStatus(documento, StatusDocumento.Autorizado);
 
-        _documentoRepo
-            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { documento });
+        ConfigurarConsultaNaoEncontrado(documento);
 
-        _sefazClient.ConsultarNfeAsync(
-                documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
-            .Returns(Result.Success(new SefazConsultaRetorno(
-                Encontrado:  false,
-                Autorizado:  false,
-                CStat:       "217",
-                NProt:       null,
-                XmlProtocolo: null)));
+        // Falhar() retorna Failure (status != Processando) — deve logar Info, não lançar.
+        await Should.NotThrowAsync(() => CreateProcessor().ExecuteAsync(CancellationToken.None));
 
-        var processor = CreateProcessor();
-
-        // Não deve lançar — transição concorrente é esperada (LogInformation, não LogError).
-        await Should.NotThrowAsync(() => processor.ExecuteAsync(CancellationToken.None));
-
-        // Não salva: não houve transição bem-sucedida.
-        await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
+        // Nenhuma transição ocorreu — não deve salvar.
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
-    // ── múltiplos documentos: todos reconciliados ─────────────────────────────────
+    // ── múltiplos documentos: todos reconciliados, todos salvos ──────────────────
 
     [Fact]
-    public async Task ExecuteAsync_DoisDocumentosTravados_AmbosReconciliados()
+    public async Task ExecuteAsync_DoisDocumentosTravados_AmbosReconciliadosESalvos()
     {
-        var doc1 = BuildDocumentoProcessando();
-        var doc2 = BuildDocumentoProcessando();
+        // Números distintos para que as chaves de acesso sejam diferentes.
+        var doc1 = DocumentoFiscalBuilder.Processando(numero: 1);
+        var doc2 = DocumentoFiscalBuilder.Processando(numero: 2);
 
         _documentoRepo
             .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(new[] { doc1, doc2 });
 
-        _sefazClient.ConsultarNfeAsync(
-                Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<CancellationToken>())
+        _sefazClient
+            .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
-                Encontrado:  false,
-                Autorizado:  false,
-                CStat:       "217",
-                NProt:       null,
+                Encontrado:   false,
+                Autorizado:   false,
+                CStat:        "217",
+                NProt:        null,
                 XmlProtocolo: null)));
 
-        var processor = CreateProcessor();
-
-        await processor.ExecuteAsync(CancellationToken.None);
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         doc1.Status.ShouldBe(StatusDocumento.Falhou);
         doc2.Status.ShouldBe(StatusDocumento.Falhou);
         await _sefazClient.Received(2)
             .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<CancellationToken>());
+        // Cada documento produz um SaveChangesAsync independente.
+        await _unitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────
 
-    private static DocumentoFiscal BuildDocumentoProcessando()
+    private void ConfigurarDocumentosTravados(params DocumentoFiscal[] documentos)
+        => _documentoRepo
+            .GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(documentos);
+
+    private void ConfigurarConsultaAutorizado(DocumentoFiscal documento, string protocolo)
+        => _sefazClient
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazConsultaRetorno(
+                Encontrado:   true,
+                Autorizado:   true,
+                CStat:        "100",
+                NProt:        protocolo,
+                XmlProtocolo: "<nfeProc/>")));
+
+    private void ConfigurarConsultaNaoEncontrado(DocumentoFiscal documento)
+        => _sefazClient
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazConsultaRetorno(
+                Encontrado:   false,
+                Autorizado:   false,
+                CStat:        "217",
+                NProt:        null,
+                XmlProtocolo: null)));
+
+    // Força o status via reflexão para simular corridas de dados sem APIs públicas de transição.
+    private static void ForcarStatus(DocumentoFiscal documento, StatusDocumento status)
     {
-        var tenantId = new TenantId(Guid.NewGuid());
-        var clienteAppId = ClienteAppId.New();
-        var docId = DocumentoFiscalId.New();
-
-        var chaveAcesso = ChaveAcesso.Gerar(
-            cUF: 35,
-            aamm: "2601",
-            cnpj: "12345678000195",
-            mod: 65,
-            serie: "001",
-            nNF: "000000001",
-            tpEmis: TipoEmissao.Normal,
-            cNF: "12345678").Value;
-
-        var tributo = Tributo.Criar(
-            tipoIcms: TipoIcms.CSOSN,
-            csosnOuCst: 400,
-            aliquotaIcms: 0m,
-            baseCalculoIcms: 0m,
-            valorIcms: 0m,
-            cstPis: CstPisCofins.Cst07,
-            baseCalculoPis: 0m,
-            aliquotaPis: 0m,
-            valorPis: 0m,
-            cstCofins: CstPisCofins.Cst07,
-            baseCalculoCofins: 0m,
-            aliquotaCofins: 0m,
-            valorCofins: 0m).Value;
-
-        var produto = Produto.Criar(
-            codigoProduto: "PROD001",
-            descricao: "Produto Teste",
-            ncm: "12345678",
-            cest: null,
-            cfopSaida: "5102",
-            unidadeComercial: "UN",
-            quantidade: 1m,
-            valorUnitario: 10m,
-            valorDesconto: 0m,
-            origemMercadoria: OrigemMercadoria.Nacional).Value;
-
-        var item = new ItemDocumento(1, produto, tributo);
-        var pagamento = Pagamento.Criar(TipoPagamento.Dinheiro, 10m).Value;
-
-        var doc = DocumentoFiscal.Criar(
-            id: docId,
-            tenantId: tenantId,
-            clienteAppId: clienteAppId,
-            idempotencyKey: $"idem-{docId.Value}",
-            tipo: TipoDocumento.NfCe,
-            chaveAcesso: chaveAcesso,
-            numero: 1,
-            serie: "001",
-            indPresenca: 1,
-            items: [item],
-            pagamentos: [pagamento],
-            timeProvider: TimeProvider.System).Value;
-
-        doc.Enfileirar();
-        doc.IniciarProcessamento();
-
-        return doc;
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset fixedNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => fixedNow;
+        var prop = typeof(DocumentoFiscal).GetProperty(
+            nameof(DocumentoFiscal.Status),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
+        prop.SetValue(documento, status);
     }
 }
