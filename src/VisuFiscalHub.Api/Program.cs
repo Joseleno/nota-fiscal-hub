@@ -15,8 +15,10 @@ using VisuFiscalHub.Application;
 using VisuFiscalHub.Api;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Application.Common.Models;
+using Hangfire;
 using VisuFiscalHub.Application.Documents.Commands.IssueDocument;
 using VisuFiscalHub.Application.Documents.Queries.GetDocumentStatus;
+using VisuFiscalHub.Infrastructure.Jobs;
 using VisuFiscalHub.Application.Common.Security;
 using VisuFiscalHub.Application.Tenants.Commands.CreateClienteApp;
 using VisuFiscalHub.Application.Tenants.Commands.CreateTenant;
@@ -353,6 +355,21 @@ try
             return (await mediator.Send(cmd, ct)).ToHttpResult();
         })
         .RequireRateLimiting("api");
+
+    // ── Hangfire Dashboard (apenas em desenvolvimento) ────────────────────────
+    if (app.Environment.IsDevelopment())
+        app.UseHangfireDashboard("/hangfire");
+
+    // ── Recurring Jobs ────────────────────────────────────────────────────────
+    RecurringJob.AddOrUpdate<OutboxRelayJob>(
+        "outbox-relay",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Minutely);
+
+    RecurringJob.AddOrUpdate<ReconciliacaoJobProcessor>(
+        "reconciliacao-nfce",
+        job => job.ExecuteAsync(CancellationToken.None),
+        "*/5 * * * *"); // A cada 5 minutos
 
     // ── Health ────────────────────────────────────────────────────────────────
     app.MapGet("/health", () => TypedResults.Ok(new { status = "Healthy" }))

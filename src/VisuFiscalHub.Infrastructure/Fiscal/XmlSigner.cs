@@ -18,8 +18,8 @@ internal sealed class XmlSigner
         using var rsa = certificado.GetRSAPrivateKey()
             ?? throw new InvalidOperationException("Certificado não possui chave privada RSA.");
 
-        signedXml.SigningKey = rsa;
-        signedXml.SignedInfo.SignatureMethod = SignedXml.XmlDsigRSASHA1Url;
+        signedXml.SigningKey = rsa!;
+        signedXml.SignedInfo!.SignatureMethod = SignedXml.XmlDsigRSASHA1Url;
         signedXml.SignedInfo.CanonicalizationMethod = SignedXml.XmlDsigC14NTransformUrl;
 
         var reference = new Reference
