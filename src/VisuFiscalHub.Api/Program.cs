@@ -364,7 +364,7 @@ try
     RecurringJob.AddOrUpdate<OutboxRelayJob>(
         "outbox-relay",
         job => job.ExecuteAsync(CancellationToken.None),
-        Cron.Minutely);
+        "*/30 * * * * *"); // A cada 30 segundos — latência de entrega webhook
 
     RecurringJob.AddOrUpdate<ReconciliacaoJobProcessor>(
         "reconciliacao-nfce",

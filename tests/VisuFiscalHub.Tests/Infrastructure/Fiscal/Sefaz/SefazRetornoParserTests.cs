@@ -63,10 +63,9 @@ public class SefazRetornoParserTests
     public void IsRecuperavel_CodigoMenor200ExcetoDenego_RetornaTrue(string cStat)
         => SefazRetornoParser.IsRecuperavel(cStat).ShouldBeTrue();
 
-    [Theory]
-    [InlineData("110")]
-    public void IsRecuperavel_CStat110_RetornaFalse(string cStat)
-        => SefazRetornoParser.IsRecuperavel(cStat).ShouldBeFalse();
+    [Fact]
+    public void IsRecuperavel_CStat110_RetornaFalse()
+        => SefazRetornoParser.IsRecuperavel("110").ShouldBeFalse();
 
     [Theory]
     [InlineData("200")]
@@ -75,6 +74,7 @@ public class SefazRetornoParserTests
     [InlineData("302")]
     [InlineData("400")]
     [InlineData("500")]
+    [InlineData("572")]
     [InlineData("999")]
     public void IsRecuperavel_Codigo200OuMaior_RetornaFalse(string cStat)
         => SefazRetornoParser.IsRecuperavel(cStat).ShouldBeFalse();
@@ -100,6 +100,7 @@ public class SefazRetornoParserTests
         result.Value.CStat.ShouldBe("100");
         result.Value.NProt.ShouldBe("315230012345678");
         result.Value.XmlAutorizado.ShouldNotBeNull();
+        result.Value.XmlAutorizado.ShouldContain("315230012345678");
     }
 
     [Theory]
@@ -129,6 +130,7 @@ public class SefazRetornoParserTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Autorizado.ShouldBeFalse();
+        result.Value.CStat.ShouldBe(cStat);
     }
 
     [Fact]

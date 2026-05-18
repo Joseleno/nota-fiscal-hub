@@ -17,14 +17,18 @@ public class WebhookSsrfTests
     // ── IPv4 bloqueados ──────────────────────────────────────────────────────────
 
     [Theory]
+    [InlineData("10.0.0.0")]
     [InlineData("10.0.0.1")]
     [InlineData("10.255.255.255")]
     [InlineData("172.16.0.1")]
     [InlineData("172.31.255.255")]
+    [InlineData("192.168.0.0")]
     [InlineData("192.168.0.1")]
     [InlineData("192.168.255.255")]
+    [InlineData("127.0.0.0")]
     [InlineData("127.0.0.1")]
     [InlineData("127.255.255.255")]
+    [InlineData("169.254.0.0")]
     [InlineData("169.254.0.1")]
     [InlineData("169.254.255.255")]
     public void IsInBlockedRange_IPv4Privado_Bloqueado(string ip)

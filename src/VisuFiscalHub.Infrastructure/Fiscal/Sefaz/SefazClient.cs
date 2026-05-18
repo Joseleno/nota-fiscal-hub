@@ -90,10 +90,12 @@ internal sealed class SefazClient : ISefazClient
 
         var xmlStr   = xmlAssinado.OuterXml;
         var ufCodigo = tenant.ConfiguracaoFiscal.UfCodigo;
-        var tpAmb    = (int)tenant.ConfiguracaoFiscal.Ambiente;
         var url      = SefazEndpointResolver.Autorizacao(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
-        var idLote   = _timeProvider.GetUtcNow().ToString("yyyyMMddHHmmss") + "0";
-        var envelope = SoapEnvelopeBuilder.BuildAutorizacao(xmlStr, ufCodigo, tpAmb, idLote);
+        // TDec_015: 15 dígitos numéricos. Formato: yyyyMMddHHmmss + ms/10 (1 dígito).
+        // O dígito de milissegundo previne colisão em retries no mesmo segundo UTC.
+        var now    = _timeProvider.GetUtcNow();
+        var idLote = now.ToString("yyyyMMddHHmmss") + (now.Millisecond / 100).ToString();
+        var envelope = SoapEnvelopeBuilder.BuildAutorizacao(xmlStr, ufCodigo, idLote);
 
         string soapResponse;
         try

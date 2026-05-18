@@ -14,10 +14,11 @@ internal static class SoapEnvelopeBuilder
 
     /// <summary>
     /// Monta o envelope NfeAutorizacao4 para envio em lote de 1 NFC-e.
-    /// cUF e tpAmb são obrigatórios no cabeçalho conforme esquema nfeCabMsg.xsd.
+    /// cUF é obrigatório no cabeçalho conforme esquema nfeCabMsg.xsd.
+    /// tpAmb vai dentro do XML NFC-e (construído por NfceXmlBuilder), não no cabeçalho SOAP.
     /// idLote deve ser fornecido pelo chamador (gerado via TimeProvider) para garantir testabilidade.
     /// </summary>
-    public static string BuildAutorizacao(string xmlNfe, int cUF, int tpAmb, string idLote)
+    public static string BuildAutorizacao(string xmlNfe, int cUF, string idLote)
     {
         var envXml = BuildEnviNFe(xmlNfe, idLote);
 
@@ -25,9 +26,9 @@ internal static class SoapEnvelopeBuilder
         var envelope = doc.CreateElement("soap12", "Envelope", SoapNs);
 
         var header = doc.CreateElement("soap12", "Header", SoapNs);
-        var nfeCabMsg = doc.CreateElement("nfeCabMsg", NfeNs);
-        AddChild(doc, nfeCabMsg, NfeNs, "cUF", cUF.ToString());
-        AddChild(doc, nfeCabMsg, NfeNs, "versaoDados", "4.00");
+        var nfeCabMsg = doc.CreateElement("nfeCabMsg", WsNs);
+        AddChild(doc, nfeCabMsg, WsNs, "cUF", cUF.ToString());
+        AddChild(doc, nfeCabMsg, WsNs, "versaoDados", "4.00");
         header.AppendChild(nfeCabMsg);
         envelope.AppendChild(header);
 

@@ -18,7 +18,7 @@ public class SoapEnvelopeBuilderTests
     [Fact]
     public void BuildAutorizacao_IdLoteValido_RetornaXmlComEstruturaSoap()
     {
-        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, tpAmb: 2, idLote: "202605171200000");
+        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, idLote: "202605171200000");
 
         var doc = new XmlDocument();
         doc.LoadXml(result);
@@ -31,15 +31,35 @@ public class SoapEnvelopeBuilderTests
         doc.SelectSingleNode("//soap12:Envelope", ns).ShouldNotBeNull();
         doc.SelectSingleNode("//soap12:Header", ns).ShouldNotBeNull();
         doc.SelectSingleNode("//soap12:Body", ns).ShouldNotBeNull();
-        doc.SelectSingleNode("//nfe:cUF", ns)!.InnerText.ShouldBe("35");
-        doc.SelectSingleNode("//nfe:versaoDados", ns)!.InnerText.ShouldBe("4.00");
+        // nfeCabMsg e filhos devem estar em WsNs (NFeAutorizacao4), não em NfeNs.
+        doc.SelectSingleNode("//ws:nfeCabMsg", ns).ShouldNotBeNull();
+        doc.SelectSingleNode("//ws:cUF", ns)!.InnerText.ShouldBe("35");
+        doc.SelectSingleNode("//ws:versaoDados", ns)!.InnerText.ShouldBe("4.00");
         doc.SelectSingleNode("//ws:nfeDadosMsg", ns).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void BuildAutorizacao_CabecalhoSoap_NaoContemTpAmb()
+    {
+        // tpAmb pertence ao XML NFC-e (NfceXmlBuilder), não ao cabeçalho SOAP NFeAutorizacao4.
+        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, idLote: "202605171200000");
+
+        var doc = new XmlDocument();
+        doc.LoadXml(result);
+
+        var ns = new XmlNamespaceManager(doc.NameTable);
+        ns.AddNamespace("soap12", SoapNs);
+        ns.AddNamespace("nfe", NfeNs);
+
+        var header = doc.SelectSingleNode("//soap12:Header", ns);
+        header.ShouldNotBeNull();
+        header!.SelectSingleNode(".//nfe:tpAmb", ns).ShouldBeNull();
     }
 
     [Fact]
     public void BuildAutorizacao_IdLoteValido_EnviNFeContemIdLoteEIndSinc()
     {
-        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 43, tpAmb: 1, idLote: "123456789012345");
+        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 43, idLote: "123456789012345");
 
         var doc = new XmlDocument();
         doc.LoadXml(result);
@@ -54,7 +74,7 @@ public class SoapEnvelopeBuilderTests
     [Fact]
     public void BuildAutorizacao_IdLoteValido_VersoesCorretas()
     {
-        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, tpAmb: 2, idLote: "202605171200000");
+        var result = SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, idLote: "202605171200000");
 
         var doc = new XmlDocument();
         doc.LoadXml(result);
@@ -78,7 +98,7 @@ public class SoapEnvelopeBuilderTests
     public void BuildAutorizacao_IdLoteInvalido_LancaArgumentException(string idLote)
     {
         var ex = Should.Throw<ArgumentException>(
-            () => SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, tpAmb: 2, idLote: idLote));
+            () => SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, idLote: idLote));
 
         ex.ParamName.ShouldBe("idLote");
     }
@@ -87,6 +107,6 @@ public class SoapEnvelopeBuilderTests
     public void BuildAutorizacao_IdLoteExatos15Digitos_NaoLancaExcecao()
     {
         Should.NotThrow(() =>
-            SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, tpAmb: 2, idLote: "000000000000000"));
+            SoapEnvelopeBuilder.BuildAutorizacao(SampleNfeXml, cUF: 35, idLote: "000000000000000"));
     }
 }

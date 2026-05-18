@@ -51,4 +51,12 @@ public class OutboxRelayJobResolveTypeTests
 
         result.ShouldBeNull();
     }
+
+    [Fact]
+    public void ResolveEventType_StringNula_RetornaNull()
+    {
+        var result = InvokeResolveEventType(null!);
+
+        result.ShouldBeNull();
+    }
 }

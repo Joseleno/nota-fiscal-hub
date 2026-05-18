@@ -94,10 +94,9 @@ public sealed class OutboxRelayJob
                 continue;
             }
 
-            // SaveChangesAsync está fora do catch de Publish intencionalmente.
-            // Se Publish sucedeu mas SaveChanges falha, a exceção propaga para o Hangfire retry —
-            // o batch inteiro será reprocessado. Handlers de evento devem ser idempotentes (at-least-once).
-            // Este é o contrato correto: nunca silenciar falha de persistência após publicação.
+            // SaveChangesAsync flushes ProcessedAt para o buffer da transação — não é um commit independente.
+            // O commit real ocorre em CommitAsync no fim do batch. Se CommitAsync falhar, todas as mensagens
+            // do batch são re-processadas (at-least-once). Handlers de evento devem ser idempotentes.
             message.ProcessedAt = _timeProvider.GetUtcNow();
             await _dbContext.SaveChangesAsync(ct);
 
