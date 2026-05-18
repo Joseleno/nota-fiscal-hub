@@ -6,14 +6,15 @@ namespace VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
 
 /// <summary>
 /// Cliente HTTP para os webservices SOAP da SEFAZ com mTLS por Tenant.
-/// Usa IHttpClientFactory para configuração base (User-Agent) e cria um handler
-/// por chamada exclusivamente para injetar o certificado do Tenant — padrão necessário
-/// quando o certificado muda por tenant e não pode ser fixo no factory registration.
+/// Cria um HttpClientHandler por chamada exclusivamente para injetar o certificado do Tenant —
+/// padrão necessário quando o certificado muda por tenant e não pode ser fixo no factory.
 /// O overhead de TCP/TLS handshake é aceitável: NFC-e não é high-throughput por design
 /// (volume máximo típico: 300 NFC-e/hora por Tenant).
 /// </summary>
-internal sealed class SefazHttpClient(IHttpClientFactory httpClientFactory)
+internal sealed class SefazHttpClient
 {
+    // Sincronizado com o registro em DependencyInjection.cs ("sefaz-base" User-Agent).
+    private const string UserAgent = "VisuFiscalHub/1.0 NfceEmissor";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
 
     public async Task<string> PostSoapAsync(
@@ -32,15 +33,10 @@ internal sealed class SefazHttpClient(IHttpClientFactory httpClientFactory)
         };
         handler.ClientCertificates.Add(certificate);
 
-        using var mtlsClient = new HttpClient(handler, disposeHandler: false)
-        {
-            Timeout = RequestTimeout
-        };
-
-        // Copia headers base configurados no factory (User-Agent, etc.).
-        var baseClient = httpClientFactory.CreateClient("sefaz-base");
-        foreach (var header in baseClient.DefaultRequestHeaders)
-            mtlsClient.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+        // Timeout gerenciado exclusivamente pelo timeoutCts abaixo — não definir Timeout no client
+        // para evitar corrida entre dois mecanismos independentes com o mesmo valor.
+        using var mtlsClient = new HttpClient(handler, disposeHandler: false);
+        mtlsClient.DefaultRequestHeaders.Add("User-Agent", UserAgent);
 
         using var content = new StringContent(soapEnvelope, Encoding.UTF8);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/soap+xml")
@@ -48,7 +44,7 @@ internal sealed class SefazHttpClient(IHttpClientFactory httpClientFactory)
             CharSet = "utf-8"
         };
 
-        // Timeout vinculado ao ct do caller para separar timeout SEFAZ do token Hangfire.
+        // CTS vinculado ao ct do caller: distingue timeout SEFAZ (30s) de cancelamento do Hangfire.
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(RequestTimeout);
 

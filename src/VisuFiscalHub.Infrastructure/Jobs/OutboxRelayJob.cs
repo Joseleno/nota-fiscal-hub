@@ -15,15 +15,18 @@ public sealed class OutboxRelayJob
 
     private readonly ApplicationDbContext _dbContext;
     private readonly IPublisher _publisher;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<OutboxRelayJob> _logger;
 
     public OutboxRelayJob(
         ApplicationDbContext dbContext,
         IPublisher publisher,
+        TimeProvider timeProvider,
         ILogger<OutboxRelayJob> logger)
     {
         _dbContext = dbContext;
         _publisher = publisher;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -64,7 +67,7 @@ public sealed class OutboxRelayJob
                     _logger.LogWarning(
                         "OutboxRelayJob: tipo desconhecido '{EventType}' (Id={MessageId}) — marcado como processado.",
                         message.EventType, message.Id);
-                    message.ProcessedAt = DateTimeOffset.UtcNow;
+                    message.ProcessedAt = _timeProvider.GetUtcNow();
                     await _dbContext.SaveChangesAsync(ct);
                     continue;
                 }
@@ -75,7 +78,7 @@ public sealed class OutboxRelayJob
                     _logger.LogError(
                         "OutboxRelayJob: falha ao desserializar Id={MessageId}, Type={EventType}.",
                         message.Id, message.EventType);
-                    message.ProcessedAt = DateTimeOffset.UtcNow;
+                    message.ProcessedAt = _timeProvider.GetUtcNow();
                     await _dbContext.SaveChangesAsync(ct);
                     continue;
                 }
@@ -83,7 +86,7 @@ public sealed class OutboxRelayJob
                 await _publisher.Publish(domainEvent, ct);
 
                 // SaveChanges por mensagem — falha no próximo item não afeta este.
-                message.ProcessedAt = DateTimeOffset.UtcNow;
+                message.ProcessedAt = _timeProvider.GetUtcNow();
                 await _dbContext.SaveChangesAsync(ct);
 
                 _logger.LogDebug(

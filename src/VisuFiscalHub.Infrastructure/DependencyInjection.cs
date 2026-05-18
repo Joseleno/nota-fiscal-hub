@@ -92,11 +92,8 @@ public static class DependencyInjection
         services.AddScoped<ReconciliacaoJobProcessor>();
 
         // Fase 7 — Integração SEFAZ
-        // "sefaz-base": client base sem certificado — SefazHttpClient adiciona mTLS por request.
-        services.AddHttpClient("sefaz-base", client =>
-        {
-            client.DefaultRequestHeaders.Add("User-Agent", "VisuFiscalHub/1.0 NfceEmissor");
-        });
+        // SefazHttpClient cria HttpClient por request para mTLS por-tenant — não usa factory.
+        // User-Agent hardcoded em SefazHttpClient.UserAgent (constante sincronizada).
         services.AddScoped<SefazHttpClient>();
         services.AddScoped<ISefazClient, SefazClient>();
 

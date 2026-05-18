@@ -16,6 +16,17 @@ namespace VisuFiscalHub.Infrastructure.Services;
 
 internal sealed class WebhookDeliveryService : IWebhookDeliveryService
 {
+    // Spec fase-06b: 3 tentativas com backoff 30s / 5min / 30min.
+    // attemptNumber é 1-based: 1 = primeira entrega (da interface pública), 2 e 3 = retries.
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(30),
+    ];
+
+    private const int MaxAttempts = 3;
+
     // Blocos de endereços privados/loopback — proteção SSRF.
     // Inclui IPv4-mapped-to-IPv6 (::ffff:10.x.x.x) via normalização em IsInBlockedRange.
     private static readonly IReadOnlyList<(IPAddress Network, int PrefixLength)> BlockedRanges =
@@ -58,9 +69,26 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         _logger = logger;
     }
 
-    public async Task DeliverAsync(
+    // Ponto de entrada público — primeira tentativa (attemptNumber = 1).
+    public Task DeliverAsync(
         DocumentoFiscalId documentoId,
         ClienteAppId clienteAppId,
+        CancellationToken ct)
+        => DeliverInternalAsync(documentoId, clienteAppId, attemptNumber: 1, ct);
+
+    // Ponto de entrada interno para retries agendados pelo Hangfire.
+    // Separado da interface pública para encapsular o contador sem vazar para a Application layer.
+    public Task RetryDeliverAsync(
+        DocumentoFiscalId documentoId,
+        ClienteAppId clienteAppId,
+        int attemptNumber,
+        CancellationToken ct)
+        => DeliverInternalAsync(documentoId, clienteAppId, attemptNumber, ct);
+
+    private async Task DeliverInternalAsync(
+        DocumentoFiscalId documentoId,
+        ClienteAppId clienteAppId,
+        int attemptNumber,
         CancellationToken ct)
     {
         var clienteApp = await _clienteAppRepo.GetByIdAsync(clienteAppId, ct);
@@ -72,7 +100,8 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
 
         if (clienteApp.WebhookSecretCriptografado is null)
         {
-            _logger.LogWarning("ClienteApp {ClienteAppId} com webhook URL mas sem secret — entrega cancelada.", clienteAppId.Value);
+            _logger.LogWarning("ClienteApp {ClienteAppId} com webhook URL mas sem secret — entrega cancelada.",
+                clienteAppId.Value);
             return;
         }
 
@@ -144,40 +173,65 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
             if (success)
             {
                 _logger.LogInformation(
-                    "Webhook entregue para ClienteApp {ClienteAppId}, Documento {DocumentoId}. HTTP {Status}",
-                    clienteAppId.Value, documentoId.Value, (int)response.StatusCode);
+                    "Webhook entregue para ClienteApp {ClienteAppId}, Documento {DocumentoId}. " +
+                    "HTTP {Status} (tentativa {AttemptNumber}/{MaxAttempts})",
+                    clienteAppId.Value, documentoId.Value, (int)response.StatusCode,
+                    attemptNumber, MaxAttempts);
             }
             else
             {
                 responseMessage = $"HTTP {(int)response.StatusCode}";
                 _logger.LogWarning(
-                    "Webhook retornou {Status} para ClienteApp {ClienteAppId}, Documento {DocumentoId}.",
-                    (int)response.StatusCode, clienteAppId.Value, documentoId.Value);
+                    "Webhook retornou {Status} para ClienteApp {ClienteAppId}, Documento {DocumentoId}. " +
+                    "(tentativa {AttemptNumber}/{MaxAttempts})",
+                    (int)response.StatusCode, clienteAppId.Value, documentoId.Value,
+                    attemptNumber, MaxAttempts);
 
-                EnqueueRetry(documentoId, clienteAppId);
+                EnqueueRetryIfApplicable(documentoId, clienteAppId, attemptNumber);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
             responseMessage = ex.Message[..Math.Min(ex.Message.Length, 500)];
             _logger.LogWarning(ex,
-                "Falha transiente na entrega do webhook para ClienteApp {ClienteAppId}, Documento {DocumentoId}.",
-                clienteAppId.Value, documentoId.Value);
+                "Falha transiente na entrega do webhook para ClienteApp {ClienteAppId}, " +
+                "Documento {DocumentoId}. (tentativa {AttemptNumber}/{MaxAttempts})",
+                clienteAppId.Value, documentoId.Value, attemptNumber, MaxAttempts);
 
-            EnqueueRetry(documentoId, clienteAppId);
+            EnqueueRetryIfApplicable(documentoId, clienteAppId, attemptNumber);
         }
         finally
         {
             sw.Stop();
-            await RegistrarDeliveryAttemptAsync(documentoId, success, responseCode, responseMessage, sw.ElapsedMilliseconds, ct);
+            await RegistrarDeliveryAttemptAsync(
+                documentoId, success, responseCode, responseMessage, sw.ElapsedMilliseconds, ct);
         }
     }
 
-    private void EnqueueRetry(DocumentoFiscalId documentoId, ClienteAppId clienteAppId)
+    private void EnqueueRetryIfApplicable(
+        DocumentoFiscalId documentoId,
+        ClienteAppId clienteAppId,
+        int attemptNumber)
     {
-        _jobClient.Schedule<IWebhookDeliveryService>(
-            svc => svc.DeliverAsync(documentoId, clienteAppId, CancellationToken.None),
-            TimeSpan.FromSeconds(30));
+        if (attemptNumber >= MaxAttempts)
+        {
+            _logger.LogError(
+                "Webhook para Documento {DocumentoId} esgotou {MaxAttempts} tentativas — entrega abandonada.",
+                documentoId.Value, MaxAttempts);
+            return;
+        }
+
+        // O índice no array é 0-based: attemptNumber=1 → RetryDelays[0]=30s, attemptNumber=2 → [1]=5min.
+        var delay = RetryDelays[attemptNumber - 1];
+        var nextAttempt = attemptNumber + 1;
+
+        _jobClient.Schedule<WebhookDeliveryService>(
+            svc => svc.RetryDeliverAsync(documentoId, clienteAppId, nextAttempt, CancellationToken.None),
+            delay);
+
+        _logger.LogInformation(
+            "Retry de webhook para Documento {DocumentoId} agendado em {Delay} (tentativa {Next}/{Max}).",
+            documentoId.Value, delay, nextAttempt, MaxAttempts);
     }
 
     private async Task RegistrarDeliveryAttemptAsync(
@@ -204,7 +258,8 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Falha ao registrar DeliveryAttempt para Documento {DocumentoId}", documentoId.Value);
+            _logger.LogError(ex,
+                "Falha ao registrar DeliveryAttempt para Documento {DocumentoId}", documentoId.Value);
         }
     }
 

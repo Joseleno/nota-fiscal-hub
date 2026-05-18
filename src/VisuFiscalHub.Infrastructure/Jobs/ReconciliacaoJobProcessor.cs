@@ -144,7 +144,11 @@ public sealed class ReconciliacaoJobProcessor
 
         if (failResult.IsFailure)
         {
-            _logger.LogError("Falha ao transicionar {DocumentoId} para Falhou: {Error}",
+            // Documento pode ter sido transitado para status final pelo NfceProcessingJob
+            // concorrentemente entre GetProcessandoAntigoAsync e esta chamada — não é um erro.
+            _logger.LogInformation(
+                "Documento {DocumentoId} não pôde ser marcado como Falhou durante reconciliação " +
+                "(provavelmente já transitado por job concorrente): {Error}",
                 documento.Id.Value, failResult.Error.Code);
             return;
         }

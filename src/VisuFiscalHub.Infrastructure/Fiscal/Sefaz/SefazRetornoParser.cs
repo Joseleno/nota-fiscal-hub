@@ -7,11 +7,11 @@ namespace VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
 /// <summary>
 /// Interpreta o XML de retorno do webservice NFeAutorizacao4.
 /// Códigos cStat relevantes (Ato COTEPE/ICMS 44/2018 e NT):
-///   100 = Autorizado o uso da NF-e
-///   110 = Uso denegado (fraude/irregularidade fiscal — definitivo)
-///   301/302 = Uso denegado
-///   204/572 = Duplicidade (documento já autorizado — tratar como autorização)
-///   9xx = Rejeição — regra fiscal violada
+///   100       = Autorizado o uso da NF-e
+///   110/301/302 = Uso denegado (fraude/irregularidade fiscal — definitivo)
+///   204/572   = Duplicidade (documento já existe na SEFAZ — NProt pode ser null, não tratar como Autorizado)
+///   1xx (≠110) = Rejeição recuperável (schema, ambiente, serviço) — reenviar
+///   4xx/5xx   = Rejeição fiscal definitiva — não reenviar
 /// </summary>
 internal static class SefazRetornoParser
 {

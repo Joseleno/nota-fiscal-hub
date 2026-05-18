@@ -96,19 +96,12 @@ internal sealed class SefazClient : ISefazClient
         {
             soapResponse = await _httpClient.PostSoapAsync(url, envelope, certificate, ct);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutException)
         {
-            _logger.LogWarning(ex, "Erro HTTP ao enviar NFC-e {DocumentoId} para SEFAZ {Url}",
+            _logger.LogWarning(ex, "Falha ao enviar NFC-e {DocumentoId} para SEFAZ {Url}",
                 documentoId.Value, url);
             return Result.Failure<SefazRetorno>(
                 new Error("Sefaz.HttpFalhou", $"Falha na comunicação com SEFAZ: {ex.Message}"));
-        }
-        catch (TaskCanceledException)
-        {
-            _logger.LogWarning("Timeout ao enviar NFC-e {DocumentoId} para SEFAZ {Url}",
-                documentoId.Value, url);
-            return Result.Failure<SefazRetorno>(
-                new Error("Sefaz.Timeout", "Timeout na comunicação com SEFAZ."));
         }
 
         return SefazRetornoParser.Parse(soapResponse);
@@ -144,9 +137,9 @@ internal sealed class SefazClient : ISefazClient
         {
             soapResponse = await _httpClient.PostSoapAsync(url, envelope, certificate, ct);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutException)
         {
-            _logger.LogWarning(ex, "Falha ao consultar NFC-e {Chave} na SEFAZ", chaveAcesso);
+            _logger.LogWarning(ex, "Falha ao consultar NFC-e {Chave} na SEFAZ {Url}", chaveAcesso, url);
             return Result.Failure<SefazConsultaRetorno>(
                 new Error("Sefaz.ConsultaFalhou", $"Falha na consulta SEFAZ: {ex.Message}"));
         }
