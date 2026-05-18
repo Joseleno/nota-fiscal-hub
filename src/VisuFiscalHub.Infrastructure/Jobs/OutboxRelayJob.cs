@@ -59,8 +59,6 @@ public sealed class OutboxRelayJob
             if (message.ProcessedAt is not null)
                 continue;
 
-            var published = false;
-
             try
             {
                 var eventType = ResolveEventType(message.EventType);
@@ -86,7 +84,6 @@ public sealed class OutboxRelayJob
                 }
 
                 await _publisher.Publish(domainEvent, ct);
-                published = true;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -104,10 +101,9 @@ public sealed class OutboxRelayJob
             message.ProcessedAt = _timeProvider.GetUtcNow();
             await _dbContext.SaveChangesAsync(ct);
 
-            if (published)
-                _logger.LogDebug(
-                    "OutboxRelayJob: Id={MessageId} Type={EventType} publicado.",
-                    message.Id, message.EventType);
+            _logger.LogDebug(
+                "OutboxRelayJob: Id={MessageId} Type={EventType} publicado.",
+                message.Id, message.EventType);
         }
 
         await transaction.CommitAsync(ct);

@@ -41,9 +41,13 @@ internal static class SoapEnvelopeBuilder
         return doc.OuterXml;
     }
 
-    // Monta o lote EnviNFe com 1 NFC-e. idLote (15 dígitos) fornecido pelo chamador.
+    // Monta o lote EnviNFe com 1 NFC-e. idLote (15 dígitos numéricos) fornecido pelo chamador.
     private static string BuildEnviNFe(string xmlNfe, string idLote)
     {
+        // TDec_015: campo obrigatório com exatamente 15 dígitos numéricos no schema SEFAZ.
+        if (idLote.Length != 15 || !idLote.All(char.IsDigit))
+            throw new ArgumentException("idLote deve ter exatamente 15 dígitos numéricos.", nameof(idLote));
+
         var doc = new XmlDocument();
         doc.LoadXml(xmlNfe);
 

@@ -40,6 +40,7 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         (IPAddress.Parse("fc00::"),         7),  // IPv6 ULA (fc00::/7 cobre fc00:: e fd00::)
         (IPAddress.Parse("fe80::"),        10),  // IPv6 link-local (equivalente ao 169.254.0.0/16)
         (IPAddress.Parse("ff00::"),         8),  // IPv6 multicast
+        (IPAddress.Parse("2002::"),        16),  // IPv6 6to4 (encapsula todo o espaço IPv4 — bypass SSRF via túnel sit0)
     ];
 
     private readonly IClienteAppRepository _clienteAppRepo;
