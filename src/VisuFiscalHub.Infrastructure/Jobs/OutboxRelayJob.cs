@@ -115,6 +115,9 @@ public sealed class OutboxRelayJob
     // evita Publish silencioso de tipos incompatíveis desserializados como object.
     private static Type? ResolveEventType(string typeName)
     {
+        if (string.IsNullOrEmpty(typeName))
+            return null;
+
         var t = Type.GetType(typeName)
             ?? AppDomain.CurrentDomain.GetAssemblies()
                 .Select(a => a.GetType(typeName))
