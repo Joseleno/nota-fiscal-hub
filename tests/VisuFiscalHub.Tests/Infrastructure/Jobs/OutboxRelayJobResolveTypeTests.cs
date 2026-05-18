@@ -1,4 +1,3 @@
-using System.Reflection;
 using Mediator;
 using Shouldly;
 using VisuFiscalHub.Infrastructure.Jobs;
@@ -10,17 +9,10 @@ public class OutboxRelayJobResolveTypeTests
     private static readonly string ValidEventTypeName =
         typeof(VisuFiscalHub.Domain.Events.DocumentoFiscalAutorizadoEvent).AssemblyQualifiedName!;
 
-    private static Type? InvokeResolveEventType(string typeName)
-    {
-        var method = typeof(OutboxRelayJob)
-            .GetMethod("ResolveEventType", BindingFlags.NonPublic | BindingFlags.Static)!;
-        return (Type?)method.Invoke(null, [typeName]);
-    }
-
     [Fact]
     public void ResolveEventType_TipoValidoINotification_RetornaTipo()
     {
-        var result = InvokeResolveEventType(ValidEventTypeName);
+        var result = OutboxRelayJob.ResolveEventType(ValidEventTypeName);
 
         result.ShouldNotBeNull();
         typeof(INotification).IsAssignableFrom(result).ShouldBeTrue();
@@ -29,9 +21,7 @@ public class OutboxRelayJobResolveTypeTests
     [Fact]
     public void ResolveEventType_TipoExistenteSemINotification_RetornaNull()
     {
-        var typeName = typeof(string).AssemblyQualifiedName!;
-
-        var result = InvokeResolveEventType(typeName);
+        var result = OutboxRelayJob.ResolveEventType(typeof(string).AssemblyQualifiedName!);
 
         result.ShouldBeNull();
     }
@@ -39,7 +29,7 @@ public class OutboxRelayJobResolveTypeTests
     [Fact]
     public void ResolveEventType_TipoDesconhecido_RetornaNull()
     {
-        var result = InvokeResolveEventType("Namespace.Inexistente.TipoFantasma, AssemblyFantasma");
+        var result = OutboxRelayJob.ResolveEventType("Namespace.Inexistente.TipoFantasma, AssemblyFantasma");
 
         result.ShouldBeNull();
     }
@@ -47,7 +37,7 @@ public class OutboxRelayJobResolveTypeTests
     [Fact]
     public void ResolveEventType_StringVazia_RetornaNull()
     {
-        var result = InvokeResolveEventType(string.Empty);
+        var result = OutboxRelayJob.ResolveEventType(string.Empty);
 
         result.ShouldBeNull();
     }
@@ -55,7 +45,7 @@ public class OutboxRelayJobResolveTypeTests
     [Fact]
     public void ResolveEventType_StringNula_RetornaNull()
     {
-        var result = InvokeResolveEventType(null!);
+        var result = OutboxRelayJob.ResolveEventType(null!);
 
         result.ShouldBeNull();
     }

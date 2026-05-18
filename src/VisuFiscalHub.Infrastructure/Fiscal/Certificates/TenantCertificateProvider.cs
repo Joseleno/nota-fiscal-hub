@@ -13,12 +13,13 @@ internal sealed class TenantCertificateProvider : ITenantCertificateProvider
 {
     // Armazena PFX decriptografado + senha em memória, NÃO o X509Certificate2.
     // X509Certificate2 é criado efêmeramente no ponto de uso — evita Dispose-while-in-use.
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
 
     // SemaphoreSlim por TenantId previne cache stampede: somente uma thread carrega do banco por vez.
     // static: coordenação deve ser processo-lifetime e sobreviver ao ciclo de vida scoped do provider.
-    // PostEvictionCallback remove e descarta o semáforo quando a entrada de cache expirar —
-    // evita vazamento de handles de OS para tenants com grande rotatividade.
+    // Semáforos não são descartados no eviction callback: um caller pode já ter obtido a referência
+    // e ainda não ter chamado WaitAsync — descartar nesse momento causaria ObjectDisposedException.
+    // SemaphoreSlim (16 bytes) é negligível; o conjunto é naturalmente limitado pelo número de tenants.
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Locks = new();
 
     private readonly ITenantRepository _tenantRepo;
@@ -140,14 +141,7 @@ internal sealed class TenantCertificateProvider : ITenantCertificateProvider
             return Result.Failure<X509Certificate2>(
                 new Error("Certificate.Vencido", "O certificado do Tenant está vencido."));
 
-        var opts = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(ttl)
-            .RegisterPostEvictionCallback((_, _, _, _) =>
-            {
-                if (Locks.TryRemove(tenantId.Value, out var sem))
-                    sem.Dispose();
-            });
-        _cache.Set(cacheKey, entrada, opts);
+        _cache.Set(cacheKey, entrada, new MemoryCacheEntryOptions().SetAbsoluteExpiration(ttl));
 
         return CarregarX509(entrada, tenantId);
     }

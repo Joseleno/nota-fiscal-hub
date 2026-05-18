@@ -9,7 +9,7 @@ namespace VisuFiscalHub.Infrastructure.Jobs;
 
 [DisableConcurrentExecution(timeoutInSeconds: 30)]
 [AutomaticRetry(Attempts = 3, DelaysInSeconds = [10, 30, 60])]
-public sealed class OutboxRelayJob
+public class OutboxRelayJob
 {
     private const int BatchSize = 50;
 
@@ -37,14 +37,7 @@ public sealed class OutboxRelayJob
         // com a leitura — sem janela de duplicação entre instâncias.
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
-        var messages = await _dbContext.OutboxMessages
-            .FromSqlRaw(@"
-                SELECT * FROM outbox_messages
-                WHERE processed_at IS NULL
-                ORDER BY occurred_at
-                LIMIT {0}
-                FOR UPDATE SKIP LOCKED", BatchSize)
-            .ToListAsync(ct);
+        var messages = await FetchPendingMessagesAsync(ct);
 
         if (messages.Count == 0)
         {
@@ -108,11 +101,23 @@ public sealed class OutboxRelayJob
         await transaction.CommitAsync(ct);
     }
 
+    // Extraído como virtual para permitir substituição em testes sem dependência de banco real.
+    // Em produção executa FOR UPDATE SKIP LOCKED — PostgreSQL-only, não testável com InMemory.
+    protected virtual Task<List<OutboxMessage>> FetchPendingMessagesAsync(CancellationToken ct)
+        => _dbContext.OutboxMessages
+            .FromSqlRaw(@"
+                SELECT * FROM outbox_messages
+                WHERE processed_at IS NULL
+                ORDER BY occurred_at
+                LIMIT {0}
+                FOR UPDATE SKIP LOCKED", BatchSize)
+            .ToListAsync(ct);
+
     // Type.GetType é mais robusto que AppDomain.GetAssemblies() para assemblies lazy-loaded.
     // Fallback para busca em assemblies carregados se GetType direto falhar.
     // Retorna null se o tipo não for encontrado OU não implementar INotification —
     // evita Publish silencioso de tipos incompatíveis desserializados como object.
-    private static Type? ResolveEventType(string typeName)
+    internal static Type? ResolveEventType(string typeName)
     {
         if (string.IsNullOrEmpty(typeName))
             return null;
