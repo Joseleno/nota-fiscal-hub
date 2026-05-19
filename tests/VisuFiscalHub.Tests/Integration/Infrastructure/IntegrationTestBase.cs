@@ -14,6 +14,8 @@ public abstract class IntegrationTestBase : IDisposable
     protected readonly VisuFiscalHubFactory Factory;
     protected readonly HttpClient Client;
     protected readonly FakeSefazClient SefazFake;
+    protected readonly FakeDocumentJobQueue JobQueue;
+    protected readonly FakeSequenceManager SequenceManager;
 
     protected IntegrationTestBase()
     {
@@ -22,7 +24,10 @@ public abstract class IntegrationTestBase : IDisposable
         {
             AllowAutoRedirect = false
         });
-        SefazFake = Factory.SefazClient;
+        SefazFake       = Factory.SefazClient;
+        JobQueue        = Factory.JobQueue;
+        SequenceManager = Factory.SequenceManager;
+        JobQueue.Reset();
     }
 
     protected async Task<(ClienteAppId Id, string ClientId, string ClientSecret)> CriarClienteAppAsync()
