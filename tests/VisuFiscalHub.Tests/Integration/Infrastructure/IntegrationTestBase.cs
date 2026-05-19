@@ -112,26 +112,26 @@ public abstract class IntegrationTestBase : IDisposable
     }
 
     // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).
-    // CstPisCofins 7 = Cst07 (PISNT/COFINSNT — Simples Nacional).
+    // CstPisCofins.Cst07 = 7 (PISNT/COFINSNT — Simples Nacional).
     protected static object TributoSimples() => new
     {
-        tipoIcms = 1,          // TipoIcms.CSOSN
-        csosnOuCst = 400,      // CSOSN 400
+        tipoIcms = (int)TipoIcms.CSOSN,
+        csosnOuCst = 400,
         aliquotaIcms = 0.0,
         baseCalculoIcms = 0.0,
         valorIcms = 0.0,
-        cstPis = 7,            // CstPisCofins.Cst07 — PISNT
+        cstPis = (int)CstPisCofins.Cst07,
         baseCalculoPis = 0.0,
         aliquotaPis = 0.0,
         valorPis = 0.0,
-        cstCofins = 7,         // CstPisCofins.Cst07 — COFINSNT
+        cstCofins = (int)CstPisCofins.Cst07,
         baseCalculoCofins = 0.0,
         aliquotaCofins = 0.0,
         valorCofins = 0.0
     };
 
-    // Minimal body that satisfies all domain invariants: balanced totals (item == payment),
-    // 8-digit NCM (SEFAZ schema §4.2.3), indPresenca 1 (Operação Presencial).
+    // Body mínimo que satisfaz todos os invariantes de domínio: totais balanceados (item == pagamento),
+    // NCM com 8 dígitos (esquema SEFAZ §4.2.3), indPresenca 1 (Operação Presencial).
     protected static object BodyValido(decimal valor = 10.00m) => new
     {
         itens = new[]
@@ -153,11 +153,21 @@ public abstract class IntegrationTestBase : IDisposable
         },
         pagamentos = new[]
         {
-            new { tipoPagamento = 1, valor = (double)valor }  // TipoPagamento.Dinheiro = 1
+            new { tipoPagamento = (int)TipoPagamento.Dinheiro, valor = (double)valor }
         },
         consumidor = (object?)null,
         indPresenca = 1
     };
+
+    // Espelha DocumentoStatusResponse — campos opcionais nulos enquanto o documento não for processado.
+    protected sealed record StatusResponse(
+        [property: System.Text.Json.Serialization.JsonPropertyName("documentoId")] DocumentoIdDto DocumentoId,
+        [property: System.Text.Json.Serialization.JsonPropertyName("status")] int Status,
+        [property: System.Text.Json.Serialization.JsonPropertyName("chaveAcesso")] string? ChaveAcesso,
+        [property: System.Text.Json.Serialization.JsonPropertyName("qrCode")] string? QrCode,
+        [property: System.Text.Json.Serialization.JsonPropertyName("protocolo")] string? Protocolo,
+        [property: System.Text.Json.Serialization.JsonPropertyName("motivoRejeicao")] string? MotivoRejeicao,
+        [property: System.Text.Json.Serialization.JsonPropertyName("authorizedAt")] DateTimeOffset? AuthorizedAt);
 
     // DTO para deserializar a resposta 202 de emissão de documento.
     // DocumentoFiscalId serializa como {"value": "<guid>"} pois é um readonly record struct
@@ -173,7 +183,7 @@ public abstract class IntegrationTestBase : IDisposable
     protected sealed record DocumentoIdDto(
         [property: System.Text.Json.Serialization.JsonPropertyName("value")] Guid Value);
 
-    private sealed record TokenBody(
+    protected sealed record TokenBody(
         [property: System.Text.Json.Serialization.JsonPropertyName("access_token")] string AccessToken,
         [property: System.Text.Json.Serialization.JsonPropertyName("token_type")] string TokenType,
         [property: System.Text.Json.Serialization.JsonPropertyName("expires_in")] int ExpiresIn);
@@ -182,6 +192,5 @@ public abstract class IntegrationTestBase : IDisposable
     {
         Client.Dispose();
         Factory.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

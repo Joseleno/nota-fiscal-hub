@@ -11,7 +11,7 @@ namespace VisuFiscalHub.Tests.Integration;
 [Collection("IntegrationTests")]
 public sealed class DocumentStatusTests : IntegrationTestBase
 {
-    private async Task<(HttpClient Http, Guid DocumentoGuid)> EmitirAsync()
+    private async Task<(HttpClient HttpEmissor, Guid DocumentoGuid)> EmitirAsync()
     {
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
@@ -31,14 +31,14 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         body.ShouldNotBeNull();
         var docIdGuid = body!.DocumentoId.Value;
 
-        return (http, docIdGuid);
+        return (HttpEmissor: http, DocumentoGuid: docIdGuid);
     }
 
     [Fact]
     public async Task GetStatus_DocumentoExistente_Retorna200ComBodyValido()
     {
-        var (httpRaw, docId) = await EmitirAsync();
-        using var http = httpRaw;
+        var (httpEmissor, docId) = await EmitirAsync();
+        using var http = httpEmissor;
 
         using var response = await http.GetAsync($"/api/v1/documentos/{docId}/status");
 
@@ -66,8 +66,8 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     [Fact]
     public async Task GetXml_DocumentoEnfileirado_Retorna404ComProblemDetails()
     {
-        var (httpRaw, docId) = await EmitirAsync();
-        using var http = httpRaw;
+        var (httpEmissor, docId) = await EmitirAsync();
+        using var http = httpEmissor;
 
         using var response = await http.GetAsync($"/api/v1/documentos/{docId}/xml");
 
@@ -83,10 +83,9 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     public async Task GetStatus_TenantInexistente_Retorna404()
     {
         // Emite documento com o ClienteApp-1 / Tenant-1
-        var (http1Raw, docId) = await EmitirAsync();
-        using var http1 = http1Raw;
+        var (httpEmissor1, docId) = await EmitirAsync();
+        using var http1 = httpEmissor1;
 
-        // Reutiliza o token do http1 com um TenantId inexistente para verificar isolamento.
         using var httpTenantFalso = Factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -108,8 +107,8 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     public async Task GetStatus_TenantDeOutroClienteApp_Retorna403()
     {
         // Emite documento com ClienteApp-1 / Tenant-1
-        var (http1Raw, docId) = await EmitirAsync();
-        using var http1 = http1Raw;
+        var (httpEmissor1, docId) = await EmitirAsync();
+        using var http1 = httpEmissor1;
 
         // Cria ClienteApp-2 com Tenant-2. Token e tenant pertencem ao mesmo ClienteApp-2 —
         // TenantValidationMiddleware passa; a guarda de ownership no handler retorna 403.
@@ -144,16 +143,5 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         // TenantValidationMiddleware: tenant.ClienteAppId (1) != clienteAppId do JWT (2) → 403
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
-
-    // Espelha DocumentoStatusResponse (Application/Common/Models/DocumentoStatusResponse.cs).
-    // StatusDocumento serializa como int — sem JsonStringEnumConverter no projeto.
-    private sealed record StatusResponse(
-        [property: System.Text.Json.Serialization.JsonPropertyName("documentoId")] DocumentoIdDto DocumentoId,
-        [property: System.Text.Json.Serialization.JsonPropertyName("status")] int Status,
-        [property: System.Text.Json.Serialization.JsonPropertyName("chaveAcesso")] string? ChaveAcesso,
-        [property: System.Text.Json.Serialization.JsonPropertyName("qrCode")] string? QrCode,
-        [property: System.Text.Json.Serialization.JsonPropertyName("protocolo")] string? Protocolo,
-        [property: System.Text.Json.Serialization.JsonPropertyName("motivoRejeicao")] string? MotivoRejeicao,
-        [property: System.Text.Json.Serialization.JsonPropertyName("authorizedAt")] DateTimeOffset? AuthorizedAt);
 
 }

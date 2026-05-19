@@ -4,6 +4,10 @@ using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Tests.Integration.Infrastructure;
 
+/// <summary>
+/// Stub configurável para ISefazClient no ambiente de testes de integração.
+/// O comportamento padrão retorna Autorizado — use SimularRejeitado() para cenários de erro.
+/// </summary>
 public sealed class FakeSefazClient : ISefazClient
 {
     private Func<DocumentoFiscalId, TenantId, Task<Result<SefazRetorno>>> _submitHandler =

@@ -56,8 +56,4 @@ public sealed class AuthFlowTests : IntegrationTestBase
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/json");
     }
 
-    private sealed record TokenBody(
-        [property: System.Text.Json.Serialization.JsonPropertyName("access_token")] string AccessToken,
-        [property: System.Text.Json.Serialization.JsonPropertyName("token_type")] string TokenType,
-        [property: System.Text.Json.Serialization.JsonPropertyName("expires_in")] int ExpiresIn);
 }

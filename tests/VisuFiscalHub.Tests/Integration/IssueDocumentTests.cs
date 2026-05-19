@@ -230,7 +230,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
                     tributo = TributoSimples()
                 }
             },
-            pagamentos = new[] { new { tipoPagamento = 1, valor = 5.0 } },  // pagamento != item
+            pagamentos = new[] { new { tipoPagamento = 1, valor = 5.0 } },
             consumidor = (object?)null,
             indPresenca = 1
         };
@@ -275,7 +275,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
                 }
             },
             pagamentos = new[] { new { tipoPagamento = 1, valor = 10_001.0 } },
-            consumidor = (object?)null,  // sem CPF — deve falhar
+            consumidor = (object?)null,
             indPresenca = 1
         };
 
