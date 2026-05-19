@@ -55,7 +55,7 @@ public abstract class IntegrationTestBase : IDisposable
 
     protected async Task<string> ObterTokenAsync(string clientId, string clientSecret)
     {
-        var response = await Client.PostAsJsonAsync("/auth/token", new { clientId, clientSecret });
+        using var response = await Client.PostAsJsonAsync("/auth/token", new { clientId, clientSecret });
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<TokenBody>();
         return body!.AccessToken;
@@ -130,7 +130,8 @@ public abstract class IntegrationTestBase : IDisposable
         valorCofins = 0.0
     };
 
-    // Body válido: itens + pagamentos com totais fechando, NCM 8 dígitos, indPresenca 1.
+    // Minimal body that satisfies all domain invariants: balanced totals (item == payment),
+    // 8-digit NCM (SEFAZ schema §4.2.3), indPresenca 1 (Operação Presencial).
     protected static object BodyValido(decimal valor = 10.00m) => new
     {
         itens = new[]

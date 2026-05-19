@@ -24,7 +24,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var body = await response.Content.ReadFromJsonAsync<IssueResponse>();
@@ -49,7 +49,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var body = await response.Content.ReadFromJsonAsync<IssueResponse>();
@@ -66,7 +66,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var tenantId = await CriarTenantAsync(clienteAppId);
         using var http = CriarClienteAutenticado(token, tenantId.Value);
 
-        var response = await http.PostAsJsonAsync("/api/v1/documentos/nfce", BodyValido());
+        using var response = await http.PostAsJsonAsync("/api/v1/documentos/nfce", BodyValido());
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         var body = await response.Content.ReadAsStringAsync();
@@ -82,7 +82,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await Client.SendAsync(request);
+        using var response = await Client.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -153,7 +153,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
@@ -197,7 +197,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
@@ -241,7 +241,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
     }
@@ -285,7 +285,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
 
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         var responseBody = await response.Content.ReadAsStringAsync();

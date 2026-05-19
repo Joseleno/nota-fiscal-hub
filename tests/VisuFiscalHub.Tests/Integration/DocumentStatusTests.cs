@@ -23,7 +23,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
             Content = JsonContent.Create(BodyValido()),
             Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
         };
-        var response = await http.SendAsync(request);
+        using var response = await http.SendAsync(request);
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         // DocumentoFiscalId serializa como { "documentoId": { "value": "<guid>" } }
@@ -40,7 +40,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var (httpRaw, docId) = await EmitirAsync();
         using var http = httpRaw;
 
-        var response = await http.GetAsync($"/api/v1/documentos/{docId}/status");
+        using var response = await http.GetAsync($"/api/v1/documentos/{docId}/status");
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<StatusResponse>();
@@ -58,7 +58,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var tenantId = await CriarTenantAsync(clienteAppId);
         using var http = CriarClienteAutenticado(token, tenantId.Value);
 
-        var response = await http.GetAsync($"/api/v1/documentos/{Guid.NewGuid()}/status");
+        using var response = await http.GetAsync($"/api/v1/documentos/{Guid.NewGuid()}/status");
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
@@ -69,7 +69,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var (httpRaw, docId) = await EmitirAsync();
         using var http = httpRaw;
 
-        var response = await http.GetAsync($"/api/v1/documentos/{docId}/xml");
+        using var response = await http.GetAsync($"/api/v1/documentos/{docId}/xml");
 
         // Enfileirado → XmlAssinado é null → DocumentoFiscalErrors.XmlIndisponivel → 404
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -97,7 +97,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         httpTenantFalso.DefaultRequestHeaders.Authorization = authHeader;
         httpTenantFalso.DefaultRequestHeaders.Add("X-Tenant-Id", Guid.NewGuid().ToString());
 
-        var response = await httpTenantFalso.GetAsync($"/api/v1/documentos/{docId}/status");
+        using var response = await httpTenantFalso.GetAsync($"/api/v1/documentos/{docId}/status");
 
         // Tenant inexistente → TenantValidationMiddleware retorna 404 antes do handler.
         // 403 não é possível neste cenário (handler nunca é alcançado).
@@ -118,7 +118,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var tenantId2 = await CriarTenantAsync(clienteAppId2, cnpj: "12345678000195");
         using var http2 = CriarClienteAutenticado(token2, tenantId2.Value);
 
-        var response = await http2.GetAsync($"/api/v1/documentos/{docId}/status");
+        using var response = await http2.GetAsync($"/api/v1/documentos/{docId}/status");
 
         // GetDocumentStatusQueryHandler: documento.ClienteAppId != query.ClienteAppId → 403
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -139,7 +139,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         // Mismatch deliberado: token do ClienteApp-2 + X-Tenant-Id do Tenant-1 (ClienteApp-1)
         using var httpAtaque = CriarClienteAutenticado(token2, tenantId1.Value);
 
-        var response = await httpAtaque.GetAsync($"/api/v1/documentos/{Guid.NewGuid()}/status");
+        using var response = await httpAtaque.GetAsync($"/api/v1/documentos/{Guid.NewGuid()}/status");
 
         // TenantValidationMiddleware: tenant.ClienteAppId (1) != clienteAppId do JWT (2) → 403
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
