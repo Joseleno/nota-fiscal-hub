@@ -17,6 +17,7 @@ using VisuFiscalHub.Api;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Application.Common.Models;
 using Hangfire;
+using Hangfire.Dashboard;
 using VisuFiscalHub.Application.Documents.Commands.IssueDocument;
 using VisuFiscalHub.Application.Documents.Queries.GetDocumentStatus;
 using VisuFiscalHub.Application.Documents.Queries.GetDocumentXml;
@@ -71,6 +72,14 @@ try
         .Validate(s => !string.IsNullOrWhiteSpace(s.Value), "AdminKey:Value é obrigatório.")
         .ValidateOnStart();
 
+    builder.Services
+        .AddOptions<HangfireDashboardSettings>()
+        .Bind(builder.Configuration.GetSection(HangfireDashboardSettings.SectionName))
+        .Validate(
+            s => !string.IsNullOrWhiteSpace(s.User) && !string.IsNullOrWhiteSpace(s.Password),
+            "HangfireDashboard: User e Password são obrigatórios em produção.")
+        .ValidateOnStart();
+
     builder.Services.AddInfrastructure(builder.Configuration);
 
     // ── HTTP helpers ─────────────────────────────────────────────────────────
@@ -78,6 +87,7 @@ try
     builder.Services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+    builder.Services.AddScoped<HangfireDashboardAuthFilter>();
 
     // ── JWT RS256 ─────────────────────────────────────────────────────────────
     var jwtConfig = builder.Configuration.GetSection(JwtSettings.SectionName);
@@ -463,9 +473,12 @@ try
         (Guid id) => TypedResults.StatusCode(StatusCodes.Status501NotImplemented))
         .RequireRateLimiting("api");
 
-    // ── Hangfire Dashboard (apenas em desenvolvimento) ────────────────────────
-    if (app.Environment.IsDevelopment())
-        app.UseHangfireDashboard("/hangfire");
+    // ── Hangfire Dashboard ────────────────────────────────────────────────────
+    // HangfireDashboardAuthFilter libera em Development; exige Basic Auth em outros ambientes.
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [app.Services.GetRequiredService<HangfireDashboardAuthFilter>()]
+    });
 
     // ── Recurring Jobs ────────────────────────────────────────────────────────
     RecurringJob.AddOrUpdate<OutboxRelayJob>(
