@@ -72,13 +72,16 @@ try
         .Validate(s => !string.IsNullOrWhiteSpace(s.Value), "AdminKey:Value é obrigatório.")
         .ValidateOnStart();
 
-    builder.Services
+    var hangfireOptions = builder.Services
         .AddOptions<HangfireDashboardSettings>()
-        .Bind(builder.Configuration.GetSection(HangfireDashboardSettings.SectionName))
-        .Validate(
-            s => !string.IsNullOrWhiteSpace(s.User) && !string.IsNullOrWhiteSpace(s.Password),
-            "HangfireDashboard: User e Password são obrigatórios em produção.")
-        .ValidateOnStart();
+        .Bind(builder.Configuration.GetSection(HangfireDashboardSettings.SectionName));
+
+    if (!builder.Environment.IsDevelopment())
+        hangfireOptions
+            .Validate(
+                s => !string.IsNullOrWhiteSpace(s.User) && !string.IsNullOrWhiteSpace(s.Password),
+                "HangfireDashboard: User e Password são obrigatórios em produção.")
+            .ValidateOnStart();
 
     builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -87,7 +90,7 @@ try
     builder.Services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-    builder.Services.AddScoped<HangfireDashboardAuthFilter>();
+    builder.Services.AddSingleton<HangfireDashboardAuthFilter>();
 
     // ── JWT RS256 ─────────────────────────────────────────────────────────────
     var jwtConfig = builder.Configuration.GetSection(JwtSettings.SectionName);
