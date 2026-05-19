@@ -3,6 +3,7 @@ using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Infrastructure.Fiscal;
@@ -21,24 +22,41 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment? environment = null)
     {
         // Singleton explícito — sem dependências scoped; evita scope leak silencioso se dependências forem adicionadas
         services.AddSingleton<DomainEventsInterceptor>();
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException(
-                "Connection string 'DefaultConnection' não configurada.");
+        bool isTest = string.Equals(environment?.EnvironmentName, "Test", StringComparison.OrdinalIgnoreCase);
 
-        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        var connectionString = isTest
+            ? null
+            : configuration.GetConnectionString("DefaultConnection")
+              ?? throw new InvalidOperationException(
+                  "Connection string 'DefaultConnection' não configurada.");
+
+        if (isTest)
         {
-            options.UseNpgsql(
-                connectionString,
-                npgsql => npgsql.MigrationsAssembly(
-                    typeof(ApplicationDbContext).Assembly.FullName));
+            // Use a fixed name per service registration so all scopes within the same
+            // WebApplicationFactory share the same in-memory store, while different factory
+            // instances get isolated stores.
+            var testDbName = $"TestDb_{Guid.NewGuid():N}";
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseInMemoryDatabase(testDbName));
+        }
+        else
+        {
+            services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            {
+                options.UseNpgsql(
+                    connectionString!,
+                    npgsql => npgsql.MigrationsAssembly(
+                        typeof(ApplicationDbContext).Assembly.FullName));
 
-            options.AddInterceptors(sp.GetRequiredService<DomainEventsInterceptor>());
-        });
+                options.AddInterceptors(sp.GetRequiredService<DomainEventsInterceptor>());
+            });
+        }
 
         services.AddSingleton(TimeProvider.System);
 
@@ -74,17 +92,23 @@ public static class DependencyInjection
         services.AddScoped<IWebhookDeliveryService, WebhookDeliveryService>();
 
         // Fase 6b — Hangfire (job queue + outbox relay)
-        services.AddHangfire(config => config
-            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-            .UseSimpleAssemblyNameTypeSerializer()
-            .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(connectionString)));
-
-        services.AddHangfireServer(opts =>
+        // In Test environment, skip PostgreSQL-backed storage (no real DB available).
+        services.AddHangfire(config =>
         {
-            opts.WorkerCount = 4;
-            opts.Queues = ["default"];
+            config
+                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                .UseSimpleAssemblyNameTypeSerializer()
+                .UseRecommendedSerializerSettings();
+            if (!isTest)
+                config.UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(connectionString));
         });
+
+        if (!isTest)
+            services.AddHangfireServer(opts =>
+            {
+                opts.WorkerCount = 4;
+                opts.Queues = ["default"];
+            });
 
         services.AddScoped<IDocumentJobQueue, DocumentJobQueue>();
         services.AddScoped<OutboxRelayJob>();

@@ -1,23 +1,44 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using VisuFiscalHub.Application.Common.Interfaces;
-using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Tests.Integration.Infrastructure;
 
 public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
 {
-    public static readonly RSA TestRsa = RSA.Create(2048);
+    private readonly RSA _rsa = RSA.Create(2048);
 
-    public static readonly string TestPrivateKeyPem = TestRsa.ExportRSAPrivateKeyPem();
-    public static readonly string TestPublicKeyPem  = TestRsa.ExportSubjectPublicKeyInfoPem();
+    public string TestPrivateKeyPem { get; }
+    public string TestPublicKeyPem  { get; }
 
     public FakeSefazClient SefazClient { get; } = new();
+
+    public VisuFiscalHubFactory()
+    {
+        TestPrivateKeyPem = _rsa.ExportRSAPrivateKeyPem();
+        TestPublicKeyPem  = _rsa.ExportSubjectPublicKeyInfoPem();
+
+        // Environment variables are read by WebApplication.CreateBuilder before DI runs.
+        // Program.cs reads builder.Configuration (which includes env vars) during service
+        // registration, BEFORE ConfigureWebHost.ConfigureAppConfiguration callbacks apply.
+        // Therefore env vars are the only reliable way to inject configuration ahead of
+        // AddInfrastructure and AddHealthChecks.
+        Environment.SetEnvironmentVariable("CONNECTIONSTRINGS__DEFAULTCONNECTION",
+            "Host=localhost;Database=test;Username=test;Password=test");
+        Environment.SetEnvironmentVariable("JWT__ISSUER",           "visu-fiscal-hub");
+        Environment.SetEnvironmentVariable("JWT__AUDIENCE",         "visu-fiscal-hub-clients");
+        Environment.SetEnvironmentVariable("JWT__EXPIRESINSECONDS", "3600");
+        Environment.SetEnvironmentVariable("JWT__PRIVATEKEYPEM",    TestPrivateKeyPem);
+        Environment.SetEnvironmentVariable("JWT__PUBLICKEYPEMS__0", TestPublicKeyPem);
+        Environment.SetEnvironmentVariable("ADMINKEY__VALUE",       "test-admin-key-1234567890");
+        Environment.SetEnvironmentVariable("CERT__ENCRYPTIONKEY",   Convert.ToBase64String(new byte[32]));
+        Environment.SetEnvironmentVariable("HANGFIREDASHBOARD__USER",     "test");
+        Environment.SetEnvironmentVariable("HANGFIREDASHBOARD__PASSWORD", "test");
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -36,38 +57,24 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
                 ["CERT:EncryptionKey"]   = Convert.ToBase64String(new byte[32]),
                 ["HangfireDashboard:User"]     = "test",
                 ["HangfireDashboard:Password"] = "test",
-                ["DefaultConnection"]   = $"Host=localhost;Database=test_{Guid.NewGuid():N};Username=test;Password=test",
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test;Username=test;Password=test",
             });
         });
 
         builder.ConfigureServices(services =>
         {
-            // Remove real PostgreSQL DbContext and replace with InMemory
-            var dbDescriptors = services
-                .Where(d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>)
-                         || d.ServiceType == typeof(ApplicationDbContext))
-                .ToList();
-            foreach (var d in dbDescriptors) services.Remove(d);
-
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseInMemoryDatabase($"TestDb_{Guid.NewGuid():N}"));
+            // DbContext and Hangfire are already configured for the Test environment
+            // inside DependencyInjection.AddInfrastructure (InMemory DB, no Hangfire server).
 
             // Replace ISefazClient with fake
             services.RemoveAll<ISefazClient>();
             services.AddSingleton<ISefazClient>(SefazClient);
-
-            // Remove Hangfire hosted services to avoid PostgreSQL connection on startup
-            var hostedToRemove = services
-                .Where(d => d.ImplementationType?.FullName?.Contains("Hangfire") == true
-                         || d.ImplementationType?.FullName?.Contains("BackgroundJob") == true)
-                .ToList();
-            foreach (var d in hostedToRemove) services.Remove(d);
         });
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) TestRsa.Dispose();
+        if (disposing) _rsa.Dispose();
         base.Dispose(disposing);
     }
 }

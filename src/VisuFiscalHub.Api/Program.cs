@@ -83,7 +83,7 @@ try
                 "HangfireDashboard: User e Password são obrigatórios em produção.")
             .ValidateOnStart();
 
-    builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
     // ── HTTP helpers ─────────────────────────────────────────────────────────
     builder.Services.AddHttpContextAccessor();
@@ -192,11 +192,14 @@ try
 
     builder.Services.AddOpenApi();
 
-    builder.Services.AddHealthChecks()
-        .AddNpgSql(
+    var healthChecksBuilder = builder.Services.AddHealthChecks();
+    if (!builder.Environment.IsEnvironment("Test"))
+    {
+        healthChecksBuilder.AddNpgSql(
             builder.Configuration.GetConnectionString("DefaultConnection")!,
             name: "postgresql",
             tags: ["ready"]);
+    }
 
     var app = builder.Build();
 
@@ -476,23 +479,25 @@ try
         (Guid id) => TypedResults.StatusCode(StatusCodes.Status501NotImplemented))
         .RequireRateLimiting("api");
 
-    // ── Hangfire Dashboard ────────────────────────────────────────────────────
-    // HangfireDashboardAuthFilter libera em Development; exige Basic Auth em outros ambientes.
-    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    // ── Hangfire Dashboard + Recurring Jobs (skipped in Test environment) ──────
+    if (!app.Environment.IsEnvironment("Test"))
     {
-        Authorization = [app.Services.GetRequiredService<HangfireDashboardAuthFilter>()]
-    });
+        // HangfireDashboardAuthFilter libera em Development; exige Basic Auth em outros ambientes.
+        app.UseHangfireDashboard("/hangfire", new DashboardOptions
+        {
+            Authorization = [app.Services.GetRequiredService<HangfireDashboardAuthFilter>()]
+        });
 
-    // ── Recurring Jobs ────────────────────────────────────────────────────────
-    RecurringJob.AddOrUpdate<OutboxRelayJob>(
-        "outbox-relay",
-        job => job.ExecuteAsync(CancellationToken.None),
-        "*/30 * * * * *"); // A cada 30 segundos — latência de entrega webhook
+        RecurringJob.AddOrUpdate<OutboxRelayJob>(
+            "outbox-relay",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "*/30 * * * * *"); // A cada 30 segundos — latência de entrega webhook
 
-    RecurringJob.AddOrUpdate<ReconciliacaoJobProcessor>(
-        "reconciliacao-nfce",
-        job => job.ExecuteAsync(CancellationToken.None),
-        "*/5 * * * *"); // A cada 5 minutos
+        RecurringJob.AddOrUpdate<ReconciliacaoJobProcessor>(
+            "reconciliacao-nfce",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "*/5 * * * *"); // A cada 5 minutos
+    }
 
     // ── Health ────────────────────────────────────────────────────────────────
     app.MapHealthChecks("/health");
@@ -505,8 +510,9 @@ try
         Predicate = hc => hc.Tags.Contains("ready")
     });
 
-    using (var scope = app.Services.CreateScope())
+    if (!app.Environment.IsEnvironment("Test"))
     {
+        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.MigrateAsync();
     }
