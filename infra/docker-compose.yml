@@ -1,36 +1,87 @@
+name: visu-fiscal-hub
+
 services:
+  hub:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: visu-fiscal-hub:latest
+    container_name: visu-fiscal-hub
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__DefaultConnection: >-
+        Host=postgres;Port=5432;Database=${POSTGRES_DB:-visufiscalhub};
+        Username=${POSTGRES_USER:-visufiscal};Password=${POSTGRES_PASSWORD};
+        Include Error Detail=true
+      Jwt__PrivateKeyPem: "${JWT_PRIVATE_KEY_PEM}"
+      Jwt__PublicKeyPems__0: "${JWT_PUBLIC_KEY_PEM}"
+      Jwt__Issuer: "visu-fiscal-hub"
+      Jwt__Audience: "visu-fiscal-hub-clients"
+      Jwt__ExpiresInSeconds: "3600"
+      Cert__EncryptionKey: "${CERT_ENCRYPTION_KEY}"
+      AdminKey__Value: "${ADMIN_KEY}"
+      HangfireDashboard__User: "${HANGFIRE_DASHBOARD_USER:-admin}"
+      HangfireDashboard__Password: "${HANGFIRE_DASHBOARD_PASSWORD}"
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - hub-network
+
   postgres:
-    image: postgres:17
-    container_name: visu_fiscal_hub_postgres
+    image: postgres:17-alpine
+    container_name: visu-fiscal-postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-visufiscalhub}
       POSTGRES_USER: ${POSTGRES_USER:-visufiscal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD no .env}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-visufiscal} -d ${POSTGRES_DB:-visufiscalhub}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - hub-network
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    container_name: visu_fiscal_hub_redis
+    container_name: visu-fiscal-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
+    networks:
+      - hub-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
+
+networks:
+  hub-network:
+    driver: bridge
