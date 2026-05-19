@@ -119,11 +119,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         // Emite documento com o ClienteApp-1 / Tenant-1
         var (http1, docId) = await EmitirAsync();
 
-        // Tenta acessar o mesmo documento usando o mesmo token mas com um tenantId
-        // que não existe — simula isolamento sem precisar de um segundo /auth/token
-        // (uma segunda chamada a /auth/token na mesma instância falha por bug conhecido
-        // no cache do AsymmetricSignatureProvider do Microsoft.IdentityModel).
-        // O cabeçalho X-Tenant-Id inexistente deve resultar em 404 ou 403.
+        // Reutiliza o token do http1 com um TenantId inexistente para verificar isolamento.
         using var httpTenantFalso = Factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
