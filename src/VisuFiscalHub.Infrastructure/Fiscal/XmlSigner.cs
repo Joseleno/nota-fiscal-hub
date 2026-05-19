@@ -9,7 +9,7 @@ internal sealed class XmlSigner
 {
     /// <summary>
     /// Assina o documento XML NFC-e conforme ABNT NBR 6030 / NT SEFAZ.
-    /// Canonicalização: C14N (não Exc-C14N); Digest: SHA-1; Assinatura: RSA-SHA1.
+    /// Canonicalização: Exc-C14N; Digest: SHA-1; Assinatura: RSA-SHA1.
     /// </summary>
     public XmlDocument Assinar(XmlDocument xmlDoc, X509Certificate2 certificado, string chaveAcesso)
     {
@@ -18,9 +18,9 @@ internal sealed class XmlSigner
         using var rsa = certificado.GetRSAPrivateKey()
             ?? throw new InvalidOperationException("Certificado não possui chave privada RSA.");
 
-        signedXml.SigningKey = rsa!;
-        signedXml.SignedInfo!.SignatureMethod = SignedXml.XmlDsigRSASHA1Url;
-        signedXml.SignedInfo.CanonicalizationMethod = SignedXml.XmlDsigC14NTransformUrl;
+        signedXml.SigningKey = rsa;
+        signedXml.SignedInfo.SignatureMethod = SignedXml.XmlDsigRSASHA1Url;
+        signedXml.SignedInfo.CanonicalizationMethod = SignedXml.XmlDsigExcC14NTransformUrl;
 
         var reference = new Reference
         {
@@ -28,9 +28,8 @@ internal sealed class XmlSigner
             DigestMethod = SignedXml.XmlDsigSHA1Url
         };
 
-        // Canonicalização C14N (não ExcC14N) conforme MOC SEFAZ
         reference.AddTransform(new XmlDsigEnvelopedSignatureTransform());
-        reference.AddTransform(new XmlDsigC14NTransform());
+        reference.AddTransform(new XmlDsigExcC14NTransform());
 
         signedXml.AddReference(reference);
 
