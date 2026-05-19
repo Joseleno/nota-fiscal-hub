@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Identifiers;
 
@@ -10,9 +11,11 @@ namespace VisuFiscalHub.Tests.Integration.Infrastructure;
 /// </summary>
 public sealed class FakeDocumentJobQueue : IDocumentJobQueue
 {
-    private readonly List<DocumentoFiscalId> _enqueuedIds = [];
+    private readonly ConcurrentBag<DocumentoFiscalId> _enqueuedIds = [];
 
-    public IReadOnlyList<DocumentoFiscalId> EnqueuedIds => _enqueuedIds;
+    public IReadOnlyCollection<DocumentoFiscalId> EnqueuedIds => _enqueuedIds;
+
+    public void Reset() => _enqueuedIds.Clear();
 
     public Task EnqueueProcessingAsync(DocumentoFiscalId id, CancellationToken ct = default)
     {

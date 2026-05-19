@@ -11,7 +11,9 @@ namespace VisuFiscalHub.Tests.Integration.Infrastructure;
 /// </summary>
 public sealed class FakeSequenceManager : ISequenceManager
 {
-    private long _next = 1;
+    // Interlocked.Increment returns the value AFTER incrementing.
+    // Starting at 0 ensures the first call returns 1 (first valid document number).
+    private long _next = 0;
 
     public Task<Result> EnsureNumeracaoSequenceAsync(TenantId tenantId, string serie, CancellationToken ct = default)
         => Task.FromResult(Result.Success());
