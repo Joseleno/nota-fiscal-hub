@@ -3,8 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Shouldly;
 using Xunit;
-using VisuFiscalHub.Tests.Integration.Infrastructure;
 using VisuFiscalHub.Domain.Enums;
+using VisuFiscalHub.Tests.Integration.Infrastructure;
 
 namespace VisuFiscalHub.Tests.Integration;
 
@@ -102,7 +102,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         var response = await http.GetAsync($"/api/v1/documentos/{Guid.NewGuid()}/status");
 
@@ -125,7 +125,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task GetStatus_TenantErrado_Retorna404Ou403()
+    public async Task GetStatus_TenantInexistente_Retorna404()
     {
         // Emite documento com o ClienteApp-1 / Tenant-1
         var (http1, docId) = await EmitirAsync();
@@ -159,7 +159,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var (clienteAppId2, clientId2, clientSecret2) = await CriarClienteAppAsync();
         var token2 = await ObterTokenAsync(clientId2, clientSecret2);
         var tenantId2 = await CriarTenantAsync(clienteAppId2, cnpj: "12345678000195");
-        var http2 = CriarClienteAutenticado(token2, tenantId2.Value);
+        using var http2 = CriarClienteAutenticado(token2, tenantId2.Value);
 
         var response = await http2.GetAsync($"/api/v1/documentos/{docId}/status");
 
@@ -180,7 +180,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         var token2 = await ObterTokenAsync(clientId2, clientSecret2);
 
         // Mismatch deliberado: token do ClienteApp-2 + X-Tenant-Id do Tenant-1 (ClienteApp-1)
-        var httpAtaque = CriarClienteAutenticado(token2, tenantId1.Value);
+        using var httpAtaque = CriarClienteAutenticado(token2, tenantId1.Value);
 
         var response = await httpAtaque.GetAsync($"/api/v1/documentos/{Guid.NewGuid()}/status");
 

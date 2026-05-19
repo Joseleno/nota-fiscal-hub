@@ -63,7 +63,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documentos/nfce")
         {
@@ -88,7 +88,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documentos/nfce")
         {
@@ -111,7 +111,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         var response = await http.PostAsJsonAsync("/api/v1/documentos/nfce", BodyValido());
 
@@ -140,7 +140,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
         var idempotencyKey = Guid.NewGuid().ToString();
 
         HttpRequestMessage MakeReq() => new HttpRequestMessage(HttpMethod.Post, "/api/v1/documentos/nfce")
@@ -168,7 +168,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         var bodyComNcmInvalido = new
         {
@@ -211,7 +211,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         // indPresenca = 2 é explicitamente rejeitado pelo validator
         var bodyComIndPresencaInvalido = new
@@ -255,7 +255,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         // Item vale 10.00, pagamento é 5.00 — não fecha
         var bodyComTotalErrado = new
@@ -300,7 +300,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
-        var http = CriarClienteAutenticado(token, tenantId.Value);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         var body = new
         {
@@ -336,7 +336,9 @@ public sealed class IssueDocumentTests : IntegrationTestBase
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         var responseBody = await response.Content.ReadAsStringAsync();
-        responseBody.ShouldContain("CPF");
+        // A mensagem exata do validator contém "10.000" — substring que identifica
+        // especificamente a regra de CPF obrigatório acima do limite legal.
+        responseBody.ShouldContain("10.000");
     }
 
     // DTO local para deserializar a resposta 202.
