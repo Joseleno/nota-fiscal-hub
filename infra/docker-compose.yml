@@ -10,10 +10,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      ConnectionStrings__DefaultConnection: >-
-        Host=postgres;Port=5432;Database=${POSTGRES_DB:-visufiscalhub};
-        Username=${POSTGRES_USER:-visufiscal};Password=${POSTGRES_PASSWORD};
-        Include Error Detail=true
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-visufiscalhub};Username=${POSTGRES_USER:-visufiscal};Password=${POSTGRES_PASSWORD};Include Error Detail=true"
       Jwt__PrivateKeyPem: "${JWT_PRIVATE_KEY_PEM}"
       Jwt__PublicKeyPems__0: "${JWT_PUBLIC_KEY_PEM}"
       Jwt__Issuer: "visu-fiscal-hub"
@@ -27,8 +24,6 @@ services:
       ASPNETCORE_URLS: http://+:8080
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -61,27 +56,8 @@ services:
       - hub-network
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    container_name: visu-fiscal-redis
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - hub-network
-    restart: unless-stopped
-
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local
 
 networks:
