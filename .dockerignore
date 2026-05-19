@@ -1,13 +1,25 @@
-**/.vs
-**/.vscode
-**/.idea
-**/bin
-**/obj
-**/*.user
-**/*.suo
-.git
-.gitignore
-.claude
-docs
-tests
+# Build artifacts
+**/bin/
+**/obj/
+
+# Test projects
+tests/
+
+# Documentação e configs de IDE
+docs/
+.claude/
+.vs/
+.vscode/
+.idea/
 *.md
+*.user
+*.suo
+
+# Git
+.git/
+.gitignore
+
+# Docker e infra (não fazem parte do build da aplicação)
+Dockerfile
+infra/
+scripts/
