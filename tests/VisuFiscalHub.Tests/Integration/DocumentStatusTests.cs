@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using Shouldly;
+using Xunit;
 using VisuFiscalHub.Tests.Integration.Infrastructure;
 
 namespace VisuFiscalHub.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public sealed class DocumentStatusTests : IntegrationTestBase
 {
     // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).

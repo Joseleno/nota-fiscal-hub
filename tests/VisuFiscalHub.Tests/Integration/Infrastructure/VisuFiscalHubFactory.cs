@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using VisuFiscalHub.Application.Common.Interfaces;
 
 namespace VisuFiscalHub.Tests.Integration.Infrastructure;
@@ -83,6 +85,16 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
             // incompatible with the InMemory EF provider used in tests.
             services.RemoveAll<ISequenceManager>();
             services.AddSingleton<ISequenceManager>(SequenceManager);
+
+            // Prevent Microsoft.IdentityModel from caching and disposing the RSA key
+            // inside RsaSecurityKey after the first token validation.
+            // CacheSignatureProviders = false creates a fresh CryptoProvider on each
+            // validation call, avoiding the ObjectDisposedException on subsequent calls.
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                options.TokenValidationParameters.CryptoProviderFactory =
+                    new CryptoProviderFactory { CacheSignatureProviders = false };
+            });
         });
     }
 

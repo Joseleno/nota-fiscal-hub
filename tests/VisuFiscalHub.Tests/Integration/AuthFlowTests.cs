@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using Shouldly;
+using Xunit;
 using VisuFiscalHub.Tests.Integration.Infrastructure;
 
 namespace VisuFiscalHub.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public sealed class AuthFlowTests : IntegrationTestBase
 {
     [Fact]

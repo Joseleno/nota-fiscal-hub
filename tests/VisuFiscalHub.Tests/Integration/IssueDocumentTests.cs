@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using Shouldly;
+using Xunit;
+using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Tests.Integration.Infrastructure;
 
 namespace VisuFiscalHub.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public sealed class IssueDocumentTests : IntegrationTestBase
 {
     // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).
@@ -97,8 +100,8 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var body = await response.Content.ReadFromJsonAsync<IssueResponse>();
         body.ShouldNotBeNull();
-        // StatusDocumento.Enfileirado = 2 (serializado como int pois não há JsonStringEnumConverter)
-        body!.Status.ShouldBe(2);
+        // StatusDocumento.Enfileirado serializado como int pois não há JsonStringEnumConverter
+        body!.Status.ShouldBe((int)StatusDocumento.Enfileirado);
     }
 
     [Fact]
