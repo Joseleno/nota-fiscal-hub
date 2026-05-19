@@ -79,6 +79,7 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         body!.DocumentoId.ShouldNotBeNull();
         body.DocumentoId.Value.ShouldNotBe(Guid.Empty);
         body.PollUrl.ShouldNotBeNullOrWhiteSpace();
+        body.ChaveAcesso.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -290,6 +291,52 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task PostNfce_CpfObrigatorio_AcimaLimiteLegal_Retorna422()
+    {
+        // IssueDocumentCommandValidator: totalItens > 10_000m requer CPF do consumidor.
+        var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
+        var token = await ObterTokenAsync(clientId, clientSecret);
+        var tenantId = await CriarTenantAsync(clienteAppId);
+        var http = CriarClienteAutenticado(token, tenantId.Value);
+
+        var body = new
+        {
+            itens = new[]
+            {
+                new
+                {
+                    codigoProduto = "PROD001",
+                    descricao = "Produto",
+                    ncm = "12345678",
+                    cest = (string?)null,
+                    cfopSaida = "5102",
+                    unidadeComercial = "UN",
+                    quantidade = 1.0,
+                    valorUnitario = 10_001.0,  // > 10_000m — acima do limite real do validator
+                    valorDesconto = 0.0,
+                    origemMercadoria = 0,
+                    tributo = TributoSimples()
+                }
+            },
+            pagamentos = new[] { new { tipoPagamento = 1, valor = 10_001.0 } },
+            consumidor = (object?)null,  // sem CPF — deve falhar
+            indPresenca = 1
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documentos/nfce")
+        {
+            Content = JsonContent.Create(body),
+            Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
+        };
+
+        var response = await http.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var body = await response.Content.ReadAsStringAsync();
+        body.ShouldContain("CPF");
     }
 
     // DTO local para deserializar a resposta 202.
