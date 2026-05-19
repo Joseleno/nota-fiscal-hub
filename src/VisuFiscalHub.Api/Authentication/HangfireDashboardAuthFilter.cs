@@ -11,6 +11,8 @@ public sealed class HangfireDashboardAuthFilter(
     IOptions<HangfireDashboardSettings> settings,
     IWebHostEnvironment env) : IDashboardAuthorizationFilter
 {
+    private static readonly byte[] _hmacKey = RandomNumberGenerator.GetBytes(32);
+
     public bool Authorize(DashboardContext context)
     {
         // Em Development não exige autenticação — facilita depuração local
@@ -51,14 +53,13 @@ public sealed class HangfireDashboardAuthFilter(
         var password = decoded[(separatorIndex + 1)..];
 
         var enc = Encoding.UTF8;
-        var hmacKey = RandomNumberGenerator.GetBytes(32);
         var userMatch = CryptographicOperations.FixedTimeEquals(
-            HMACSHA256.HashData(hmacKey, enc.GetBytes(user)),
-            HMACSHA256.HashData(hmacKey, enc.GetBytes(settings.Value.User)));
+            HMACSHA256.HashData(_hmacKey, enc.GetBytes(user)),
+            HMACSHA256.HashData(_hmacKey, enc.GetBytes(settings.Value.User)));
 
         var passwordMatch = CryptographicOperations.FixedTimeEquals(
-            HMACSHA256.HashData(hmacKey, enc.GetBytes(password)),
-            HMACSHA256.HashData(hmacKey, enc.GetBytes(settings.Value.Password)));
+            HMACSHA256.HashData(_hmacKey, enc.GetBytes(password)),
+            HMACSHA256.HashData(_hmacKey, enc.GetBytes(settings.Value.Password)));
 
         if (userMatch && passwordMatch)
             return true;
