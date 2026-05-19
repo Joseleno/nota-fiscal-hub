@@ -12,21 +12,21 @@ public sealed class HealthCheckTests : IntegrationTestBase
     [Fact]
     public async Task GetHealthLive_SempreRetorna200()
     {
-        var response = await Client.GetAsync("/health/live");
+        using var response = await Client.GetAsync("/health/live");
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
     public async Task GetHealth_ComInMemoryDb_Retorna200OuServiceUnavailable()
     {
-        var response = await Client.GetAsync("/health");
+        using var response = await Client.GetAsync("/health");
         ((int)response.StatusCode).ShouldBeOneOf(200, 503);
     }
 
     [Fact]
     public async Task GetTenants_SemToken_Retorna401()
     {
-        var response = await Client.GetAsync("/api/v1/tenants");
+        using var response = await Client.GetAsync("/api/v1/tenants");
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
@@ -34,7 +34,7 @@ public sealed class HealthCheckTests : IntegrationTestBase
     public async Task PostClientes_SemAdminKey_Retorna401()
     {
         var body = new { name = "Test", clientId = "test", clientSecret = "test12345" };
-        var response = await Client.PostAsJsonAsync("/api/v1/clientes", body);
+        using var response = await Client.PostAsJsonAsync("/api/v1/clientes", body);
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
@@ -46,7 +46,7 @@ public sealed class HealthCheckTests : IntegrationTestBase
             Content = JsonContent.Create(new { name = "Test", clientId = "test", clientSecret = "test12345" }),
             Headers = { { "X-Admin-Key", "chave-errada" } }
         };
-        var response = await Client.SendAsync(request);
+        using var response = await Client.SendAsync(request);
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 }

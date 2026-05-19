@@ -14,7 +14,7 @@ public sealed class AuthFlowTests : IntegrationTestBase
     {
         var (_, clientId, clientSecret) = await CriarClienteAppAsync();
 
-        var response = await Client.PostAsJsonAsync("/auth/token", new { clientId, clientSecret });
+        using var response = await Client.PostAsJsonAsync("/auth/token", new { clientId, clientSecret });
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<TokenBody>();
@@ -29,7 +29,7 @@ public sealed class AuthFlowTests : IntegrationTestBase
     {
         var (_, clientId, _) = await CriarClienteAppAsync();
 
-        var response = await Client.PostAsJsonAsync("/auth/token",
+        using var response = await Client.PostAsJsonAsync("/auth/token",
             new { clientId, clientSecret = "senha-errada" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -40,7 +40,7 @@ public sealed class AuthFlowTests : IntegrationTestBase
     [Fact]
     public async Task PostToken_ClientIdInexistente_Retorna401()
     {
-        var response = await Client.PostAsJsonAsync("/auth/token",
+        using var response = await Client.PostAsJsonAsync("/auth/token",
             new { clientId = "nao-existe", clientSecret = "qualquer" });
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -51,7 +51,7 @@ public sealed class AuthFlowTests : IntegrationTestBase
     {
         var (_, clientId, clientSecret) = await CriarClienteAppAsync();
 
-        var response = await Client.PostAsJsonAsync("/auth/token", new { clientId, clientSecret });
+        using var response = await Client.PostAsJsonAsync("/auth/token", new { clientId, clientSecret });
 
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/json");
     }
