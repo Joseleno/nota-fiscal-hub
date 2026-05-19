@@ -335,8 +335,8 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
-        var body = await response.Content.ReadAsStringAsync();
-        body.ShouldContain("CPF");
+        var responseBody = await response.Content.ReadAsStringAsync();
+        responseBody.ShouldContain("CPF");
     }
 
     // DTO local para deserializar a resposta 202.

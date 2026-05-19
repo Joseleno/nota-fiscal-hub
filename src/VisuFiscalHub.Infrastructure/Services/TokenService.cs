@@ -32,9 +32,18 @@ internal sealed class TokenService : ITokenService
     {
         using var rsa = RSA.Create();
         rsa.ImportParameters(_keyParams);
-        var credentials = new SigningCredentials(
-            new RsaSecurityKey(rsa),
-            SecurityAlgorithms.RsaSha256);
+        // Disable signature-provider caching so that the CryptoProviderFactory does not
+        // retain a reference to 'rsa' after WriteToken() returns and the using-scope disposes it.
+        // Without this, the second GenerateToken call reuses a cached SignatureProvider that
+        // holds a reference to the first (now-disposed) RSA instance, causing ObjectDisposedException.
+        var signingKey = new RsaSecurityKey(rsa)
+        {
+            CryptoProviderFactory = new Microsoft.IdentityModel.Tokens.CryptoProviderFactory
+            {
+                CacheSignatureProviders = false
+            }
+        };
+        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256);
 
         var now = _timeProvider.GetUtcNow();
         var claims = new[]
