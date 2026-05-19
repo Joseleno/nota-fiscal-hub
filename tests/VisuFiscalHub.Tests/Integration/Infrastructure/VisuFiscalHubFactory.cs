@@ -1,10 +1,13 @@
 using System.Security.Cryptography;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using VisuFiscalHub.Application.Common.Interfaces;
 
@@ -20,6 +23,15 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
     public FakeSefazClient SefazClient { get; } = new();
     public FakeDocumentJobQueue JobQueue { get; } = new();
     public FakeSequenceManager SequenceManager { get; } = new();
+
+    private static readonly string[] EnvVarKeys =
+    [
+        "CONNECTIONSTRINGS__DEFAULTCONNECTION",
+        "JWT__ISSUER", "JWT__AUDIENCE", "JWT__EXPIRESINSECONDS",
+        "JWT__PRIVATEKEYPEM", "JWT__PUBLICKEYPEMS__0",
+        "ADMINKEY__VALUE", "CERT__ENCRYPTIONKEY",
+        "HANGFIREDASHBOARD__USER", "HANGFIREDASHBOARD__PASSWORD"
+    ];
 
     public VisuFiscalHubFactory()
     {
@@ -86,6 +98,17 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
             services.RemoveAll<ISequenceManager>();
             services.AddSingleton<ISequenceManager>(SequenceManager);
 
+            // Disable rate limiting to prevent test flakiness as the suite grows.
+            // Program.cs registers "auth" (10/min), "api" (100/min), "admin" (5/min).
+            // Remove the production configure registrations, then re-add with no-op policies.
+            services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
+            services.Configure<RateLimiterOptions>(opts =>
+            {
+                opts.AddPolicy("auth",  _ => RateLimitPartition.GetNoLimiter("test"));
+                opts.AddPolicy("api",   _ => RateLimitPartition.GetNoLimiter("test"));
+                opts.AddPolicy("admin", _ => RateLimitPartition.GetNoLimiter("test"));
+            });
+
             // Prevent Microsoft.IdentityModel from caching and disposing the RSA key
             // inside RsaSecurityKey after the first token validation.
             // CacheSignatureProviders = false creates a fresh CryptoProvider on each
@@ -100,7 +123,12 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _rsa.Dispose();
-        base.Dispose(disposing);
+        if (disposing)
+        {
+            base.Dispose(disposing);
+            _rsa.Dispose();
+            foreach (var key in EnvVarKeys)
+                Environment.SetEnvironmentVariable(key, null);
+        }
     }
 }
