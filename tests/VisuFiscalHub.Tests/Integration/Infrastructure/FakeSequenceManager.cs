@@ -15,6 +15,8 @@ public sealed class FakeSequenceManager : ISequenceManager
     // Starting at 0 ensures the first call returns 1 (first valid document number).
     private long _next = 0;
 
+    public void Reset() => Interlocked.Exchange(ref _next, 0);
+
     public Task<Result> EnsureNumeracaoSequenceAsync(TenantId tenantId, string serie, CancellationToken ct = default)
         => Task.FromResult(Result.Success());
 

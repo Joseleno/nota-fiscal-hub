@@ -11,15 +11,21 @@ namespace VisuFiscalHub.Tests.Integration.Infrastructure;
 /// </summary>
 public sealed class FakeDocumentJobQueue : IDocumentJobQueue
 {
-    private readonly ConcurrentBag<DocumentoFiscalId> _enqueuedIds = [];
+    // ConcurrentQueue models the FIFO ordering of the real Hangfire-backed queue.
+    // Reset() drains the queue between tests rather than calling Clear() on a ConcurrentBag,
+    // which would race with concurrent Enqueue calls on the same thread-pool thread.
+    private readonly ConcurrentQueue<DocumentoFiscalId> _enqueuedIds = new();
 
-    public IReadOnlyCollection<DocumentoFiscalId> EnqueuedIds => _enqueuedIds;
+    public IReadOnlyCollection<DocumentoFiscalId> EnqueuedIds => _enqueuedIds.ToArray();
 
-    public void Reset() => _enqueuedIds.Clear();
+    public void Reset()
+    {
+        while (_enqueuedIds.TryDequeue(out _)) { }
+    }
 
     public Task EnqueueProcessingAsync(DocumentoFiscalId id, CancellationToken ct = default)
     {
-        _enqueuedIds.Add(id);
+        _enqueuedIds.Enqueue(id);
         return Task.CompletedTask;
     }
 }
