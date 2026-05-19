@@ -1,6 +1,7 @@
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -43,7 +44,9 @@ public static class DependencyInjection
             // instances get isolated stores.
             var testDbName = $"TestDb_{Guid.NewGuid():N}";
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseInMemoryDatabase(testDbName));
+                options
+                    .UseInMemoryDatabase(testDbName)
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         }
         else
         {
