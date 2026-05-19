@@ -48,6 +48,9 @@ public sealed class IssueDocumentCommandHandler
 
         if (existente is not null)
         {
+            if (existente.ClienteAppId != command.ClienteAppId)
+                return Result.Failure<IssueDocumentResponse>(TenantErrors.NaoPertenceAoClienteApp);
+
             // Status final — 409
             if (existente.Status is StatusDocumento.Autorizado
                 or StatusDocumento.Rejeitado
