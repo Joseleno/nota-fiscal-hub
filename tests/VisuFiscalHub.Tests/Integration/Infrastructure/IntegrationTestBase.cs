@@ -28,6 +28,7 @@ public abstract class IntegrationTestBase : IDisposable
         JobQueue        = Factory.JobQueue;
         SequenceManager = Factory.SequenceManager;
         JobQueue.Reset();
+        SequenceManager.Reset();
     }
 
     protected async Task<(ClienteAppId Id, string ClientId, string ClientSecret)> CriarClienteAppAsync()
@@ -119,5 +120,6 @@ public abstract class IntegrationTestBase : IDisposable
     {
         Client.Dispose();
         Factory.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

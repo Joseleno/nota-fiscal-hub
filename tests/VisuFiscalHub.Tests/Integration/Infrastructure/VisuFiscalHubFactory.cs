@@ -1,9 +1,10 @@
 using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -99,11 +100,12 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
             services.AddSingleton<ISequenceManager>(SequenceManager);
 
             // Disable rate limiting to prevent test flakiness as the suite grows.
-            // Program.cs registers "auth" (10/min), "api" (100/min), "admin" (5/min).
-            // Remove the production configure registrations, then re-add with no-op policies.
+            // RemoveAll strips the production configure registrations (policies + RejectionStatusCode).
+            // Keep in sync with the AddRateLimiter block in Program.cs.
             services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
             services.Configure<RateLimiterOptions>(opts =>
             {
+                opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
                 opts.AddPolicy("auth",  _ => RateLimitPartition.GetNoLimiter("test"));
                 opts.AddPolicy("api",   _ => RateLimitPartition.GetNoLimiter("test"));
                 opts.AddPolicy("admin", _ => RateLimitPartition.GetNoLimiter("test"));
@@ -125,10 +127,12 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
     {
         if (disposing)
         {
-            base.Dispose(disposing);
+            // Dispose own resources before calling base, which shuts down the test server.
+            // _rsa is used only to generate PEM strings in the constructor — safe to dispose first.
             _rsa.Dispose();
             foreach (var key in EnvVarKeys)
                 Environment.SetEnvironmentVariable(key, null);
         }
+        base.Dispose(disposing);
     }
 }
