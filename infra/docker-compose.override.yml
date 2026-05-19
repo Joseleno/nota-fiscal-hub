@@ -1,0 +1,11 @@
+# infra/docker-compose.override.yml
+# Sobreposições para desenvolvimento local — NÃO usar em produção
+services:
+  hub:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Serilog__MinimumLevel__Default: Debug
+      HangfireDashboard__User: ""
+      HangfireDashboard__Password: ""
+    volumes:
+      - ../src/VisuFiscalHub.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
