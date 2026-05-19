@@ -1,5 +1,9 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using VisuFiscalHub.Application.Common.Security;
 using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
@@ -109,6 +113,43 @@ public abstract class IntegrationTestBase : IDisposable
         await db.SaveChangesAsync();
 
         return tenant.Id;
+    }
+
+    // Gera JWT assinado com a chave privada do factory mas com exp no passado.
+    // Permite testar que ValidateLifetime = true rejeita tokens vencidos com 401.
+    protected string GerarTokenExpirado()
+    {
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(Factory.TestPrivateKeyPem);
+        var key = new RsaSecurityKey(rsa) { CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false } };
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
+        var past = DateTimeOffset.UtcNow.AddHours(-2);
+        var token = new JwtSecurityToken(
+            issuer: "visu-fiscal-hub",
+            audience: "visu-fiscal-hub-clients",
+            claims: [new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString())],
+            notBefore: past.AddHours(-1).UtcDateTime,
+            expires: past.UtcDateTime,
+            signingCredentials: credentials);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    // Gera JWT assinado com uma chave RSA arbitrária (diferente da registrada no factory).
+    // Permite testar que ValidateIssuerSigningKey = true rejeita tokens forjados com 401.
+    protected static string GerarTokenComChaveErrada()
+    {
+        using var rsa = RSA.Create(2048);
+        var key = new RsaSecurityKey(rsa) { CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false } };
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
+        var now = DateTimeOffset.UtcNow;
+        var token = new JwtSecurityToken(
+            issuer: "visu-fiscal-hub",
+            audience: "visu-fiscal-hub-clients",
+            claims: [new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString())],
+            notBefore: now.UtcDateTime,
+            expires: now.AddHours(1).UtcDateTime,
+            signingCredentials: credentials);
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).
