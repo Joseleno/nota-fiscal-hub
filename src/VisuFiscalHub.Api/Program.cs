@@ -4,13 +4,14 @@ using System.Threading.RateLimiting;
 using Mediator;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 using Serilog;
 using VisuFiscalHub.Api.Authentication;
+using VisuFiscalHub.Api.Middleware;
 using VisuFiscalHub.Application;
 using VisuFiscalHub.Api;
 using VisuFiscalHub.Application.Common.Interfaces;
@@ -18,19 +19,24 @@ using VisuFiscalHub.Application.Common.Models;
 using Hangfire;
 using VisuFiscalHub.Application.Documents.Commands.IssueDocument;
 using VisuFiscalHub.Application.Documents.Queries.GetDocumentStatus;
+using VisuFiscalHub.Application.Documents.Queries.GetDocumentXml;
 using VisuFiscalHub.Infrastructure.Jobs;
 using VisuFiscalHub.Application.Common.Security;
 using VisuFiscalHub.Application.Tenants.Commands.CreateClienteApp;
 using VisuFiscalHub.Application.Tenants.Commands.CreateTenant;
 using VisuFiscalHub.Application.Tenants.Commands.RotateClienteAppSecret;
+using VisuFiscalHub.Application.Tenants.Commands.RotateClienteAppWebhookSecret;
 using VisuFiscalHub.Application.Tenants.Commands.UpdateTenantCertificate;
 using VisuFiscalHub.Application.Tenants.Commands.UpdateTenantCsc;
 using VisuFiscalHub.Application.Tenants.Queries.GetCertificadoStatus;
 using VisuFiscalHub.Application.Tenants.Queries.GetTenant;
 using VisuFiscalHub.Application.Tenants.Queries.ListTenants;
+using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using VisuFiscalHub.Infrastructure;
+using VisuFiscalHub.Infrastructure.Persistence;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -173,6 +179,12 @@ try
 
     builder.Services.AddOpenApi();
 
+    builder.Services.AddHealthChecks()
+        .AddNpgSql(
+            builder.Configuration.GetConnectionString("DefaultConnection")!,
+            name: "postgresql",
+            tags: ["ready"]);
+
     var app = builder.Build();
 
     app.Lifetime.ApplicationStopped.Register(() =>
@@ -183,8 +195,8 @@ try
 
     app.UseExceptionHandler();
 
-    if (app.Environment.IsDevelopment())
-        app.MapOpenApi();
+    app.MapOpenApi();
+    app.MapScalarApiReference();
 
     app.UseForwardedHeaders();
     app.UseHttpsRedirection();
@@ -256,7 +268,24 @@ try
                 return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
 
             var command = new RotateClienteAppSecretCommand { ClienteAppId = new ClienteAppId(id) };
-            return (await mediator.Send(command, ct)).ToHttpResult(r => Results.Ok(r));
+            return (await mediator.Send(command, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("admin");
+
+    clienteApps.MapPost("/{id:guid}/rotate-webhook-secret",
+        async (
+            Guid id,
+            HttpContext ctx,
+            IMediator mediator,
+            IOptions<AdminKeySettings> adminOptions,
+            CancellationToken ct) =>
+        {
+            var providedKey = ctx.Request.Headers["X-Admin-Key"].FirstOrDefault() ?? string.Empty;
+            if (!AdminKeyHelper.VerifyAdminKey(providedKey, adminOptions.Value.Value))
+                return Results.Json(new { error = "invalid_key" }, statusCode: StatusCodes.Status401Unauthorized);
+
+            var command = new RotateClienteAppWebhookSecretCommand { ClienteAppId = new ClienteAppId(id) };
+            return (await mediator.Send(command, ct)).ToHttpResult();
         })
         .RequireRateLimiting("admin");
 
@@ -337,7 +366,13 @@ try
             };
             return (await mediator.Send(cmd, ct)).ToHttpResult();
         })
-        .RequireRateLimiting("api");
+        .RequireRateLimiting("api")
+        .AddEndpointFilter(async (ctx, next) =>
+        {
+            if (ctx.HttpContext.Request.ContentLength > 50 * 1024)
+                return TypedResults.StatusCode(StatusCodes.Status413RequestEntityTooLarge);
+            return await next(ctx);
+        });
 
     tenants.MapPut("/{id:guid}/csc",
         async (
@@ -356,6 +391,78 @@ try
         })
         .RequireRateLimiting("api");
 
+    // ── Documentos ───────────────────────────────────────────────────────────
+    var documentos = app.MapGroup("/api/v1/documentos").RequireAuthorization();
+
+    documentos.MapPost("/nfce",
+        async (
+            IssueNfceRequest request,
+            HttpContext ctx,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var idempotencyKey = ctx.Request.Headers["X-Idempotency-Key"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+                return Results.Problem(
+                    detail: "DocumentoFiscal.IdempotencyKeyInvalida",
+                    title: "X-Idempotency-Key é obrigatório.",
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+
+            var command = new IssueDocumentCommand
+            {
+                TenantId = userCtx.TenantId,
+                ClienteAppId = userCtx.ClienteAppId,
+                IdempotencyKey = idempotencyKey,
+                Tipo = TipoDocumento.NfCe,
+                Itens = request.Itens,
+                Pagamentos = request.Pagamentos,
+                Consumidor = request.Consumidor,
+                IndPresenca = request.IndPresenca
+            };
+
+            return (await mediator.Send(command, ct))
+                .ToHttpResult(r => Results.Accepted($"/api/v1/documentos/{r.DocumentoId.Value}/status", r));
+        })
+        .RequireRateLimiting("api");
+
+    documentos.MapGet("/{id:guid}/status",
+        async (
+            Guid id,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var query = new GetDocumentStatusQuery
+            {
+                DocumentoId = new DocumentoFiscalId(id),
+                ClienteAppId = userCtx.ClienteAppId
+            };
+            return (await mediator.Send(query, ct)).ToHttpResult();
+        })
+        .RequireRateLimiting("api");
+
+    documentos.MapGet("/{id:guid}/xml",
+        async (
+            Guid id,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var query = new GetDocumentXmlQuery
+            {
+                DocumentoId = new DocumentoFiscalId(id),
+                ClienteAppId = userCtx.ClienteAppId
+            };
+            return (await mediator.Send(query, ct))
+                .ToHttpResult(xml => TypedResults.Ok(new { xmlAssinado = xml }) as IResult);
+        })
+        .RequireRateLimiting("api");
+
+    documentos.MapPost("/{id:guid}/cancelar",
+        (Guid id) => TypedResults.StatusCode(StatusCodes.Status501NotImplemented))
+        .RequireRateLimiting("api");
+
     // ── Hangfire Dashboard (apenas em desenvolvimento) ────────────────────────
     if (app.Environment.IsDevelopment())
         app.UseHangfireDashboard("/hangfire");
@@ -372,8 +479,21 @@ try
         "*/5 * * * *"); // A cada 5 minutos
 
     // ── Health ────────────────────────────────────────────────────────────────
-    app.MapGet("/health", () => TypedResults.Ok(new { status = "Healthy" }))
-        .RequireRateLimiting("api");
+    app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = _ => false
+    });
+    app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = hc => hc.Tags.Contains("ready")
+    });
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+    }
 
     app.Run();
 }
@@ -388,42 +508,10 @@ finally
 
 internal sealed record TokenRequest(string ClientId, string ClientSecret);
 
-sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
-{
-    public async ValueTask<bool> TryHandleAsync(
-        HttpContext httpContext,
-        Exception exception,
-        CancellationToken cancellationToken)
-    {
-        logger.LogError(exception, "Unhandled exception for {Method} {Path}",
-            httpContext.Request.Method, httpContext.Request.Path);
-
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        await httpContext.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Status = StatusCodes.Status500InternalServerError,
-            Title = "Erro interno do servidor.",
-            Detail = "Ocorreu um erro inesperado. Por favor, tente novamente mais tarde."
-        }, cancellationToken);
-
-        return true;
-    }
-}
+internal sealed record IssueNfceRequest(
+    IReadOnlyList<ItemDocumentoDto> Itens,
+    IReadOnlyList<PagamentoDto> Pagamentos,
+    ConsumidorDto? Consumidor,
+    int IndPresenca = 1);
 
 public partial class Program { }
-
-// HMAC-normalize both sides before comparing to eliminate length oracle.
-// FixedTimeEquals requires equal-length inputs; hashing with a fixed key produces
-// same-length MACs regardless of input length while preserving timing safety.
-static class AdminKeyHelper
-{
-    private static readonly byte[] _hmacKey = RandomNumberGenerator.GetBytes(32);
-
-    public static bool VerifyAdminKey(string provided, string expected)
-    {
-        var enc = System.Text.Encoding.UTF8;
-        var providedMac = HMACSHA256.HashData(_hmacKey, enc.GetBytes(provided));
-        var expectedMac = HMACSHA256.HashData(_hmacKey, enc.GetBytes(expected));
-        return CryptographicOperations.FixedTimeEquals(providedMac, expectedMac);
-    }
-}

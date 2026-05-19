@@ -59,4 +59,7 @@ public static class DocumentoFiscalErrors
     // O valor 2 (internet) é explicitamente rejeitado pelo SEFAZ para NFC-e.
     public static readonly Error IndPresencaInvalido =
         new("DocumentoFiscal.IndPresencaInvalido", "Indicador de presença inválido. Valores permitidos para NFC-e: 1, 3, 4, 9.");
+
+    public static readonly Error XmlIndisponivel =
+        new("DocumentoFiscal.XmlIndisponivel", "O XML assinado ainda não está disponível. O documento pode estar em processamento.");
 }

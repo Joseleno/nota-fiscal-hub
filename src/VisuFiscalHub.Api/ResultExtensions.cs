@@ -36,7 +36,7 @@ public static class ResultExtensions
     {
         var code = error.Code;
 
-        if (code.EndsWith("NaoEncontrado"))
+        if (code.EndsWith("NaoEncontrado") || code.EndsWith("XmlIndisponivel"))
             return TypedResults.NotFound(new ProblemDetails
             {
                 Title = error.Message,
