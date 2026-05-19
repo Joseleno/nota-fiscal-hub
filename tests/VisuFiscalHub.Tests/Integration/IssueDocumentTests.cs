@@ -113,6 +113,9 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         b1.ShouldNotBeNull();
         b2.ShouldNotBeNull();
         b1!.DocumentoId.Value.ShouldBe(b2!.DocumentoId.Value);
+        // O handler de idempotência retorna o documento existente sem chamar EnqueueProcessingAsync —
+        // um único job enfileirado prova que não houve re-processamento duplicado.
+        JobQueue.EnqueuedIds.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -156,6 +159,8 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         using var response = await http.SendAsync(request);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var body = await response.Content.ReadAsStringAsync();
+        body.ShouldContain("ncm");
     }
 
     [Fact]
@@ -292,6 +297,21 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         // A mensagem exata do validator contém "10.000" — substring que identifica
         // especificamente a regra de CPF obrigatório acima do limite legal.
         responseBody.ShouldContain("10.000");
+    }
+
+    [Fact]
+    public async Task CancelarDocumento_Retorna501()
+    {
+        // Cancelamento não implementado — endpoint retorna 501 incondicionalmente.
+        var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
+        var token = await ObterTokenAsync(clientId, clientSecret);
+        var tenantId = await CriarTenantAsync(clienteAppId);
+        using var http = CriarClienteAutenticado(token, tenantId.Value);
+
+        using var response = await http.PostAsJsonAsync(
+            $"/api/v1/documentos/{Guid.NewGuid()}/cancelar", new { });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
     }
 
 }

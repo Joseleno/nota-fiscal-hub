@@ -48,6 +48,7 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         body!.DocumentoId.Value.ShouldBe(docId);
         // StatusDocumento serializa como int — Enfileirado é o estado imediatamente após emissão
         body.Status.ShouldBe((int)StatusDocumento.Enfileirado);
+        body.ChaveAcesso.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]

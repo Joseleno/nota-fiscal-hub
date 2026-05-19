@@ -17,10 +17,11 @@ public sealed class HealthCheckTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task GetHealth_ComInMemoryDb_Retorna200OuServiceUnavailable()
+    public async Task GetHealth_ComInMemoryDb_Retorna200()
     {
+        // No ambiente Test o health check de PostgreSQL é omitido — sempre 200.
         using var response = await Client.GetAsync("/health");
-        ((int)response.StatusCode).ShouldBeOneOf(200, 503);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
