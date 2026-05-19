@@ -50,6 +50,7 @@ public sealed class DocumentoFiscalRepository : IDocumentoFiscalRepository
         CancellationToken ct = default)
         => await _context.DocumentosFiscais
             .AsNoTracking()
-            .Where(d => d.Status == StatusDocumento.Processando && d.CreatedAt < anteriorA)
+            .Where(d => (d.Status == StatusDocumento.Processando || d.Status == StatusDocumento.Enfileirado)
+                        && d.CreatedAt < anteriorA)
             .ToListAsync(ct);
 }

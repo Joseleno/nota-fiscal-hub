@@ -1,6 +1,7 @@
 using Hangfire;
 using Microsoft.Extensions.Logging;
 using VisuFiscalHub.Application.Common.Interfaces;
+using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Domain.ValueObjects;
 
@@ -51,7 +52,7 @@ public sealed class ReconciliacaoJobProcessor
         if (travados.Count == 0)
             return;
 
-        _logger.LogInformation("Reconciliação: {Count} documento(s) travado(s) em Processando há mais de {Min} min.",
+        _logger.LogInformation("Reconciliação: {Count} documento(s) travado(s) em Processando/Enfileirado há mais de {Min} min.",
             travados.Count, ThresholdTravado.TotalMinutes);
 
         foreach (var documento in travados)
@@ -64,6 +65,15 @@ public sealed class ReconciliacaoJobProcessor
     {
         _logger.LogWarning("Reconciliando {DocumentoId} (status={Status}, createdAt={CreatedAt})",
             documento.Id.Value, documento.Status, documento.CreatedAt);
+
+        // Documento nunca enviado à SEFAZ — reenfileirar em vez de consultar.
+        if (documento.Status == StatusDocumento.Enfileirado)
+        {
+            _logger.LogInformation("Documento {DocumentoId} ainda Enfileirado — reenfileirando para processamento.",
+                documento.Id.Value);
+            await _documentJobQueue.EnqueueProcessingAsync(documento.Id, ct);
+            return;
+        }
 
         var consultaResult = await _sefazClient.ConsultarNfeAsync(
             documento.ChaveAcesso.Valor, documento.TenantId, ct);
