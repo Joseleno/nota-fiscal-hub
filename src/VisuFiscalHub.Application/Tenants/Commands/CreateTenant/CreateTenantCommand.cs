@@ -16,5 +16,6 @@ public sealed record CreateTenantCommand : ICommand<Result<TenantResponse>>
     public AmbienteSefaz Ambiente { get; init; }
     public int UfCodigo { get; init; }
     public string Serie { get; init; } = default!;
+    public string? InscricaoEstadual { get; init; }
     public EnderecoDto Endereco { get; init; } = default!;
 }

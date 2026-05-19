@@ -58,7 +58,8 @@ public sealed class CreateTenantCommandHandler
             command.RegimeTributario,
             command.Serie,
             command.Ambiente,
-            command.UfCodigo);
+            command.UfCodigo,
+            command.InscricaoEstadual);
 
         if (configResult.IsFailure)
             return Result.Failure<TenantResponse>(configResult.Error);

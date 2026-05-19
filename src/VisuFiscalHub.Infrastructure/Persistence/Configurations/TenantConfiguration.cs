@@ -82,6 +82,9 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             cfg.Property(c => c.UfCodigo)
                 .HasColumnName("uf_codigo")
                 .IsRequired();
+            cfg.Property(c => c.InscricaoEstadual)
+                .HasColumnName("inscricao_estadual")
+                .HasMaxLength(14);
         });
 
         builder.Property(t => t.Csc)

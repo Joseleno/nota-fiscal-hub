@@ -157,7 +157,7 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         if (tenant.Endereco.Telefone is not null) AddChild(end, "fone", tenant.Endereco.Telefone);
         emit.AppendChild(end);
 
-        Add("IE", "ISENTO"); // Simples pode não ter IE — ajustar conforme Tenant
+        Add("IE", tenant.ConfiguracaoFiscal.InscricaoEstadual ?? "ISENTO");
         Add("CRT", ((int)tenant.ConfiguracaoFiscal.Crt).ToString());
 
         return emit;
