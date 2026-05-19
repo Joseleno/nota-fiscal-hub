@@ -90,7 +90,8 @@ public static class ResultExtensions
             || code.EndsWith("ClienteAppInvalido")
             || code.EndsWith("IndPresencaInvalido")
             // Erros de configuração do Tenant (CSC/cIdToken ausente) são falha do cliente, não do servidor
-            || code.StartsWith("XmlBuilder."))
+            || code.StartsWith("XmlBuilder.")
+            || code.StartsWith("Sefaz."))
             return TypedResults.UnprocessableEntity(new ProblemDetails
             {
                 Title = error.Message,
@@ -98,8 +99,8 @@ public static class ResultExtensions
             });
 
         return TypedResults.Problem(
-            detail: error.Code,
-            title: error.Message,
+            detail: "Um erro inesperado ocorreu. Consulte os logs para mais detalhes.",
+            title: "Erro interno.",
             statusCode: StatusCodes.Status500InternalServerError);
     }
 }
