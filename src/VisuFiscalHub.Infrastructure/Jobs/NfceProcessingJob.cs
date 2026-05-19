@@ -110,8 +110,8 @@ public sealed class NfceProcessingJob
         else if (SefazRetornoParser.IsDuplicidade(retorno.CStat))
         {
             // cStat=204/572: documento já existe e está autorizado na SEFAZ.
-            // Rejeitar localmente com motivo descritivo — NProt pode ser null nestes casos.
-            await RejeitarAsync(documento, retorno, "Duplicidade: nota já autorizada na SEFAZ.", ct);
+            // Buscar protocolo via consulta para autorizar localmente.
+            await AutorizarPorDuplicidadeAsync(documento, ct);
         }
         else if (SefazRetornoParser.IsDenegado(retorno.CStat))
         {
@@ -170,6 +170,63 @@ public sealed class NfceProcessingJob
 
         _logger.LogInformation("NFC-e {DocumentoId} AUTORIZADA. Protocolo: {Protocolo}",
             documento.Id.Value, retorno.NProt);
+    }
+
+    private async Task AutorizarPorDuplicidadeAsync(
+        Domain.Entities.DocumentoFiscal documento,
+        CancellationToken ct)
+    {
+        var consultaResult = await _sefazClient.ConsultarNfeAsync(
+            documento.ChaveAcesso.Valor, documento.TenantId, ct);
+
+        if (consultaResult.IsFailure)
+        {
+            _logger.LogWarning(
+                "Duplicidade detectada mas consulta SEFAZ falhou para {DocumentoId}: {Error} — retentando.",
+                documento.Id.Value, consultaResult.Error.Code);
+            // Falha transiente — lançar para que o Hangfire retente.
+            throw new InvalidOperationException(
+                $"Duplicidade: consulta SEFAZ falhou para {documento.Id.Value}: {consultaResult.Error.Message}");
+        }
+
+        var consulta = consultaResult.Value;
+
+        if (consulta.Autorizado && !string.IsNullOrWhiteSpace(consulta.NProt))
+        {
+            var qrCode = QrCode.FromStorage(documento.ChaveAcesso.Valor);
+            var authorizedAt = _timeProvider.GetUtcNow();
+
+            var authResult = documento.Autorizar(
+                consulta.NProt,
+                consulta.XmlProtocolo ?? string.Empty,
+                qrCode,
+                authorizedAt,
+                _timeProvider);
+
+            if (authResult.IsFailure)
+            {
+                _logger.LogError("Falha ao autorizar duplicidade {DocumentoId}: {Error}",
+                    documento.Id.Value, authResult.Error.Code);
+                throw new InvalidOperationException(
+                    $"Falha ao autorizar duplicidade {documento.Id.Value}: {authResult.Error.Code}");
+            }
+
+            await _documentoRepo.UpdateAsync(documento, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+
+            _logger.LogInformation("NFC-e {DocumentoId} AUTORIZADA via duplicidade. Protocolo: {NProt}",
+                documento.Id.Value, consulta.NProt);
+        }
+        else
+        {
+            // SEFAZ reportou duplicidade mas consulta não confirmou autorização — situação anômala.
+            _logger.LogError(
+                "Duplicidade sem autorização confirmada na consulta para {DocumentoId}: autorizado={Autorizado} NProt={NProt}",
+                documento.Id.Value, consulta.Autorizado, consulta.NProt);
+            // Manter em Processando — ReconciliacaoJobProcessor resolverá após threshold.
+            throw new InvalidOperationException(
+                $"Duplicidade sem autorização confirmada na consulta para {documento.Id.Value}.");
+        }
     }
 
     private async Task RejeitarAsync(
