@@ -11,53 +11,6 @@ namespace VisuFiscalHub.Tests.Integration;
 [Collection("IntegrationTests")]
 public sealed class DocumentStatusTests : IntegrationTestBase
 {
-    // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).
-    // CstPisCofins 7 = Cst07 (PISNT/COFINSNT — Simples Nacional).
-    private static object TributoSimples() => new
-    {
-        tipoIcms = 1,          // TipoIcms.CSOSN
-        csosnOuCst = 400,      // CSOSN 400
-        aliquotaIcms = 0.0,
-        baseCalculoIcms = 0.0,
-        valorIcms = 0.0,
-        cstPis = 7,            // CstPisCofins.Cst07 — PISNT
-        baseCalculoPis = 0.0,
-        aliquotaPis = 0.0,
-        valorPis = 0.0,
-        cstCofins = 7,         // CstPisCofins.Cst07 — COFINSNT
-        baseCalculoCofins = 0.0,
-        aliquotaCofins = 0.0,
-        valorCofins = 0.0
-    };
-
-    // Body válido: itens + pagamentos com totais fechando, NCM 8 dígitos, indPresenca 1.
-    private static object BodyValido(decimal valor = 10.00m) => new
-    {
-        itens = new[]
-        {
-            new
-            {
-                codigoProduto = "PROD001",
-                descricao = "Produto Teste",
-                ncm = "12345678",
-                cest = (string?)null,
-                cfopSaida = "5102",
-                unidadeComercial = "UN",
-                quantidade = (double)1m,
-                valorUnitario = (double)valor,
-                valorDesconto = 0.0,
-                origemMercadoria = 0,  // OrigemMercadoria.Nacional
-                tributo = TributoSimples()
-            }
-        },
-        pagamentos = new[]
-        {
-            new { tipoPagamento = 1, valor = (double)valor }  // TipoPagamento.Dinheiro = 1
-        },
-        consumidor = (object?)null,
-        indPresenca = 1
-    };
-
     private async Task<(HttpClient Http, Guid DocumentoGuid)> EmitirAsync()
     {
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
@@ -84,7 +37,8 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     [Fact]
     public async Task GetStatus_DocumentoExistente_Retorna200ComBodyValido()
     {
-        var (http, docId) = await EmitirAsync();
+        var (httpRaw, docId) = await EmitirAsync();
+        using var http = httpRaw;
 
         var response = await http.GetAsync($"/api/v1/documentos/{docId}/status");
 
@@ -112,7 +66,8 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     [Fact]
     public async Task GetXml_DocumentoEnfileirado_Retorna404ComProblemDetails()
     {
-        var (http, docId) = await EmitirAsync();
+        var (httpRaw, docId) = await EmitirAsync();
+        using var http = httpRaw;
 
         var response = await http.GetAsync($"/api/v1/documentos/{docId}/xml");
 
@@ -128,7 +83,8 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     public async Task GetStatus_TenantInexistente_Retorna404()
     {
         // Emite documento com o ClienteApp-1 / Tenant-1
-        var (http1, docId) = await EmitirAsync();
+        var (http1Raw, docId) = await EmitirAsync();
+        using var http1 = http1Raw;
 
         // Reutiliza o token do http1 com um TenantId inexistente para verificar isolamento.
         using var httpTenantFalso = Factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
@@ -152,7 +108,8 @@ public sealed class DocumentStatusTests : IntegrationTestBase
     public async Task GetStatus_TenantDeOutroClienteApp_Retorna403()
     {
         // Emite documento com ClienteApp-1 / Tenant-1
-        var (http1, docId) = await EmitirAsync();
+        var (http1Raw, docId) = await EmitirAsync();
+        using var http1 = http1Raw;
 
         // Cria ClienteApp-2 com Tenant-2. Token e tenant pertencem ao mesmo ClienteApp-2 —
         // TenantValidationMiddleware passa; a guarda de ownership no handler retorna 403.
@@ -199,17 +156,4 @@ public sealed class DocumentStatusTests : IntegrationTestBase
         [property: System.Text.Json.Serialization.JsonPropertyName("motivoRejeicao")] string? MotivoRejeicao,
         [property: System.Text.Json.Serialization.JsonPropertyName("authorizedAt")] DateTimeOffset? AuthorizedAt);
 
-    // DTO local para deserializar a resposta 202.
-    // DocumentoFiscalId serializa como {"value": "<guid>"} pois é um readonly record struct
-    // sem JsonConverter personalizado registrado.
-    // Status é int pois não há JsonStringEnumConverter configurado no projeto.
-    private sealed record IssueResponse(
-        [property: System.Text.Json.Serialization.JsonPropertyName("documentoId")] DocumentoIdDto DocumentoId,
-        [property: System.Text.Json.Serialization.JsonPropertyName("status")] int Status,
-        [property: System.Text.Json.Serialization.JsonPropertyName("chaveAcesso")] string? ChaveAcesso,
-        [property: System.Text.Json.Serialization.JsonPropertyName("pollUrl")] string PollUrl,
-        [property: System.Text.Json.Serialization.JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
-
-    private sealed record DocumentoIdDto(
-        [property: System.Text.Json.Serialization.JsonPropertyName("value")] Guid Value);
 }

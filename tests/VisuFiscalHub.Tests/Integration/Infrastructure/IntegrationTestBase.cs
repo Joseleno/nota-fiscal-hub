@@ -111,6 +111,67 @@ public abstract class IntegrationTestBase : IDisposable
         return tenant.Id;
     }
 
+    // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).
+    // CstPisCofins 7 = Cst07 (PISNT/COFINSNT — Simples Nacional).
+    protected static object TributoSimples() => new
+    {
+        tipoIcms = 1,          // TipoIcms.CSOSN
+        csosnOuCst = 400,      // CSOSN 400
+        aliquotaIcms = 0.0,
+        baseCalculoIcms = 0.0,
+        valorIcms = 0.0,
+        cstPis = 7,            // CstPisCofins.Cst07 — PISNT
+        baseCalculoPis = 0.0,
+        aliquotaPis = 0.0,
+        valorPis = 0.0,
+        cstCofins = 7,         // CstPisCofins.Cst07 — COFINSNT
+        baseCalculoCofins = 0.0,
+        aliquotaCofins = 0.0,
+        valorCofins = 0.0
+    };
+
+    // Body válido: itens + pagamentos com totais fechando, NCM 8 dígitos, indPresenca 1.
+    protected static object BodyValido(decimal valor = 10.00m) => new
+    {
+        itens = new[]
+        {
+            new
+            {
+                codigoProduto = "PROD001",
+                descricao = "Produto Teste",
+                ncm = "12345678",
+                cest = (string?)null,
+                cfopSaida = "5102",
+                unidadeComercial = "UN",
+                quantidade = (double)1m,
+                valorUnitario = (double)valor,
+                valorDesconto = 0.0,
+                origemMercadoria = 0,  // OrigemMercadoria.Nacional
+                tributo = TributoSimples()
+            }
+        },
+        pagamentos = new[]
+        {
+            new { tipoPagamento = 1, valor = (double)valor }  // TipoPagamento.Dinheiro = 1
+        },
+        consumidor = (object?)null,
+        indPresenca = 1
+    };
+
+    // DTO para deserializar a resposta 202 de emissão de documento.
+    // DocumentoFiscalId serializa como {"value": "<guid>"} pois é um readonly record struct
+    // sem JsonConverter personalizado registrado.
+    // Status é int pois não há JsonStringEnumConverter configurado no projeto.
+    protected sealed record IssueResponse(
+        [property: System.Text.Json.Serialization.JsonPropertyName("documentoId")] DocumentoIdDto DocumentoId,
+        [property: System.Text.Json.Serialization.JsonPropertyName("status")] int Status,
+        [property: System.Text.Json.Serialization.JsonPropertyName("chaveAcesso")] string? ChaveAcesso,
+        [property: System.Text.Json.Serialization.JsonPropertyName("pollUrl")] string PollUrl,
+        [property: System.Text.Json.Serialization.JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
+
+    protected sealed record DocumentoIdDto(
+        [property: System.Text.Json.Serialization.JsonPropertyName("value")] Guid Value);
+
     private sealed record TokenBody(
         [property: System.Text.Json.Serialization.JsonPropertyName("access_token")] string AccessToken,
         [property: System.Text.Json.Serialization.JsonPropertyName("token_type")] string TokenType,

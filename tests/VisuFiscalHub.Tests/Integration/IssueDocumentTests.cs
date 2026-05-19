@@ -10,53 +10,6 @@ namespace VisuFiscalHub.Tests.Integration;
 [Collection("IntegrationTests")]
 public sealed class IssueDocumentTests : IntegrationTestBase
 {
-    // TributoDto minimal válido para Simples Nacional (CSOSN 400 — sem cálculo de ICMS).
-    // CstPisCofins 7 = Cst07 (PISNT/COFINSNT — Simples Nacional).
-    private static object TributoSimples() => new
-    {
-        tipoIcms = 1,          // TipoIcms.CSOSN
-        csosnOuCst = 400,      // CSOSN 400
-        aliquotaIcms = 0.0,
-        baseCalculoIcms = 0.0,
-        valorIcms = 0.0,
-        cstPis = 7,            // CstPisCofins.Cst07 — PISNT
-        baseCalculoPis = 0.0,
-        aliquotaPis = 0.0,
-        valorPis = 0.0,
-        cstCofins = 7,         // CstPisCofins.Cst07 — COFINSNT
-        baseCalculoCofins = 0.0,
-        aliquotaCofins = 0.0,
-        valorCofins = 0.0
-    };
-
-    // Body válido: itens + pagamentos com totais fechando, NCM 8 dígitos, indPresenca 1.
-    private static object BodyValido(decimal valor = 10.00m) => new
-    {
-        itens = new[]
-        {
-            new
-            {
-                codigoProduto = "PROD001",
-                descricao = "Produto Teste",
-                ncm = "12345678",
-                cest = (string?)null,
-                cfopSaida = "5102",
-                unidadeComercial = "UN",
-                quantidade = (double)1m,
-                valorUnitario = (double)valor,
-                valorDesconto = 0.0,
-                origemMercadoria = 0,  // OrigemMercadoria.Nacional
-                tributo = TributoSimples()
-            }
-        },
-        pagamentos = new[]
-        {
-            new { tipoPagamento = 1, valor = (double)valor }  // TipoPagamento.Dinheiro = 1
-        },
-        consumidor = (object?)null,
-        indPresenca = 1
-    };
-
     [Fact]
     public async Task PostNfce_RequestValido_Retorna202ComDocumentoId()
     {
@@ -149,8 +102,8 @@ public sealed class IssueDocumentTests : IntegrationTestBase
             Headers = { { "X-Idempotency-Key", idempotencyKey } }
         };
 
-        var r1 = await http.SendAsync(MakeReq());
-        var r2 = await http.SendAsync(MakeReq());
+        using var r1 = await http.SendAsync(MakeReq());
+        using var r2 = await http.SendAsync(MakeReq());
 
         r1.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         r2.StatusCode.ShouldBe(HttpStatusCode.Accepted);
@@ -341,17 +294,4 @@ public sealed class IssueDocumentTests : IntegrationTestBase
         responseBody.ShouldContain("10.000");
     }
 
-    // DTO local para deserializar a resposta 202.
-    // DocumentoFiscalId serializa como {"value": "<guid>"} pois é um readonly record struct
-    // sem JsonConverter personalizado registrado.
-    // Status é int pois não há JsonStringEnumConverter configurado no projeto.
-    private sealed record IssueResponse(
-        [property: System.Text.Json.Serialization.JsonPropertyName("documentoId")] DocumentoIdDto DocumentoId,
-        [property: System.Text.Json.Serialization.JsonPropertyName("status")] int Status,
-        [property: System.Text.Json.Serialization.JsonPropertyName("chaveAcesso")] string? ChaveAcesso,
-        [property: System.Text.Json.Serialization.JsonPropertyName("pollUrl")] string PollUrl,
-        [property: System.Text.Json.Serialization.JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
-
-    private sealed record DocumentoIdDto(
-        [property: System.Text.Json.Serialization.JsonPropertyName("value")] Guid Value);
 }
