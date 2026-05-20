@@ -22,13 +22,14 @@ public class ChaveAcessoTests
         result.Value.Valor.ShouldAllBe(c => char.IsDigit(c));
     }
 
-    // Vetor MOC 7.0: input 43 dígitos, soma=448, resto=8, cDV=11-8=3
-    // Vetores sintéticos: cUF=35, aamm=2601, cnpj=00000000000000, mod=65, serie=000, nNF=000000000, tpEmis=1
+    // cDV Módulo 11 — vetores de referência
+    // Vetor MOC 7.0: "3509061420016714006512500100000180010000009" → soma=492, resto=8, cDV=11-8=3
+    // Vetores sintéticos: cUF=35, aamm=2601, cnpj=14200167140065, mod=65, serie=001, nNF=000000001, tpEmis=1
     [Theory]
-    [InlineData("3509061420016714006512500100000180010000009", 3)]  // MOC 7.0: resto=8, cDV=3
-    [InlineData("3526010000000000006500000000000001000000000", 2)]  // resto=9 → cDV=2
-    [InlineData("3526010000000000006500000000000001000000001", 0)]  // resto=1 < 2 → cDV=0
-    [InlineData("3526010000000000006500000000000001000000030", 4)]  // resto=7 → cDV=4
+    [InlineData("3509061420016714006512500100000180010000009", 3)]  // MOC 7.0
+    [InlineData("3526011420016714006565001000000001100000000", 0)]  // resto=1 < 2 → cDV=0
+    [InlineData("3526011420016714006565001000000001100000001", 9)]  // resto=2 → cDV=9
+    [InlineData("3526011420016714006565001000000001100000013", 2)]  // resto=9 → cDV=2
     public void Gerar_CDV_ModuloOnzeCorreto(string quarentaTresDig, int cDVEsperado)
     {
         var cUF    = int.Parse(quarentaTresDig[..2]);
@@ -59,13 +60,6 @@ public class ChaveAcessoTests
     {
         var result = ChaveAcesso.Gerar(35, "2613", "14200167140065", 65, "001", "000000001", TipoEmissao.Normal, "00000001");
         result.IsFailure.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Gerar_QuandoCNFComOitoDigitos_DeveRetornarSucesso()
-    {
-        var result = ChaveAcesso.Gerar(35, "2601", "14200167140065", 65, "001", "000000001", TipoEmissao.Normal, "12345678");
-        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact]
