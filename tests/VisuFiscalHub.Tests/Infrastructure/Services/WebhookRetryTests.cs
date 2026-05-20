@@ -31,6 +31,7 @@ public class WebhookRetryTests
             Substitute.For<IHttpClientFactory>(),
             _jobClient,
             null!,
+            Substitute.For<IUnitOfWork>(),
             _timeProvider,
             NullLogger<WebhookDeliveryService>.Instance);
 

@@ -144,23 +144,49 @@ public class NfceProcessingJobTests
             () => CreateJob().ExecuteAsync(id, CancellationToken.None));
     }
 
-    // ── duplicidade (204 / 572) → Rejeitado ──────────────────────────────────────
+    // ── duplicidade (204 / 572) → consulta SEFAZ → Autorizado ──────────────────
 
     [Theory]
     [InlineData("204")]
     [InlineData("572")]
-    public async Task ExecuteAsync_Duplicidade_TransicionaParaRejeitado(string cStat)
+    public async Task ExecuteAsync_Duplicidade_ConsultaSefazEAutoriza(string cStat)
     {
         var id = DocumentoFiscalId.New();
         var documento = DocumentoFiscalBuilder.Processando(id: id);
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
 
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazConsultaRetorno(
+                Encontrado:   true,
+                Autorizado:   true,
+                CStat:        "100",
+                NProt:        "135260000099999",
+                XmlProtocolo: "<nfeProc/>")));
+
         await CreateJob().ExecuteAsync(id, CancellationToken.None);
 
-        documento.Status.ShouldBe(StatusDocumento.Rejeitado);
-        documento.MotivoRejeicao.ShouldNotBeNull();
-        documento.MotivoRejeicao!.ShouldContain("Duplicidade");
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.Protocolo.ShouldBe("135260000099999");
+    }
+
+    [Theory]
+    [InlineData("204")]
+    [InlineData("572")]
+    public async Task ExecuteAsync_Duplicidade_ConsultaSefazFalha_LancaParaRetry(string cStat)
+    {
+        var id = DocumentoFiscalId.New();
+        var documento = DocumentoFiscalBuilder.Processando(id: id);
+        _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
+        ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
+
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<SefazConsultaRetorno>(new Error("Sefaz.Timeout", "Timeout na consulta.")));
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => CreateJob().ExecuteAsync(id, CancellationToken.None));
+
+        documento.Status.ShouldBe(StatusDocumento.Processando);
     }
 
     // ── denegado (110 / 301 / 302) com tenant null → motivo inclui "CNPJ desconhecido" ──
