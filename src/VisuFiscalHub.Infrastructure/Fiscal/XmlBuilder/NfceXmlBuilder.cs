@@ -72,13 +72,6 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         // <pag>
         infNFe.AppendChild(BuildPag(doc, documento));
 
-        // <infAdic>
-        var infAdic = doc.CreateElement("infAdic", NfeNs);
-        var infCpl = doc.CreateElement("infCpl", NfeNs);
-        infCpl.InnerText = "VisuFiscalHub";
-        infAdic.AppendChild(infCpl);
-        infNFe.AppendChild(infAdic);
-
         // <infNFeSupl> com QR Code (CSC garantido não-nulo pelo guard no topo do método)
         var cscResult = _encryptionService.DecryptToString(tenant.Csc!);
         if (cscResult.IsFailure)
@@ -116,7 +109,9 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         Add("nNF", documento.Numero.ToString().PadLeft(9, '0'));
         Add("dhEmi", dhEmi);
         Add("tpNF", "1");       // NF de saída
-        Add("idDest", "1");     // Operação interna
+        var primeiroItem = documento.Items.FirstOrDefault();
+        var idDest = primeiroItem?.Produto.CfopSaida.StartsWith("6") == true ? "2" : "1";
+        Add("idDest", idDest);
         Add("cMunFG", tenant.Endereco.CodigoMunicipio.ToString());
         Add("tpImp", "4");      // DANFE NFC-e
         Add("tpEmis", "1");     // Emissão normal
@@ -297,6 +292,7 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         var vProd = documento.Items.Sum(i => i.Produto.ValorBruto);
         var vDesc = documento.Items.Sum(i => i.Produto.ValorDesconto);
         var vNF = documento.Items.Sum(i => i.ValorTotal);
+        var vTotTrib = documento.Items.Sum(i => i.Tributo.ValorIcms + i.Tributo.ValorPis + i.Tributo.ValorCofins);
 
         Add("vBC", vBC.ToString("F2"));
         Add("vICMS", vICMS.ToString("F2"));
@@ -317,7 +313,7 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         Add("vCOFINS", documento.Items.Sum(i => i.Tributo.ValorCofins).ToString("F2"));
         Add("vOutro", "0.00");
         Add("vNF", vNF.ToString("F2"));
-        Add("vTotTrib", "0.00");
+        Add("vTotTrib", vTotTrib.ToString("F2"));
 
         total.AppendChild(icmsTot);
         return total;
