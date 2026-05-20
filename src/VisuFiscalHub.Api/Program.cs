@@ -123,6 +123,8 @@ try
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKeys = signingKeys,
                 NameClaimType = ClaimTypes.NameIdentifier,
+                ClockSkew = TimeSpan.FromSeconds(30),
+                ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
             };
         });
 
@@ -211,10 +213,25 @@ try
 
     app.UseExceptionHandler();
 
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.Use(async (ctx, next) =>
+    {
+        ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        ctx.Response.Headers["X-Frame-Options"] = "DENY";
+        ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+        await next();
+    });
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+        app.MapScalarApiReference();
+    }
 
     app.UseForwardedHeaders();
+
+    if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Test"))
+        app.UseHsts();
+
     app.UseHttpsRedirection();
     app.UseSerilogRequestLogging();
     app.UseRateLimiter();
