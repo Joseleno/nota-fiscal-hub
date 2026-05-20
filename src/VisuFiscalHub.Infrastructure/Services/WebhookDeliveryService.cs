@@ -49,6 +49,7 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IBackgroundJobClient _jobClient;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<WebhookDeliveryService> _logger;
 
@@ -59,6 +60,7 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         IHttpClientFactory httpClientFactory,
         IBackgroundJobClient jobClient,
         ApplicationDbContext dbContext,
+        IUnitOfWork unitOfWork,
         TimeProvider timeProvider,
         ILogger<WebhookDeliveryService> logger)
     {
@@ -68,6 +70,7 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         _httpClientFactory = httpClientFactory;
         _jobClient = jobClient;
         _dbContext = dbContext;
+        _unitOfWork = unitOfWork;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -257,7 +260,7 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
                 elapsedMs);
 
             await _dbContext.DeliveryAttempts.AddAsync(attempt, ct);
-            await _dbContext.SaveChangesAsync(ct);
+            await _unitOfWork.SaveChangesAsync(ct);
         }
         catch (Exception ex)
         {
