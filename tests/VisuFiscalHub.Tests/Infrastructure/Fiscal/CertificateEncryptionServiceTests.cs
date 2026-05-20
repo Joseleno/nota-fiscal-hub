@@ -64,4 +64,16 @@ public class CertificateEncryptionServiceTests
 
         decrypted.Length.ShouldBe(dados.Length);
     }
+
+    [Fact]
+    public void Encrypt_DuasChamadas_DevemProduzirCiphertextsDiferentes()
+    {
+        var service = CriarService();
+        var dados = "mesmo plaintext"u8.ToArray();
+
+        var enc1 = service.Encrypt(dados).Value;
+        var enc2 = service.Encrypt(dados).Value;
+
+        enc1.ShouldNotBe(enc2, "AES-GCM com nonce aleatório deve produzir ciphertexts distintos");
+    }
 }
