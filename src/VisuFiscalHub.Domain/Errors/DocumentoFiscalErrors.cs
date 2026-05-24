@@ -26,7 +26,7 @@ public static class DocumentoFiscalErrors
         new("DocumentoFiscal.ValorTotalInvalido", "O valor total da nota não corresponde ao somatório dos itens.");
 
     public static readonly Error PrazoDeCancelamentoExpirado =
-        new("DocumentoFiscal.PrazoDeCancelamentoExpirado", "O prazo de 30 minutos para cancelamento expirou.");
+        new("DocumentoFiscal.PrazoDeCancelamentoExpirado", "O prazo para cancelamento expirou.");
 
     public static readonly Error CpfInvalido =
         new("DocumentoFiscal.CpfInvalido", "O CPF do consumidor é inválido.");
@@ -65,4 +65,16 @@ public static class DocumentoFiscalErrors
 
     public static readonly Error XmlIndisponivel =
         new("DocumentoFiscal.XmlIndisponivel", "O XML assinado ainda não está disponível. O documento pode estar em processamento.");
+
+    public static readonly Error NfeDestinatarioInvalido =
+        new("DocumentoFiscal.NfeDestinatarioInvalido", "Os dados do destinatário da NF-e são inválidos.");
+
+    public static readonly Error DestinatarioObrigatorioParaNfe =
+        new("DocumentoFiscal.DestinatarioObrigatorioParaNfe", "O destinatário é obrigatório para NF-e Modelo 55.");
+
+    public static readonly Error DestinatarioNaoPermitidoEmNfce =
+        new("DocumentoFiscal.DestinatarioNaoPermitidoEmNfce", "NFC-e Modelo 65 não suporta destinatário NF-e.");
+
+    public static readonly Error NatOpObrigatoriaNfe =
+        new("DocumentoFiscal.NatOpObrigatoriaNfe", "Natureza da operação é obrigatória para NF-e Modelo 55.");
 }
