@@ -117,6 +117,8 @@ public static class DependencyInjection
         services.AddScoped<OutboxRelayJob>();
         services.AddScoped<NfceProcessingJob>();
         services.AddScoped<ReconciliacaoJobProcessor>();
+        services.AddScoped<CancelamentoJob>();
+        services.AddScoped<ICancelamentoJobQueue, HangfireCancelamentoJobQueue>();
 
         // Fase 7 — Integração SEFAZ
         // SefazHttpClient cria HttpClient por request para mTLS por-tenant — não usa factory.
