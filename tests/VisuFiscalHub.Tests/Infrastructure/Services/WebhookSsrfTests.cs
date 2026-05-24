@@ -34,6 +34,22 @@ public class WebhookSsrfTests
     public void IsInBlockedRange_IPv4Privado_Bloqueado(string ip)
         => IsInBlockedRange(ip).ShouldBeTrue();
 
+    // ── RFC 6598 (Shared Address Space / CGN) ───────────────────────────────────
+
+    [Theory]
+    [InlineData("100.64.0.0")]   // início do bloco
+    [InlineData("100.64.0.1")]
+    [InlineData("100.100.100.100")]
+    [InlineData("100.127.255.255")] // fim do bloco
+    public void IsInBlockedRange_Rfc6598CgnBloqueado(string ip)
+        => IsInBlockedRange(ip).ShouldBeTrue();
+
+    [Theory]
+    [InlineData("100.63.255.255")]  // um antes do bloco
+    [InlineData("100.128.0.0")]     // um depois do bloco
+    public void IsInBlockedRange_Rfc6598Fronteira_NaoBloqueado(string ip)
+        => IsInBlockedRange(ip).ShouldBeFalse();
+
     [Theory]
     [InlineData("8.8.8.8")]
     [InlineData("1.1.1.1")]

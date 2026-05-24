@@ -36,6 +36,7 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         (IPAddress.Parse("192.168.0.0"),  16),
         (IPAddress.Parse("127.0.0.0"),     8),
         (IPAddress.Parse("169.254.0.0"),  16),  // IPv4 link-local
+        (IPAddress.Parse("100.64.0.0"),  10),   // RFC 6598 — Shared Address Space / CGN (carrier-grade NAT)
         (IPAddress.Parse("::1"),          128),  // IPv6 loopback
         (IPAddress.Parse("fc00::"),         7),  // IPv6 ULA (fc00::/7 cobre fc00:: e fd00::)
         (IPAddress.Parse("fe80::"),        10),  // IPv6 link-local (equivalente ao 169.254.0.0/16)
@@ -127,7 +128,11 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
             return;
         }
 
-        if (await IsBlockedAddressAsync(webhookUri.Host, ct))
+        // Resolve o DNS uma única vez, verifica todos os IPs retornados, e reutiliza o IP
+        // já auditado para a conexão HTTP — elimina a janela de DNS rebinding entre a verificação
+        // SSRF e a requisição efetiva (o HttpClient internamente faria uma segunda resolução).
+        var resolvedIp = await ResolveAndValidateAsync(webhookUri.Host, ct);
+        if (resolvedIp is null)
         {
             _logger.LogError("URL de webhook bloqueada (SSRF) para ClienteApp {ClienteAppId}: {Url}",
                 clienteAppId.Value, clienteApp.WebhookUrl);
@@ -154,6 +159,13 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
         var signature = ComputeHmacSha256(payloadBytes, secretResult.Value);
 
+        // Substitui o host pelo IP verificado para que o HttpClient conecte diretamente
+        // ao endereço auditado, sem nova resolução DNS. O header Host preserva o SNI correto.
+        var ipLiteral = resolvedIp.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+            ? $"[{resolvedIp}]"
+            : resolvedIp.ToString();
+        var pinnedUri = new UriBuilder(webhookUri) { Host = ipLiteral }.Uri;
+
         var httpClient = _httpClientFactory.CreateClient("webhook");
 
         var sw = Stopwatch.StartNew();
@@ -163,7 +175,9 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, webhookUri);
+            using var request = new HttpRequestMessage(HttpMethod.Post, pinnedUri);
+            // Host header preserva o nome DNS original para TLS SNI e roteamento correto.
+            request.Headers.Host = webhookUri.Authority;
             request.Content = new ByteArrayContent(payloadBytes);
             request.Content.Headers.ContentType =
                 new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
@@ -276,17 +290,28 @@ internal sealed class WebhookDeliveryService : IWebhookDeliveryService
         return Convert.ToHexString(mac).ToLowerInvariant();
     }
 
-    private static async Task<bool> IsBlockedAddressAsync(string host, CancellationToken ct)
+    // Resolve o host e valida TODOS os IPs retornados. Retorna o primeiro IP permitido,
+    // ou null se qualquer IP for bloqueado (ou se a resolução falhar).
+    // Verificar todos evita que um atacante misture um IP legítimo com um privado na resposta DNS.
+    private static async Task<IPAddress?> ResolveAndValidateAsync(string host, CancellationToken ct)
     {
         try
         {
             var addresses = await Dns.GetHostAddressesAsync(host, ct);
-            return addresses.Any(IsInBlockedRange);
+            if (addresses.Length == 0)
+                return null;
+
+            // Bloquear se QUALQUER endereço retornado for privado — impede ataques onde
+            // o DNS retorna um mix de IPs públicos e privados para passar a verificação.
+            if (addresses.Any(IsInBlockedRange))
+                return null;
+
+            return addresses[0];
         }
         catch
         {
             // Falha de resolução DNS — bloquear por precaução.
-            return true;
+            return null;
         }
     }
 

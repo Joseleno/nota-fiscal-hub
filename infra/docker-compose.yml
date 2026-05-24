@@ -10,7 +10,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-visufiscalhub};Username=${POSTGRES_USER:-visufiscal};Password=${POSTGRES_PASSWORD};Include Error Detail=${POSTGRES_INCLUDE_ERROR_DETAIL:-false}"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-visufiscalhub};Username=${POSTGRES_USER:-visufiscal};Password=${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD no .env};Include Error Detail=${POSTGRES_INCLUDE_ERROR_DETAIL:-false}"
       Jwt__PrivateKeyPem: "${JWT_PRIVATE_KEY_PEM}"
       Jwt__PublicKeyPems__0: "${JWT_PUBLIC_KEY_PEM}"
       Jwt__Issuer: "visu-fiscal-hub"
