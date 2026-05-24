@@ -30,7 +30,7 @@ public class NfceProcessingJobTests
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
     private const string FakeQrUrl =
-        "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=0000000000000000000000000000000000000000|2|1|deadbeef";
+        "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=43260111222333000181650010000000011000000014|2|1|a3f1c2b4d5e6f7890a1b2c3d4e5f6a7b8c9d0e1f";
 
     private NfceProcessingJob CreateJob() =>
         new(_documentoRepo, _tenantRepo, _sefazClient, _unitOfWork, _timeProvider,
@@ -302,7 +302,7 @@ public class NfceProcessingJobTests
     [Fact]
     public async Task ExecuteAsync_Enfileirado_SefazAutorizado_QrCodeUrlPropagada()
     {
-        const string expectedQrUrl = "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=4301234ABCDEF000001655001000000001000000001|2|1|abc123";
+        const string expectedQrUrl = "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=43260199988877000195650020000000022000000025|2|1|b4c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3";
         var id = DocumentoFiscalId.New();
         var documento = DocumentoFiscalBuilder.Enfileirado(id: id);
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
