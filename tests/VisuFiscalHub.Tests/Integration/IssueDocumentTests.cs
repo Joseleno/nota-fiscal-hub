@@ -300,18 +300,19 @@ public sealed class IssueDocumentTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task CancelarDocumento_Retorna501()
+    public async Task CancelarDocumento_DocumentoInexistente_Retorna404()
     {
-        // Cancelamento não implementado — endpoint retorna 501 incondicionalmente.
+        // Endpoint real: documento não encontrado deve retornar 404.
         var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
         var token = await ObterTokenAsync(clientId, clientSecret);
         var tenantId = await CriarTenantAsync(clienteAppId);
         using var http = CriarClienteAutenticado(token, tenantId.Value);
 
         using var response = await http.PostAsJsonAsync(
-            $"/api/v1/documentos/{Guid.NewGuid()}/cancelar", new { });
+            $"/api/v1/documentos/{Guid.NewGuid()}/cancelar",
+            new { justificativa = "Cancelamento solicitado pelo cliente." });
 
-        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
 }

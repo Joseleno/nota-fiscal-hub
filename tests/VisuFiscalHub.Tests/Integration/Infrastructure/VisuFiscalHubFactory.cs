@@ -23,6 +23,7 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
 
     public FakeSefazClient SefazClient { get; } = new();
     public FakeDocumentJobQueue JobQueue { get; } = new();
+    public FakeCancelamentoJobQueue CancelamentoJobQueue { get; } = new();
     public FakeSequenceManager SequenceManager { get; } = new();
 
     private static readonly string[] EnvVarKeys =
@@ -92,6 +93,10 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
             // In test environment Hangfire has no storage backend configured.
             services.RemoveAll<IDocumentJobQueue>();
             services.AddSingleton<IDocumentJobQueue>(JobQueue);
+
+            // Replace ICancelamentoJobQueue with a no-op stub for the same reason.
+            services.RemoveAll<ICancelamentoJobQueue>();
+            services.AddSingleton<ICancelamentoJobQueue>(CancelamentoJobQueue);
 
             // Replace ISequenceManager with an in-memory stub — SequenceManager uses
             // ExecuteSqlRawAsync / SqlQueryRaw which are relational-specific EF methods

@@ -19,6 +19,7 @@ using VisuFiscalHub.Application.Common.Models;
 using Hangfire;
 using Hangfire.Dashboard;
 using VisuFiscalHub.Application.Documents.Commands.IssueDocument;
+using VisuFiscalHub.Application.Documents.Commands.CancelarDocumento;
 using VisuFiscalHub.Application.Documents.Queries.GetDocumentStatus;
 using VisuFiscalHub.Application.Documents.Queries.GetDocumentXml;
 using VisuFiscalHub.Infrastructure.Jobs;
@@ -493,8 +494,27 @@ try
         .RequireRateLimiting("api");
 
     documentos.MapPost("/{id:guid}/cancelar",
-        (Guid id) => TypedResults.StatusCode(StatusCodes.Status501NotImplemented))
-        .RequireRateLimiting("api");
+        async (
+            Guid id,
+            CancelarDocumentoRequest body,
+            IMediator mediator,
+            ICurrentUserContext userContext,
+            CancellationToken ct) =>
+        {
+            var command = new CancelarDocumentoCommand
+            {
+                DocumentoId   = new DocumentoFiscalId(id),
+                ClienteAppId  = userContext.ClienteAppId,
+                Justificativa = body.Justificativa
+            };
+            var result = await mediator.Send(command, ct);
+            return result.ToHttpResult(r => TypedResults.Accepted(
+                $"/api/v1/documentos/{id}/status", r));
+        })
+        .RequireAuthorization()
+        .RequireRateLimiting("api")
+        .WithName("CancelarDocumento")
+        .WithTags("Documentos");
 
     // ── Hangfire Dashboard + Recurring Jobs (skipped in Test environment) ──────
     if (!app.Environment.IsEnvironment("Test"))
@@ -546,6 +566,8 @@ finally
 }
 
 internal sealed record TokenRequest(string ClientId, string ClientSecret);
+
+internal sealed record CancelarDocumentoRequest(string Justificativa);
 
 internal sealed record IssueNfceRequest(
     IReadOnlyList<ItemDocumentoDto> Itens,
