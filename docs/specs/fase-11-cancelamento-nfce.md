@@ -1,6 +1,6 @@
 # Spec Fase 11 — Cancelamento de NFC-e
 
-**Versão:** 1.1
+**Versão:** 1.2
 **Data:** 2026-05-24
 **Dependências:** Fases 1–10 concluídas
 **Critério de conclusão:** `POST /api/v1/documentos/{id}/cancelar` retorna 202; job envia evento ao SEFAZ via `NfeRecepcaoEvento4`; status transiciona `Autorizado → Cancelando → Cancelado` (sucesso) ou `Cancelando → Autorizado` (rejeição SEFAZ); testes passam 100%.
@@ -74,15 +74,17 @@ CancelamentoJob (Hangfire)
 |---|---|---|
 | `Domain/Enums/StatusDocumento.cs` | Editar | Adicionar `Cancelando = 9` |
 | `Domain/Entities/DocumentoFiscal.cs` | Editar | `IniciarCancelamento`, `ConfirmarCancelamento`, `RejeitarCancelamento`, `CanceladoAt`; remover `Cancelar` |
-| `Domain/Errors/DocumentoFiscalErrors.cs` | Editar | Remover `CancelamentoRejeitadoPeloSefaz` (não usado) |
+| `Domain/Errors/DocumentoFiscalErrors.cs` | Sem alterações | Nenhum erro novo; rejeição SEFAZ tratada no job como reversão de estado |
 | `Domain/Enums/TipoTentativa.cs` | Editar | Adicionar `Cancelamento = 4` |
 | `Application/Common/Interfaces/ICancelamentoJobQueue.cs` | Criar | Interface do job queue de cancelamento |
 | `Application/Documents/Commands/CancelarDocumento/CancelarDocumentoCommand.cs` | Criar | Command + DTOs |
 | `Application/Documents/Commands/CancelarDocumento/CancelarDocumentoCommandHandler.cs` | Criar | Handler CQRS |
 | `Application/Documents/Commands/CancelarDocumento/CancelarDocumentoCommandValidator.cs` | Criar | Validação FluentValidation |
 | `Application/Common/Models/CancelarDocumentoResponse.cs` | Criar | DTO de resposta 202 |
-| `Infrastructure/Fiscal/Sefaz/XmlSigner.cs` | Editar | `referenceUri` completa em vez de `chaveAcesso` sufixo |
+| `Infrastructure/Fiscal/XmlSigner.cs` | Editar | `referenceUri` completa em vez de `chaveAcesso` sufixo (namespace: `VisuFiscalHub.Infrastructure.Fiscal`) |
 | `Infrastructure/Fiscal/Sefaz/SefazClient.cs` | Editar | Atualizar call site do `XmlSigner.Assinar` |
+| `Infrastructure/Persistence/Configurations/DocumentoFiscalConfiguration.cs` | Editar | Mapear coluna `cancelado_at` para `CanceladoAt` |
+| `Infrastructure/Fiscal/Sefaz/SefazHttpClient.cs` | Verificar | Confirmar assinatura de `PostSoapAsync` antes de chamar em `CancelamentoJob` |
 | `Infrastructure/Fiscal/Sefaz/SefazEndpointResolver.cs` | Editar | `ResolveEvento(ufCodigo, ambiente)` |
 | `Infrastructure/Fiscal/Sefaz/SoapEnvelopeBuilder.cs` | Editar | `BuildEvento(xmlEvento, cUF)` com `versaoDados="1.00"` |
 | `Infrastructure/Fiscal/Sefaz/CancelamentoEventoBuilder.cs` | Criar | XML do evento `<infEvento>` |
@@ -94,11 +96,12 @@ CancelamentoJob (Hangfire)
 | `Api/Program.cs` | Editar | Substituir stub 501 pelo handler real |
 | `Api/ResultExtensions.cs` | Editar | Nenhuma adição (rejeição SEFAZ não retorna HTTP direto) |
 | `tests/.../Integration/CancelamentoTests.cs` | Criar | Testes de integração |
-| `tests/.../Domain/DocumentoFiscalTests.cs` | Editar | Novos casos da state machine |
+| `tests/.../Domain/DocumentoFiscalTests.cs` | Editar | **Remover** os 4 testes `Cancelar_*` existentes (linhas 100–181); adicionar novos casos da state machine |
 | `tests/.../Domain/DocumentoFiscalBuilder.cs` | Editar | `Autorizado(DateTimeOffset)`, `Cancelando(DateTimeOffset)` |
 | `tests/.../Application/CancelarDocumentoCommandHandlerTests.cs` | Criar | Testes unitários do handler |
-| `tests/.../Infrastructure/Services/CancelamentoRetornoParserTests.cs` | Criar | Testes unitários do parser |
-| `tests/.../Infrastructure/Services/CancelamentoEventoBuilderTests.cs` | Criar | Testes unitários do builder de XML |
+| `tests/.../Infrastructure/Fiscal/CancelamentoRetornoParserTests.cs` | Criar | Testes unitários do parser |
+| `tests/.../Infrastructure/Fiscal/CancelamentoEventoBuilderTests.cs` | Criar | Testes unitários do builder de XML |
+| `tests/.../Infrastructure/Fiscal/XmlSignerTests.cs` | Editar | Atualizar os 5+ call sites existentes para a nova assinatura `referenceUri` |
 
 ---
 
@@ -135,7 +138,7 @@ public DateTimeOffset? CanceladoAt { get; private set; }
 - Transição: `Autorizado → Cancelando`
 - Valida: `Status == Autorizado` → falha com `TransicaoInvalida` se não
 - Valida: `AuthorizedAt is null` → falha com `TransicaoInvalida` (invariante defensiva)
-- Valida: `timeProvider.GetUtcNow() < AuthorizedAt.Value.AddMinutes(30)` → falha com `PrazoDeCancelamentoExpirado` se fora do prazo (boundary estrito: `>=` 30 min = expirado)
+- Valida: `timeProvider.GetUtcNow() >= AuthorizedAt.Value.AddMinutes(30)` → falha com `PrazoDeCancelamentoExpirado` (boundary estrito: exatamente 30 min = expirado; consistente com o `Cancelar()` original)
 - Limpa `MotivoRejeicao = null` (apaga motivo de cancelamento anterior, se houver)
 - **Não** publica domain event (cancelamento ainda não confirmado pelo SEFAZ)
 - Retorna `Result.Success()`
@@ -158,7 +161,9 @@ public DateTimeOffset? CanceladoAt { get; private set; }
 
 ### 3.4 `DocumentoFiscalErrors`
 
-Nenhuma adição. O erro `CancelamentoRejeitadoPeloSefaz` foi removido do escopo: a rejeição pelo SEFAZ é tratada como logging + reversão de estado no job, não como `Result.Failure` propagado para a API.
+Sem alterações. Nenhum novo erro é adicionado: `PrazoDeCancelamentoExpirado` e `TransicaoInvalida` já existem. A rejeição pelo SEFAZ é tratada como logging + reversão de estado no job, sem propagar `Result.Failure` para a API.
+
+> **Nota:** O erro `CancelamentoRejeitadoPeloSefaz` não existe na classe atual — não há nada a remover.
 
 ---
 
@@ -227,6 +232,8 @@ public sealed record CancelarDocumentoResponse(
 
 ### 5.1 `XmlSigner` — breaking change
 
+Arquivo: `src/VisuFiscalHub.Infrastructure/Fiscal/XmlSigner.cs` (namespace `VisuFiscalHub.Infrastructure.Fiscal`, **não** `.Sefaz`).
+
 **Alterar** a assinatura pública do método `Assinar`:
 
 ```csharp
@@ -239,9 +246,10 @@ public XmlDocument Assinar(XmlDocument xmlDoc, X509Certificate2 certificado, str
 // Uri interna é: referenceUri (passada pelo caller, já inclui "#")
 ```
 
-**Atualizar call sites:**
+**Atualizar call sites** (verificar quantos existem em `XmlSignerTests.cs` antes de alterar):
 - `SefazClient.cs`: passar `$"#NFe{documento.ChaveAcesso.Valor}"`
 - `CancelamentoJob.cs`: passar `$"#ID110111{documento.ChaveAcesso.Valor}01"`
+- `XmlSignerTests.cs`: atualizar todos os testes existentes para a nova assinatura
 
 ### 5.2 `SefazEndpointResolver` — `ResolveEvento`
 
@@ -327,7 +335,7 @@ Estrutura do XML resultante:
 </envEvento>
 ```
 
-Assinatura: `XmlSigner.Assinar(doc, certificate, $"#ID110111{chaveAcesso.Valor}01")`.
+> **`ConstruirEvento` retorna `XmlDocument` NÃO assinado.** A assinatura é responsabilidade exclusiva do `CancelamentoJob` (step 7): `XmlSigner.Assinar(xmlEvento, certificate, $"#ID110111{documento.ChaveAcesso.Valor}01")`. Não chamar `XmlSigner` dentro do builder — double-signing resulta em rejeição SEFAZ.
 
 ### 5.5 `CancelamentoRetornoParser`
 
@@ -360,7 +368,7 @@ internal static class CancelamentoRetornoParser
 }
 ```
 
-`DhRegEvento` é a data de registro do evento no SEFAZ — usada como `canceladoAt` em `ConfirmarCancelamento`.
+`DhRegEvento` é a data de registro do evento no SEFAZ — usada como `canceladoAt` em `ConfirmarCancelamento`. Parsear com `DateTimeOffset.Parse(valor, null, System.Globalization.DateTimeStyles.RoundtripKind)` para preservar o offset da UF retornado pelo SEFAZ (ex: `"2026-05-24T10:00:00-03:00"`).
 
 ### 5.6 `CancelamentoJob`
 
@@ -374,6 +382,8 @@ public sealed class CancelamentoJob
     public async Task ExecuteAsync(DocumentoFiscalId documentoId, string justificativa, CancellationToken ct);
 }
 ```
+
+> **`NfceProcessingJob` guard:** Adicionar `Cancelando` ao guard de idempotência do `NfceProcessingJob.ExecuteAsync`. Atualmente o job verifica `Status != Processando`; deve incluir também `Cancelando` para evitar reprocessamento de um documento que foi cancelado enquanto aguardava o job de autorização: `if (documento.Status is not StatusDocumento.Processando and not StatusDocumento.Cancelando → ...` — na prática, o guard atual deve rejeitar qualquer status diferente de `Processando`.
 
 Pipeline do `ExecuteAsync`:
 1. Carrega documento; se `Status != Cancelando` → return (idempotência — job já processado)
@@ -430,7 +440,15 @@ dotnet ef migrations add AddCancelando `
   --startup-project src/VisuFiscalHub.Api
 ```
 
-Verificar `DocumentoFiscalConfiguration` — se `StatusDocumento` é `int` (padrão EF Core), a migration adiciona apenas `CanceladoAt` como coluna nullable. Commitar após verificação.
+`StatusDocumento` é mapeado como `int` (`.HasConversion<int>()` na linha 102 de `DocumentoFiscalConfiguration.cs`) — a migration adiciona apenas a coluna `cancelado_at` como nullable `timestamp with time zone`. Nenhuma alteração de schema para o enum.
+
+Adicionar em `DocumentoFiscalConfiguration.Configure`:
+```csharp
+builder.Property(d => d.CanceladoAt)
+    .HasColumnName("cancelado_at");
+```
+
+Commitar migration após verificação.
 
 ---
 
@@ -635,6 +653,9 @@ public void IniciarCancelamento_AposaRejeicao_LimpaMotivo()
 O handler recebe `TimeProvider` no construtor. O helper de criação do handler deve injetar `new FixedTimeProvider(...)`.
 
 ```csharp
+// Usar a mesma constante de DocumentoFiscalTests para consistência:
+private static readonly DateTimeOffset FixedNow = new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+
 private static (CancelarDocumentoCommandHandler handler,
                 IDocumentoFiscalRepository docRepo,
                 IUnitOfWork unitOfWork,
@@ -644,7 +665,7 @@ private static (CancelarDocumentoCommandHandler handler,
     var docRepo  = Substitute.For<IDocumentoFiscalRepository>();
     var unitOfWork = Substitute.For<IUnitOfWork>();
     var jobQueue = Substitute.For<ICancelamentoJobQueue>();
-    unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(1);
+    unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(1));
     jobQueue.EnqueueCancelamentoAsync(Arg.Any<DocumentoFiscalId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
     var handler = new CancelarDocumentoCommandHandler(docRepo, unitOfWork, jobQueue, timeProvider);
@@ -758,11 +779,39 @@ private const string SoapAceito135 = """
     """;
 
 private const string SoapAceito155 = """
-    ... (mesmo estrutura, cStat=155, xMotivo="Cancelamento homologado fora de prazo") ...
+    <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+      <soap12:Body>
+        <nfeResultMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
+          <retEnvEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+            <retEvento>
+              <infEvento>
+                <cStat>155</cStat>
+                <xMotivo>Cancelamento homologado fora de prazo</xMotivo>
+                <nProt>155260000000042</nProt>
+                <dhRegEvento>2026-05-24T10:30:00-03:00</dhRegEvento>
+              </infEvento>
+            </retEvento>
+          </retEnvEvento>
+        </nfeResultMsg>
+      </soap12:Body>
+    </soap12:Envelope>
     """;
 
 private const string SoapRejeicao218 = """
-    ... (cStat=218, xMotivo="Rejeição: Prazo de Cancelamento Superior ao Prazo Limite") ...
+    <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+      <soap12:Body>
+        <nfeResultMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
+          <retEnvEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+            <retEvento>
+              <infEvento>
+                <cStat>218</cStat>
+                <xMotivo>Rejeição: Prazo de Cancelamento Superior ao Prazo Limite</xMotivo>
+              </infEvento>
+            </retEvento>
+          </retEnvEvento>
+        </nfeResultMsg>
+      </soap12:Body>
+    </soap12:Envelope>
     """;
 
 [Fact]
@@ -873,26 +922,64 @@ public void ConstruirEvento_DeveConterDescEventoCancelamento()
 Padrão: invocar jobs diretamente via DI (não polling), conforme `DocumentLifecycleTests` existente.
 
 ```csharp
-private async Task<(HttpClient client, Guid documentoId)> EmitirEAutorizarAsync()
+// Emite um NFC-e, executa NfceProcessingJob diretamente (mesmo padrão de DocumentLifecycleTests),
+// e retorna cliente HTTP + documentoId prontos para o teste de cancelamento.
+private async Task<(HttpClient Http, Guid DocumentoId)> EmitirEAutorizarAsync()
 {
-    // 1. CriarClienteAppAsync → ObterTokenAsync → CriarTenantAsync → CriarClienteAutenticado
-    // 2. POST /nfce → 202
-    // 3. Resolve NfceProcessingJob via factory.Services e executa diretamente
-    // 4. GET /status → verifica Autorizado
-    // (seguir o padrão de DocumentLifecycleTests.ProcessarAsync)
+    SefazFake.SimularAutorizado(); // necessário antes de ProcessarAsync
+    var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
+    var token = await ObterTokenAsync(clientId, clientSecret);
+    var tenantId = await CriarTenantAsync(clienteAppId);
+    var http = CriarClienteAutenticado(token, tenantId.Value);
+
+    var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documentos/nfce")
+    {
+        Content = JsonContent.Create(BodyValido()),
+        Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
+    };
+    using var emitirResponse = await http.SendAsync(request);
+    emitirResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+    var emitirBody = await emitirResponse.Content.ReadFromJsonAsync<IssueResponse>();
+    var docId = emitirBody!.DocumentoId.Value;
+
+    // Executa o job de processamento sincronamente (sem Hangfire em execução)
+    using var scope = Factory.Services.CreateScope();
+    var job = scope.ServiceProvider.GetRequiredService<NfceProcessingJob>();
+    await job.ExecuteAsync(new DocumentoFiscalId(docId), CancellationToken.None);
+
+    return (http, docId);
+}
+
+// Versão sem processamento — retorna documento em status Enfileirado
+private async Task<(HttpClient Http, Guid DocumentoId)> EmitirSemProcessarAsync()
+{
+    var (clienteAppId, clientId, clientSecret) = await CriarClienteAppAsync();
+    var token = await ObterTokenAsync(clientId, clientSecret);
+    var tenantId = await CriarTenantAsync(clienteAppId);
+    var http = CriarClienteAutenticado(token, tenantId.Value);
+
+    var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documentos/nfce")
+    {
+        Content = JsonContent.Create(BodyValido()),
+        Headers = { { "X-Idempotency-Key", Guid.NewGuid().ToString() } }
+    };
+    using var emitirResponse = await http.SendAsync(request);
+    emitirResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+    var emitirBody = await emitirResponse.Content.ReadFromJsonAsync<IssueResponse>();
+    return (http, emitirBody!.DocumentoId.Value);
 }
 
 [Fact]
 public async Task PostCancelar_DocumentoAutorizado_Retorna202ComStatusCancelando()
 {
-    var (client, id) = await EmitirEAutorizarAsync();
+    var (http, id) = await EmitirEAutorizarAsync();
     var body = new { justificativa = "Justificativa de cancelamento suficientemente longa" };
 
-    var response = await client.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
+    var response = await http.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
 
     response.StatusCode.ShouldBe(HttpStatusCode.Accepted); // 202
-    var status = await client.GetFromJsonAsync<StatusResponse>($"/api/v1/documentos/{id}/status");
-    status!.Status.ShouldBe("Cancelando");
+    var status = await http.GetFromJsonAsync<StatusResponse>($"/api/v1/documentos/{id}/status");
+    status!.Status.ShouldBe((int)StatusDocumento.Cancelando);
 }
 
 [Fact]
@@ -900,10 +987,10 @@ public async Task PostCancelar_DocumentoEnfileirado_Retorna422()
 {
     // Documento emitido mas job de processamento não executado → status Enfileirado
     // → IniciarCancelamento retorna TransicaoInvalida → 422
-    var (client, id) = await EmitirSemProcessarAsync();
+    var (http, id) = await EmitirSemProcessarAsync();
     var body = new { justificativa = "Justificativa de cancelamento suficientemente longa" };
 
-    var response = await client.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
+    var response = await http.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
 
     response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity); // 422
 }
@@ -912,10 +999,10 @@ public async Task PostCancelar_DocumentoEnfileirado_Retorna422()
 public async Task PostCancelar_DocumentoJaCancelando_Retorna422()
 {
     // Segunda requisição de cancelamento enquanto status = Cancelando
-    var (client, id) = await EmitirEAutorizarAsync();
+    var (http, id) = await EmitirEAutorizarAsync();
     var body = new { justificativa = "Justificativa de cancelamento suficientemente longa" };
-    await client.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body); // primeira
-    var response = await client.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body); // segunda
+    await http.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body); // primeira
+    var response = await http.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body); // segunda
 
     response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity); // 422 TransicaoInvalida
 }
@@ -923,10 +1010,10 @@ public async Task PostCancelar_DocumentoJaCancelando_Retorna422()
 [Fact]
 public async Task PostCancelar_SemJustificativa_Retorna422()
 {
-    var (client, id) = await EmitirEAutorizarAsync();
+    var (http, id) = await EmitirEAutorizarAsync();
     var body = new { justificativa = "" };
 
-    var response = await client.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
+    var response = await http.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
 
     response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity); // 422
 }
@@ -934,10 +1021,10 @@ public async Task PostCancelar_SemJustificativa_Retorna422()
 [Fact]
 public async Task PostCancelar_JustificativaMuitoCurta_Retorna422()
 {
-    var (client, id) = await EmitirEAutorizarAsync();
+    var (http, id) = await EmitirEAutorizarAsync();
     var body = new { justificativa = "abc de fghij n" }; // 14 chars (mínimo = 15)
 
-    var response = await client.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
+    var response = await http.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
 
     response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity); // 422
 }
@@ -947,12 +1034,14 @@ public async Task PostCancelar_DocumentoDeOutroClienteApp_Retorna403()
 {
     var (_, id) = await EmitirEAutorizarAsync(); // ClienteApp-1
     // Cria ClienteApp-2 com token diferente
-    var (clienteAppId2, _, _) = await CriarClienteAppAsync();
-    var token2 = await ObterTokenAsync(clienteAppId2);
-    var client2 = CriarClienteAutenticado(token2);
+    var (_, clientId2, clientSecret2) = await CriarClienteAppAsync();
+    var token2 = await ObterTokenAsync(clientId2, clientSecret2);
+    // ClienteApp-2 não tem tenant; sem X-Tenant-Id a requisição ainda chega ao handler
+    // (o tenantId não é obrigatório no cancelamento — o doc é encontrado por DocumentoId)
+    var http2 = CriarClienteAutenticado(token2);
     var body = new { justificativa = "Justificativa de cancelamento suficientemente longa" };
 
-    var response = await client2.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
+    var response = await http2.PostAsJsonAsync($"/api/v1/documentos/{id}/cancelar", body);
 
     response.StatusCode.ShouldBe(HttpStatusCode.Forbidden); // 403
 }
@@ -960,12 +1049,12 @@ public async Task PostCancelar_DocumentoDeOutroClienteApp_Retorna403()
 [Fact]
 public async Task PostCancelar_DocumentoNaoEncontrado_Retorna404()
 {
-    var (clienteAppId, _, _) = await CriarClienteAppAsync();
-    var token = await ObterTokenAsync(clienteAppId);
-    var client = CriarClienteAutenticado(token);
+    var (_, clientId, clientSecret) = await CriarClienteAppAsync();
+    var token = await ObterTokenAsync(clientId, clientSecret);
+    var http = CriarClienteAutenticado(token);
     var body = new { justificativa = "Justificativa de cancelamento suficientemente longa" };
 
-    var response = await client.PostAsJsonAsync($"/api/v1/documentos/{Guid.NewGuid()}/cancelar", body);
+    var response = await http.PostAsJsonAsync($"/api/v1/documentos/{Guid.NewGuid()}/cancelar", body);
 
     response.StatusCode.ShouldBe(HttpStatusCode.NotFound); // 404
 }
@@ -983,7 +1072,7 @@ public async Task PostCancelar_DocumentoNaoEncontrado_Retorna404()
 | Validação 30 min no domínio | `IniciarCancelamento` + testes 7.2 |
 | `MotivoRejeicao` limpo em retentativa | `IniciarCancelamento` + teste `IniciarCancelamento_AposaRejeicao_LimpaMotivo` |
 | `CanceladoAt` na entidade e response | `ConfirmarCancelamento` seção 3.3 + migration 5.9 + teste 7.2 |
-| `XmlSigner` com referenceUri completa | Seção 5.1 + call sites atualizados |
+| `XmlSigner` com referenceUri completa | Seção 5.1 + call sites atualizados (SefazClient, CancelamentoJob, XmlSignerTests) |
 | `idLote` gerado pelo job | Seção 5.6 step 5 + assinatura `ConstruirEvento` seção 5.4 |
 | Conversão UTC→fuso da UF no builder | Seção 5.4 (`CancelamentoEventoBuilder` responsável) |
 | XML evento `tpEvento=110111` com `xJust` e `nProt` | `CancelamentoEventoBuilder` seção 5.4 + testes 7.5 |
@@ -1003,7 +1092,17 @@ public async Task PostCancelar_DocumentoNaoEncontrado_Retorna404()
 | `TenantErrors.NaoPertenceAoClienteApp` → 403 | Handler seção 4.3 + teste 7.3 |
 | Testes de guarda de transição (4 casos) | Seção 7.2 |
 | `PostCancelar_DocumentoJaCancelando_Retorna422` | Seção 7.6 |
-| Padrão de invocação direta do job nos testes | Seção 7.6 (referência a `DocumentLifecycleTests`) |
+| Padrão de invocação direta do job nos testes | Seção 7.6 (baseado em `DocumentLifecycleTests`) |
+| `DocumentoFiscalConfiguration` mapeando `CanceladoAt` | Seção 5.9 |
+| 4 testes `Cancelar_*` removidos | Seção 2 (file map) |
+| `XmlSignerTests.cs` atualizado para nova assinatura | Seção 2 (file map) + 5.1 |
+| Condição `>=` correta em `IniciarCancelamento` | Seção 3.3 |
+| `SefazFake.SimularAutorizado()` antes de ProcessarAsync | Seção 7.6 `EmitirEAutorizarAsync` |
+| `ObterTokenAsync(clientId, clientSecret)` correto | Seção 7.6 |
+| `CriarClienteAutenticado(token, tenantId.Value)` correto | Seção 7.6 |
+| `status.Status.ShouldBe((int)StatusDocumento.Cancelando)` correto | Seção 7.6 |
+| `dhRegEvento` parseado com `RoundtripKind` | Seção 5.5 |
+| `ConstruirEvento` não assina (double-signing explicitado) | Seção 5.4 |
 
 ### Gaps conscientemente fora deste spec
 
