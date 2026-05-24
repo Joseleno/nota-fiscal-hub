@@ -138,6 +138,9 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
         builder.Property(d => d.AuthorizedAt)
             .HasColumnName("authorized_at");
 
+        builder.Property(d => d.CanceladoAt)
+            .HasColumnName("cancelado_at");
+
         // HasField obrigatório — a propriedade pública expõe IReadOnlyList<T>, incompatível com EF Core.
         // Declara o backing field antes do OwnsMany para que o EF Core use _items para leitura/escrita.
         builder.Navigation(d => d.Items).HasField("_items");
