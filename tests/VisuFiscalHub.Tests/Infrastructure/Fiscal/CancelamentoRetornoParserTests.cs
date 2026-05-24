@@ -93,6 +93,39 @@ public class CancelamentoRetornoParserTests
         result.Value.XMotivo.ShouldContain("Rejeição");
     }
 
+    private const string SoapDuplicidade573 = """
+        <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+          <soap12:Body>
+            <nfeResultMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">
+              <retEnvEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+                <retEvento>
+                  <infEvento>
+                    <cStat>573</cStat>
+                    <xMotivo>Duplicidade de Evento</xMotivo>
+                    <nProt>135260000000099</nProt>
+                    <dhRegEvento>2026-05-24T10:00:00-03:00</dhRegEvento>
+                  </infEvento>
+                </retEvento>
+              </retEnvEvento>
+            </nfeResultMsg>
+          </soap12:Body>
+        </soap12:Envelope>
+        """;
+
+    [Fact]
+    public void Parse_cStat573_DeveRetornarAceito()
+    {
+        // cStat=573: "Duplicidade de Evento" — SEFAZ já recebeu este evento (nSeqEvento=1).
+        // Ocorre em retries do Hangfire após falha de rede pós-envio.
+        // Tratar como aceito evita reverter o documento para Autorizado indevidamente.
+        var result = CancelamentoRetornoParser.Parse(SoapDuplicidade573);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Aceito.ShouldBeTrue();
+        result.Value.CStat.ShouldBe("573");
+        result.Value.NProtCancelamento.ShouldBe("135260000000099");
+        result.Value.DhRegEvento.ShouldNotBeNull();
+    }
+
     [Fact]
     public void Parse_XmlMalformado_DeveRetornarFalhaSemExcecao()
     {

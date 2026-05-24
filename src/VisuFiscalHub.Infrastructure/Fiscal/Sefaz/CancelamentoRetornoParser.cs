@@ -15,7 +15,10 @@ internal static class CancelamentoRetornoParser
 {
     private const string NfeNs = "http://www.portalfiscal.inf.br/nfe";
 
-    private static readonly IReadOnlySet<string> CStatAceito = new HashSet<string> { "135", "155" };
+    // 135 = evento registrado, 155 = evento registrado fora do prazo (SEFAZ aceita ambos).
+    // 573 = Duplicidade de Evento: SEFAZ já registrou este evento — idempotente, tratar como sucesso
+    // para que Hangfire retries não revertam o documento para Autorizado indevidamente.
+    private static readonly IReadOnlySet<string> CStatAceito = new HashSet<string> { "135", "155", "573" };
 
     public static Result<CancelamentoRetorno> Parse(string soapResponse)
     {
@@ -39,7 +42,7 @@ internal static class CancelamentoRetornoParser
 
             DateTimeOffset? dhRegEvento = null;
             if (!string.IsNullOrEmpty(dhRaw))
-                dhRegEvento = DateTimeOffset.Parse(dhRaw, null, DateTimeStyles.RoundtripKind);
+                dhRegEvento = DateTimeOffset.Parse(dhRaw, CultureInfo.InvariantCulture, DateTimeStyles.None);
 
             return Result.Success(new CancelamentoRetorno(
                 Aceito:            CStatAceito.Contains(cStat),

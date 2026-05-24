@@ -43,8 +43,16 @@ internal sealed class XmlSigner
         var xmlSignature = signedXml.GetXml()
             ?? throw new InvalidOperationException("ComputeSignature produziu elemento nulo.");
 
-        // Insere a assinatura ao final do elemento raiz NFeProc ou NFe
-        xmlDoc.DocumentElement!.AppendChild(xmlDoc.ImportNode(xmlSignature, true));
+        // Insere a assinatura no elemento cujo atributo Id corresponde ao fragmento da URI
+        // (ex.: referenceUri="#ID110111{chave}01" → elemento com Id="ID110111{chave}01").
+        // Para NFC-e normal (referenceUri="#NFe{chave}"), o elemento assinado é o DocumentElement.
+        // SEFAZ valida que Signature está aninhada no elemento referenciado — AppendChild ao
+        // DocumentElement falharia para cancelamentos onde o elemento assinado é infEvento.
+        var targetId = referenceUri.TrimStart('#');
+        var target = string.IsNullOrEmpty(targetId)
+            ? xmlDoc.DocumentElement!
+            : (xmlDoc.SelectSingleNode($"//*[@Id='{targetId}']") as XmlElement ?? xmlDoc.DocumentElement!);
+        target.AppendChild(xmlDoc.ImportNode(xmlSignature, true));
 
         return xmlDoc;
     }

@@ -188,7 +188,7 @@ public class DocumentoFiscalTests
     public void IniciarCancelamento_QuandoCancelado_RetornaErro()
     {
         var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
-        documento.ConfirmarCancelamento(FixedNow);
+        documento.ConfirmarCancelamento(FixedNow, new FixedTimeProvider(FixedNow));
         var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
@@ -202,18 +202,18 @@ public class DocumentoFiscalTests
     public void ConfirmarCancelamento_QuandoCancelando_TransicionaParaCancelado()
     {
         var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
-        var result = documento.ConfirmarCancelamento(FixedNow);
+        var result = documento.ConfirmarCancelamento(FixedNow, new FixedTimeProvider(FixedNow));
         result.IsSuccess.ShouldBeTrue();
         documento.Status.ShouldBe(StatusDocumento.Cancelado);
         documento.CanceladoAt.ShouldBe(FixedNow);
-        documento.DomainEvents.ShouldContain(e => e is DocumentoFiscalCanceladoEvent);
+        documento.DomainEvents.ShouldHaveSingleItem().ShouldBeOfType<DocumentoFiscalCanceladoEvent>();
     }
 
     [Fact]
     public void ConfirmarCancelamento_QuandoNaoCancelando_RetornaErro()
     {
         var documento = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-5));
-        var result = documento.ConfirmarCancelamento(FixedNow);
+        var result = documento.ConfirmarCancelamento(FixedNow, new FixedTimeProvider(FixedNow));
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
     }
@@ -251,5 +251,29 @@ public class DocumentoFiscalTests
         var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
         result.IsSuccess.ShouldBeTrue();
         documento.MotivoRejeicao.ShouldBeNull();
+    }
+
+    [Fact]
+    public void IniciarCancelamento_AposRejeicaoComPrazoExpirado_RetornaErro()
+    {
+        // Documento autorizado 35 minutos atrás; SEFAZ rejeitou o cancelamento (ex.: cStat=218).
+        // ClienteApp tenta novamente — mas o prazo de 30 min já expirou.
+        var authorizedAt = FixedNow.AddMinutes(-35);
+        var documento = DocumentoFiscalBuilder.Cancelando(authorizedAt);
+        documento.RejeitarCancelamento("Rejeição: Prazo de Cancelamento Superior ao Prazo Limite");
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+    }
+
+    [Fact]
+    public void RejeitarCancelamento_ComMotivoVazio_RetornaErro()
+    {
+        var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
+        var result = documento.RejeitarCancelamento(string.Empty);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
+        documento.Status.ShouldBe(StatusDocumento.Cancelando);
     }
 }

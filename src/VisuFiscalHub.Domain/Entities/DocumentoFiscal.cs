@@ -223,7 +223,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         return Result.Success();
     }
 
-    public Result ConfirmarCancelamento(DateTimeOffset canceladoAt)
+    public Result ConfirmarCancelamento(DateTimeOffset canceladoAt, TimeProvider timeProvider)
     {
         if (Status != StatusDocumento.Cancelando)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
@@ -236,7 +236,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             TenantId,
             canceladoAt,
             Guid.CreateVersion7(),
-            canceladoAt));
+            timeProvider.GetUtcNow()));
 
         return Result.Success();
     }
@@ -244,6 +244,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
     public Result RejeitarCancelamento(string motivo)
     {
         if (Status != StatusDocumento.Cancelando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        if (string.IsNullOrWhiteSpace(motivo))
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
 
         Status = StatusDocumento.Autorizado;

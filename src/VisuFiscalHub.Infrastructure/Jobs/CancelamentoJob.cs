@@ -12,7 +12,7 @@ using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Infrastructure.Jobs;
 
-[AutomaticRetry(Attempts = 3, DelaysInSeconds = [30, 300],
+[AutomaticRetry(Attempts = 3, DelaysInSeconds = [30, 300, 300],
     OnAttemptsExceeded = AttemptsExceededAction.Fail)]
 [DisableConcurrentExecution(timeoutInSeconds: 60)]
 internal sealed class CancelamentoJob
@@ -117,7 +117,7 @@ internal sealed class CancelamentoJob
                 "CancelamentoJob: Falha HTTP ao cancelar {DocumentoId}. Hangfire fará retry.",
                 documentoId.Value);
             await RegistrarAttemptAsync(documentoId, false, null, ex.Message[..Math.Min(ex.Message.Length, 500)],
-                sw.ElapsedMilliseconds, ct);
+                sw.ElapsedMilliseconds, CancellationToken.None);
             throw;
         }
 
@@ -129,7 +129,7 @@ internal sealed class CancelamentoJob
                 "CancelamentoJob: Falha ao parsear resposta SEFAZ para {DocumentoId}: {Error}. Hangfire fará retry.",
                 documentoId.Value, parseResult.Error.Code);
             await RegistrarAttemptAsync(documentoId, false, null, parseResult.Error.Code,
-                sw.ElapsedMilliseconds, ct);
+                sw.ElapsedMilliseconds, CancellationToken.None);
             throw new InvalidOperationException($"Parse falhou: {parseResult.Error.Code}");
         }
 
@@ -139,7 +139,10 @@ internal sealed class CancelamentoJob
         if (retorno.Aceito)
         {
             var canceladoAt = retorno.DhRegEvento ?? utcNow;
-            documento.ConfirmarCancelamento(canceladoAt);
+            var confirmarResult = documento.ConfirmarCancelamento(canceladoAt, _timeProvider);
+            if (confirmarResult.IsFailure)
+                throw new InvalidOperationException(
+                    $"ConfirmarCancelamento falhou para {documentoId.Value}: {confirmarResult.Error.Code}");
             await _unitOfWork.SaveChangesAsync(ct);
             success = true;
             _logger.LogInformation(
@@ -148,7 +151,10 @@ internal sealed class CancelamentoJob
         }
         else
         {
-            documento.RejeitarCancelamento(retorno.XMotivo);
+            var rejeitarResult = documento.RejeitarCancelamento(retorno.XMotivo);
+            if (rejeitarResult.IsFailure)
+                throw new InvalidOperationException(
+                    $"RejeitarCancelamento falhou para {documentoId.Value}: {rejeitarResult.Error.Code}");
             await _unitOfWork.SaveChangesAsync(ct);
             responseMessage = retorno.XMotivo;
             _logger.LogWarning(
@@ -158,7 +164,7 @@ internal sealed class CancelamentoJob
 
         sw.Stop();
         await RegistrarAttemptAsync(documentoId, success, responseCode, responseMessage,
-            sw.ElapsedMilliseconds, ct);
+            sw.ElapsedMilliseconds, CancellationToken.None);
     }
 
     private async Task RegistrarAttemptAsync(
