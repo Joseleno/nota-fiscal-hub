@@ -11,6 +11,7 @@ internal static class SoapEnvelopeBuilder
     private const string SoapNs = "http://www.w3.org/2003/05/soap-envelope";
     private const string NfeNs  = "http://www.portalfiscal.inf.br/nfe";
     private const string WsNs   = "http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4";
+    private const string WsEventoNs = "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4";
 
     /// <summary>
     /// Monta o envelope NfeAutorizacao4 para envio em lote de 1 NFC-e.
@@ -35,6 +36,33 @@ internal static class SoapEnvelopeBuilder
         var body = doc.CreateElement("soap12", "Body", SoapNs);
         var nfeDadosMsg = doc.CreateElement("nfeDadosMsg", WsNs);
         nfeDadosMsg.InnerXml = envXml;
+        body.AppendChild(nfeDadosMsg);
+        envelope.AppendChild(body);
+
+        doc.AppendChild(envelope);
+        return doc.OuterXml;
+    }
+
+    /// <summary>
+    /// Monta o envelope NFeRecepcaoEvento4 para envio de eventos (como cancelamento).
+    /// cUF é obrigatório no cabeçalho conforme esquema nfeCabMsg.xsd.
+    /// versaoDados = "1.00" conforme padrão de eventos SEFAZ.
+    /// </summary>
+    public static string BuildEvento(string xmlEvento, int cUF)
+    {
+        var doc = new XmlDocument();
+        var envelope = doc.CreateElement("soap12", "Envelope", SoapNs);
+
+        var header = doc.CreateElement("soap12", "Header", SoapNs);
+        var nfeCabMsg = doc.CreateElement("nfeCabMsg", WsEventoNs);
+        AddChild(doc, nfeCabMsg, WsEventoNs, "cUF", cUF.ToString());
+        AddChild(doc, nfeCabMsg, WsEventoNs, "versaoDados", "1.00");
+        header.AppendChild(nfeCabMsg);
+        envelope.AppendChild(header);
+
+        var body = doc.CreateElement("soap12", "Body", SoapNs);
+        var nfeDadosMsg = doc.CreateElement("nfeDadosMsg", WsEventoNs);
+        nfeDadosMsg.InnerXml = xmlEvento;
         body.AppendChild(nfeDadosMsg);
         envelope.AppendChild(body);
 
