@@ -155,6 +155,47 @@ public sealed class DocumentLifecycleTests : IntegrationTestBase
         xmlResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task Lifecycle_Denegado_StatusDenegadoEMotivoPreenchido()
+    {
+        // cStat=110 = Uso denegado (fraude/irregularidade fiscal) — transição definitiva
+        SefazFake.SimularDenegado(cStat: "110", motivo: "Uso Denegado por irregularidade fiscal simulada");
+        var (http, docId) = await EmitirDocumentoAsync();
+
+        await ProcessarAsync(docId);
+
+        using var statusResponse = await http.GetAsync($"/api/v1/documentos/{docId}/status");
+        statusResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var status = await statusResponse.Content.ReadFromJsonAsync<StatusResponse>();
+        status.ShouldNotBeNull();
+        status!.Status.ShouldBe((int)StatusDocumento.Denegado);
+        status.MotivoRejeicao.ShouldNotBeNullOrWhiteSpace();
+        status.MotivoRejeicao!.ShouldContain("110");
+        status.Protocolo.ShouldBeNull();
+        status.AuthorizedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Lifecycle_Duplicidade_StatusAutorizadoViaConsulta()
+    {
+        // cStat=204 = documento já existe — job consulta SEFAZ e autoriza via NProt retornado
+        SefazFake.SimularDuplicidade(nProtConsulta: "135260000000099");
+        var (http, docId) = await EmitirDocumentoAsync();
+
+        await ProcessarAsync(docId);
+
+        using var statusResponse = await http.GetAsync($"/api/v1/documentos/{docId}/status");
+        statusResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var status = await statusResponse.Content.ReadFromJsonAsync<StatusResponse>();
+        status.ShouldNotBeNull();
+        status!.Status.ShouldBe((int)StatusDocumento.Autorizado);
+        status.Protocolo.ShouldBe("135260000000099");
+        status.AuthorizedAt.ShouldNotBeNull();
+        status.MotivoRejeicao.ShouldBeNull();
+    }
+
     private sealed record XmlResponse(
         [property: System.Text.Json.Serialization.JsonPropertyName("xmlAssinado")] string XmlAssinado);
 }

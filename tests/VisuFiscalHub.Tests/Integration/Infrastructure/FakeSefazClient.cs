@@ -38,6 +38,22 @@ public sealed class FakeSefazClient : ISefazClient
             Autorizado: false, CStat: cStat, XMotivo: motivo,
             NProt: null, XmlAutorizado: null, QrCodeUrl: null)));
 
+    public void SimularDenegado(string cStat = "110", string motivo = "Uso Denegado") =>
+        _submitHandler = (_, _) => Task.FromResult(Result.Success(new SefazRetorno(
+            Autorizado: false, CStat: cStat, XMotivo: motivo,
+            NProt: null, XmlAutorizado: null, QrCodeUrl: null)));
+
+    public void SimularDuplicidade(string cStat = "204", string nProtConsulta = "135260000000001")
+    {
+        _submitHandler = (_, _) => Task.FromResult(Result.Success(new SefazRetorno(
+            Autorizado: false, CStat: cStat, XMotivo: "NF-e em duplicidade",
+            NProt: null, XmlAutorizado: null, QrCodeUrl: null)));
+
+        _consultaHandler = (_, _) => Task.FromResult(Result.Success(new SefazConsultaRetorno(
+            Encontrado: true, Autorizado: true, CStat: "100",
+            NProt: nProtConsulta, XmlProtocolo: "<protNFe/>")));
+    }
+
     public Task<Result<SefazRetorno>> SubmeterAutorizacaoAsync(
         DocumentoFiscalId documentoId, TenantId tenantId, CancellationToken ct) =>
         _submitHandler(documentoId, tenantId);
