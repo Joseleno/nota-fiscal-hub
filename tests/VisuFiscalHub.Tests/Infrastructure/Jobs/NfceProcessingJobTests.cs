@@ -29,6 +29,9 @@ public class NfceProcessingJobTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
+    private const string FakeQrUrl =
+        "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=0000000000000000000000000000000000000000|2|1|deadbeef";
+
     private NfceProcessingJob CreateJob() =>
         new(_documentoRepo, _tenantRepo, _sefazClient, _unitOfWork, _timeProvider,
             NullLogger<NfceProcessingJob>.Instance);
@@ -104,6 +107,8 @@ public class NfceProcessingJobTests
         documento.Protocolo.ShouldBe("315260000000001");
         // O job salva duas vezes: (1) após IniciarProcessamento; (2) após Autorizar.
         await _unitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+        documento.QrCode.ShouldNotBeNull();
+        documento.QrCode!.UrlCompleta.ShouldBe(FakeQrUrl);
     }
 
     // ── retomada pós-crash: Processando → Autorizado (sem save intermediário) ─────
@@ -121,6 +126,8 @@ public class NfceProcessingJobTests
         documento.Status.ShouldBe(StatusDocumento.Autorizado);
         // Pós-crash não chama IniciarProcessamento — salva apenas uma vez (após Autorizar).
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        documento.QrCode.ShouldNotBeNull();
+        documento.QrCode!.UrlCompleta.ShouldBe(FakeQrUrl);
     }
 
     // ── autorizado sem NProt → lança para retentar ───────────────────────────────
@@ -138,7 +145,8 @@ public class NfceProcessingJobTests
                 CStat:         "100",
                 XMotivo:       "Autorizado o uso da NF-e",
                 NProt:         null,
-                XmlAutorizado: "<nfeProc/>")));
+                XmlAutorizado: "<nfeProc/>",
+                QrCodeUrl:     "https://fake-url")));
 
         await Should.ThrowAsync<InvalidOperationException>(
             () => CreateJob().ExecuteAsync(id, CancellationToken.None));
@@ -289,6 +297,32 @@ public class NfceProcessingJobTests
         documento.Status.ShouldBe(StatusDocumento.Processando);
     }
 
+    // ── QrCodeUrl propagada ao documento após autorização ────────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_Enfileirado_SefazAutorizado_QrCodeUrlPropagada()
+    {
+        const string expectedQrUrl = "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=4301234ABCDEF000001655001000000001000000001|2|1|abc123";
+        var id = DocumentoFiscalId.New();
+        var documento = DocumentoFiscalBuilder.Enfileirado(id: id);
+        _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
+
+        _sefazClient.SubmeterAutorizacaoAsync(id, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazRetorno(
+                Autorizado:    true,
+                CStat:         "100",
+                XMotivo:       "Autorizado o uso da NF-e",
+                NProt:         "315260000000099",
+                XmlAutorizado: "<nfeProc/>",
+                QrCodeUrl:     expectedQrUrl)));
+
+        await CreateJob().ExecuteAsync(id, CancellationToken.None);
+
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.QrCode.ShouldNotBeNull();
+        documento.QrCode!.UrlCompleta.ShouldBe(expectedQrUrl);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────────
 
     private void ConfigurarSefazAutorizado(DocumentoFiscalId id, TenantId tenantId, string protocolo)
@@ -298,7 +332,8 @@ public class NfceProcessingJobTests
                 CStat:         "100",
                 XMotivo:       "Autorizado o uso da NF-e",
                 NProt:         protocolo,
-                XmlAutorizado: "<nfeProc/>")));
+                XmlAutorizado: "<nfeProc/>",
+                QrCodeUrl:     FakeQrUrl)));
 
     private void ConfigurarSefazRetorno(
         DocumentoFiscalId id,
@@ -312,7 +347,8 @@ public class NfceProcessingJobTests
                 CStat:         cStat,
                 XMotivo:       xMotivo,
                 NProt:         null,
-                XmlAutorizado: null)));
+                XmlAutorizado: null,
+                QrCodeUrl:     null)));
 
     private static Tenant CriarTenantFake(ClienteAppId clienteAppId)
     {

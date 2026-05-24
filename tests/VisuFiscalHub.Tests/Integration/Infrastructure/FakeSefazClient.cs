@@ -16,7 +16,8 @@ public sealed class FakeSefazClient : ISefazClient
             CStat: "100",
             XMotivo: "Autorizado o uso da NF-e",
             NProt: "135260000000001",
-            XmlAutorizado: "<protNFe/>")));
+            XmlAutorizado: "<protNFe/>",
+            QrCodeUrl: "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=fake|2|1|fake")));
 
     private Func<string, TenantId, Task<Result<SefazConsultaRetorno>>> _consultaHandler =
         (_, _) => Task.FromResult(Result.Success(new SefazConsultaRetorno(
@@ -29,12 +30,13 @@ public sealed class FakeSefazClient : ISefazClient
     public void SimularAutorizado() =>
         _submitHandler = (_, _) => Task.FromResult(Result.Success(new SefazRetorno(
             Autorizado: true, CStat: "100", XMotivo: "Autorizado o uso da NF-e",
-            NProt: "135260000000001", XmlAutorizado: "<protNFe/>")));
+            NProt: "135260000000001", XmlAutorizado: "<protNFe/>",
+            QrCodeUrl: "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=fake|2|1|fake")));
 
     public void SimularRejeitado(string cStat = "999", string motivo = "Rejeição simulada") =>
         _submitHandler = (_, _) => Task.FromResult(Result.Success(new SefazRetorno(
             Autorizado: false, CStat: cStat, XMotivo: motivo,
-            NProt: null, XmlAutorizado: null)));
+            NProt: null, XmlAutorizado: null, QrCodeUrl: null)));
 
     public Task<Result<SefazRetorno>> SubmeterAutorizacaoAsync(
         DocumentoFiscalId documentoId, TenantId tenantId, CancellationToken ct) =>
