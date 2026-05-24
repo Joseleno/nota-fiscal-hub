@@ -323,6 +323,63 @@ public class NfceProcessingJobTests
         documento.QrCode!.UrlCompleta.ShouldBe(expectedQrUrl);
     }
 
+    // ── duplicidade: QrCode do documento persistido usado; fallback para chave de acesso ──
+
+    [Theory]
+    [InlineData("204")]
+    [InlineData("572")]
+    public async Task ExecuteAsync_Duplicidade_QrCodePersistidoUsadoNaAutorizacao(string cStat)
+    {
+        const string persistedQrUrl = "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=35260112345678000195650010000000011234567810|2|1|abc123";
+        var id = DocumentoFiscalId.New();
+        var documento = DocumentoFiscalBuilder.Enfileirado(id: id);
+
+        // Simular QrCode já persistido (gerado durante a emissão original)
+        var qrCodePersistido = QrCode.FromStorage(persistedQrUrl);
+        // Autorizar com QrCode para simular o estado pós-emissão com QrCode salvo
+        documento.IniciarProcessamento();
+        documento.Autorizar("000000000000001", "<nfeProc/>", qrCodePersistido, FixedNow, _timeProvider);
+        // Forçar de volta para Processando para simular re-entrega do job
+        var statusProp = typeof(DocumentoFiscal).GetProperty(
+            nameof(DocumentoFiscal.Status),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
+        statusProp.SetValue(documento, StatusDocumento.Processando);
+
+        _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
+        ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazConsultaRetorno(
+                Encontrado: true, Autorizado: true, CStat: "100",
+                NProt: "135260000099999", XmlProtocolo: "<nfeProc/>")));
+
+        await CreateJob().ExecuteAsync(id, CancellationToken.None);
+
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.QrCode.ShouldNotBeNull();
+        documento.QrCode!.UrlCompleta.ShouldBe(persistedQrUrl);
+    }
+
+    [Theory]
+    [InlineData("204")]
+    [InlineData("572")]
+    public async Task ExecuteAsync_Duplicidade_SemQrCodePersistido_UsaChaveAcessoComoFallback(string cStat)
+    {
+        var id = DocumentoFiscalId.New();
+        var documento = DocumentoFiscalBuilder.Processando(id: id);
+        _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
+        ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazConsultaRetorno(
+                Encontrado: true, Autorizado: true, CStat: "100",
+                NProt: "135260000099998", XmlProtocolo: "<nfeProc/>")));
+
+        await CreateJob().ExecuteAsync(id, CancellationToken.None);
+
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.QrCode.ShouldNotBeNull("fallback deve preencher QrCode com chave de acesso");
+        documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso.Valor);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────────
 
     private void ConfigurarSefazAutorizado(DocumentoFiscalId id, TenantId tenantId, string protocolo)

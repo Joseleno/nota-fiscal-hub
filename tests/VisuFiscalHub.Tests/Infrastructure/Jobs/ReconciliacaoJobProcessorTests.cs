@@ -7,6 +7,7 @@ using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
+using VisuFiscalHub.Domain.ValueObjects;
 using VisuFiscalHub.Infrastructure.Jobs;
 using VisuFiscalHub.Tests.Helpers;
 
@@ -98,6 +99,45 @@ public class ReconciliacaoJobProcessorTests
         documento.Status.ShouldBe(StatusDocumento.Autorizado);
         documento.Protocolo.ShouldBe("315260000000001");
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ── QrCode persistido é reutilizado na reconciliação ─────────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_SefazAutorizado_QrCodePersistidoPreservado()
+    {
+        const string persistedQrUrl = "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=35260112345678000195650010000000011234567810|2|1|abc123";
+        var documento = DocumentoFiscalBuilder.Processando();
+
+        // Injetar QrCode persistido via reflexão (simula documento que foi emitido com QrCode)
+        var qrProp = typeof(DocumentoFiscal).GetProperty(
+            nameof(DocumentoFiscal.QrCode),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
+        qrProp.SetValue(documento, QrCode.FromStorage(persistedQrUrl));
+
+        ConfigurarDocumentosTravados(documento);
+        ConfigurarConsultaAutorizado(documento, protocolo: "315260000000001");
+
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
+
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.QrCode.ShouldNotBeNull();
+        documento.QrCode!.UrlCompleta.ShouldBe(persistedQrUrl);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SefazAutorizado_SemQrCodePersistido_UsaChaveAcessoComoFallback()
+    {
+        var documento = DocumentoFiscalBuilder.Processando();
+        // documento.QrCode é null por padrão no builder
+        ConfigurarDocumentosTravados(documento);
+        ConfigurarConsultaAutorizado(documento, protocolo: "315260000000002");
+
+        await CreateProcessor().ExecuteAsync(CancellationToken.None);
+
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.QrCode.ShouldNotBeNull("fallback deve preencher QrCode com chave de acesso");
+        documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso.Valor);
     }
 
     // ── SEFAZ autorizado mas NProt ausente → Falhou ───────────────────────────────
