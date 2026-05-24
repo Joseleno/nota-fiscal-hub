@@ -163,4 +163,47 @@ internal static class SefazEndpointResolver
             _ => throw new InvalidOperationException($"UF {ufCodigo} sem endpoint de retorno autorização mapeado.")
         };
     }
+
+    /// <summary>Retorna a URL do webservice de recepção de eventos (NFeRecepcaoEvento4).</summary>
+    public static string ResolveEvento(int ufCodigo, AmbienteSefaz ambiente)
+    {
+        var h = ambiente == AmbienteSefaz.Homologacao;
+
+        if (UfsSvrs.Contains(ufCodigo))
+        {
+            var svrs = h ? SvrsH : SvrsP;
+            return $"{svrs}/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx";
+        }
+
+        return ufCodigo switch
+        {
+            13 => h ? "https://nfce-homologacao.sefaz.am.gov.br/services/NfeRecepcaoEvento4"
+                    : "https://nfce.sefaz.am.gov.br/services/NfeRecepcaoEvento4",               // AM
+            15 => h ? "https://appnfce.sefa.pa.gov.br:444/nfce-homologacao/NFeRecepcaoEvento4"
+                    : "https://appnfce.sefa.pa.gov.br:444/nfce/NFeRecepcaoEvento4",              // PA
+            21 => h ? "https://hom.sefaz.ma.gov.br/nfce/NFeRecepcaoEvento4"
+                    : "https://www.sefaz.ma.gov.br/nfce/NFeRecepcaoEvento4",                     // MA
+            23 => h ? "https://nfceh.sefaz.ce.gov.br/nfce/NFeRecepcaoEvento4"
+                    : "https://nfce.sefaz.ce.gov.br/nfce/NFeRecepcaoEvento4",                    // CE
+            26 => h ? "https://nfcehomolog.sefaz.pe.gov.br/nfce-server/services/NFeRecepcaoEvento4"
+                    : "https://nfce.sefaz.pe.gov.br/nfce-server/services/NFeRecepcaoEvento4",    // PE
+            29 => h ? "https://hnfe.sefaz.ba.gov.br/webservices/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx"
+                    : "https://nfe.sefaz.ba.gov.br/webservices/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx", // BA
+            31 => h ? "https://hnfce.fazenda.mg.gov.br/nfce/services/NFeRecepcaoEvento4"
+                    : "https://nfce.fazenda.mg.gov.br/nfce/services/NFeRecepcaoEvento4",          // MG
+            35 => h ? "https://homologacao.nfe.fazenda.sp.gov.br/nfceservice/services/NFeRecepcaoEvento4"
+                    : "https://nfe.fazenda.sp.gov.br/nfceservice/services/NFeRecepcaoEvento4",    // SP
+            41 => h ? "https://homologacao.nfce.pr.gov.br/nfce/NFeRecepcaoEvento4"
+                    : "https://nfce.pr.gov.br/nfce/NFeRecepcaoEvento4",                           // PR
+            43 => h ? "https://nfce-homologacao.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx"
+                    : "https://nfce.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx", // RS
+            50 => h ? "https://homologacao.nfce.fazenda.ms.gov.br/ws/NFeRecepcaoEvento4"
+                    : "https://nfce.fazenda.ms.gov.br/ws/NFeRecepcaoEvento4",                     // MS
+            51 => h ? "https://homologacao.sefaz.mt.gov.br/nfce/NFeRecepcaoEvento4"
+                    : "https://nfce.sefaz.mt.gov.br/nfce/NFeRecepcaoEvento4",                     // MT
+            52 => h ? "https://homologacao.nfce.sefaz.go.gov.br/nfce/NFeRecepcaoEvento4"
+                    : "https://nfce.sefaz.go.gov.br/nfce/NFeRecepcaoEvento4",                     // GO
+            _ => throw new InvalidOperationException($"UF {ufCodigo} não mapeada em ResolveEvento.")
+        };
+    }
 }
