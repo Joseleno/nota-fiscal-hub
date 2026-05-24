@@ -90,7 +90,7 @@ public class CancelamentoRetornoParserTests
         result.IsSuccess.ShouldBeTrue(); // Parse ok, mas cancelamento não aceito
         result.Value.Aceito.ShouldBeFalse();
         result.Value.CStat.ShouldBe("218");
-        result.Value.XMotivo.ShouldContain("218");
+        result.Value.XMotivo.ShouldContain("Rejeição");
     }
 
     [Fact]

@@ -32,16 +32,10 @@ internal static class CancelamentoRetornoParser
                 return Result.Failure<CancelamentoRetorno>(
                     new Error("Sefaz.CancelamentoRetornoInvalido", "Resposta não contém infEvento."));
 
-            var cStat      = infEvento.SelectSingleNode("nfe:cStat",       ns)?.InnerText ?? string.Empty;
-            var xMotivoRaw = infEvento.SelectSingleNode("nfe:xMotivo",     ns)?.InnerText ?? string.Empty;
-            var nProt      = infEvento.SelectSingleNode("nfe:nProt",       ns)?.InnerText;
-            var dhRaw      = infEvento.SelectSingleNode("nfe:dhRegEvento", ns)?.InnerText;
-
-            // Format XMotivo as "{cStat} - {description}" so callers can always identify
-            // the status code from the message alone (e.g. for logging, error reporting).
-            var xMotivo = string.IsNullOrEmpty(cStat)
-                ? xMotivoRaw
-                : $"{cStat} - {xMotivoRaw}";
+            var cStat   = infEvento.SelectSingleNode("nfe:cStat",       ns)?.InnerText ?? string.Empty;
+            var xMotivo = infEvento.SelectSingleNode("nfe:xMotivo",     ns)?.InnerText ?? string.Empty;
+            var nProt   = infEvento.SelectSingleNode("nfe:nProt",       ns)?.InnerText;
+            var dhRaw   = infEvento.SelectSingleNode("nfe:dhRegEvento", ns)?.InnerText;
 
             DateTimeOffset? dhRegEvento = null;
             if (!string.IsNullOrEmpty(dhRaw))
