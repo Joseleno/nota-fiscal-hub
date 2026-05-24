@@ -117,7 +117,13 @@ public sealed class ReconciliacaoJobProcessor
             return;
         }
 
-        var qrCode = QrCode.FromStorage(documento.ChaveAcesso.Valor);
+        if (documento.QrCode is null)
+            _logger.LogWarning(
+                "QrCode não persistido para {DocumentoId} — usando chave de acesso como fallback (URL incompleta).",
+                documento.Id.Value);
+
+        var qrCode = documento.QrCode
+            ?? QrCode.FromStorage(documento.ChaveAcesso.Valor);
         var authorizedAt = _timeProvider.GetUtcNow();
 
         var authResult = documento.Autorizar(
