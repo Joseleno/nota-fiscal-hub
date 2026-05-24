@@ -38,7 +38,7 @@ public class CancelarDocumentoCommandHandlerTests
         var authorizedAt = FixedNow.AddMinutes(-10);
         var documento = DocumentoFiscalBuilder.Autorizado(authorizedAt);
         var (handler, docRepo, unitOfWork, jobQueue) = CriarHandler(new FixedTimeProvider(FixedNow));
-        docRepo.GetByIdAsync(documento.Id, Arg.Any<CancellationToken>()).Returns(documento);
+        docRepo.GetByIdForUpdateAsync(documento.Id, Arg.Any<CancellationToken>()).Returns(documento);
         var command = new CancelarDocumentoCommand
         {
             DocumentoId   = documento.Id,
@@ -60,7 +60,7 @@ public class CancelarDocumentoCommandHandlerTests
     {
         var documento = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-10));
         var (handler, docRepo, _, _) = CriarHandler(new FixedTimeProvider(FixedNow));
-        docRepo.GetByIdAsync(documento.Id, Arg.Any<CancellationToken>()).Returns(documento);
+        docRepo.GetByIdForUpdateAsync(documento.Id, Arg.Any<CancellationToken>()).Returns(documento);
         var command = new CancelarDocumentoCommand
         {
             DocumentoId   = documento.Id,
@@ -80,7 +80,7 @@ public class CancelarDocumentoCommandHandlerTests
         var authorizedAt = FixedNow.AddMinutes(-31);
         var documento = DocumentoFiscalBuilder.Autorizado(authorizedAt);
         var (handler, docRepo, _, _) = CriarHandler(new FixedTimeProvider(FixedNow));
-        docRepo.GetByIdAsync(documento.Id, Arg.Any<CancellationToken>()).Returns(documento);
+        docRepo.GetByIdForUpdateAsync(documento.Id, Arg.Any<CancellationToken>()).Returns(documento);
         var command = new CancelarDocumentoCommand
         {
             DocumentoId   = documento.Id,
@@ -98,7 +98,7 @@ public class CancelarDocumentoCommandHandlerTests
     public async Task Handle_QuandoDocumentoNaoEncontrado_RetornarErro404()
     {
         var (handler, docRepo, _, _) = CriarHandler(new FixedTimeProvider(FixedNow));
-        docRepo.GetByIdAsync(Arg.Any<DocumentoFiscalId>(), Arg.Any<CancellationToken>())
+        docRepo.GetByIdForUpdateAsync(Arg.Any<DocumentoFiscalId>(), Arg.Any<CancellationToken>())
                .Returns((DocumentoFiscal?)null);
         var command = new CancelarDocumentoCommand
         {

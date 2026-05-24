@@ -31,7 +31,7 @@ public sealed class CancelarDocumentoCommandHandler
         CancelarDocumentoCommand command,
         CancellationToken cancellationToken)
     {
-        var documento = await _documentoRepo.GetByIdAsync(command.DocumentoId, cancellationToken);
+        var documento = await _documentoRepo.GetByIdForUpdateAsync(command.DocumentoId, cancellationToken);
         if (documento is null)
             return Result.Failure<CancelarDocumentoResponse>(DocumentoFiscalErrors.NaoEncontrado);
 
