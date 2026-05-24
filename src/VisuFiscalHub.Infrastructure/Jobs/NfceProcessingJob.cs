@@ -199,6 +199,11 @@ public sealed class NfceProcessingJob
 
         if (consulta.Autorizado && !string.IsNullOrWhiteSpace(consulta.NProt))
         {
+            if (documento.QrCode is null)
+                _logger.LogWarning(
+                    "QrCode não persistido para {DocumentoId} — usando chave de acesso como fallback (URL incompleta).",
+                    documento.Id.Value);
+
             var qrCode = documento.QrCode
                 ?? QrCode.FromStorage(documento.ChaveAcesso.Valor);
             var authorizedAt = _timeProvider.GetUtcNow();
