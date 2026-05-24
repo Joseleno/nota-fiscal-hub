@@ -34,6 +34,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         long numero,
         string serie,
         int indPresenca,
+        string? cpfConsumidor,
+        string? nomeConsumidor,
         List<ItemDocumento> items,
         List<Pagamento> pagamentos,
         DateTimeOffset createdAt) : base(id)
@@ -46,6 +48,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         Numero = numero;
         Serie = serie;
         IndPresenca = indPresenca;
+        CpfConsumidor = cpfConsumidor;
+        NomeConsumidor = nomeConsumidor;
         Status = StatusDocumento.Criado;
         _items = items;
         _pagamentos = pagamentos;
@@ -63,6 +67,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
     public long Numero { get; private set; }
     public string Serie { get; private set; }
     public int IndPresenca { get; private set; }
+    public string? CpfConsumidor { get; private set; }
+    public string? NomeConsumidor { get; private set; }
     public StatusDocumento Status { get; private set; }
     public string? XmlAssinado { get; private set; }
     public string? Protocolo { get; private set; }
@@ -86,7 +92,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         int indPresenca,
         IEnumerable<ItemDocumento> items,
         IEnumerable<Pagamento> pagamentos,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        string? cpfConsumidor = null,
+        string? nomeConsumidor = null)
     {
         if (tenantId == default)
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TenantInvalido);
@@ -116,6 +124,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             numero,
             serie,
             indPresenca,
+            cpfConsumidor,
+            nomeConsumidor,
             itemList,
             pagamentoList,
             timeProvider.GetUtcNow()));

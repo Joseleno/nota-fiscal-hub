@@ -123,7 +123,9 @@ public sealed class IssueDocumentCommandHandler
             command.IndPresenca,
             itemsResult.Value,
             pagamentosResult.Value,
-            _timeProvider);
+            _timeProvider,
+            command.Consumidor?.Cpf,
+            command.Consumidor?.Nome);
 
         if (documentoResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(documentoResult.Error);

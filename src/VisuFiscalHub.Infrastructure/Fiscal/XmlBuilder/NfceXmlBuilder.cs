@@ -56,8 +56,9 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         // <emit>
         infNFe.AppendChild(BuildEmit(doc, tenant));
 
-        // <dest> (apenas se houver consumidor)
-        // Consumidor não está no DocumentoFiscal diretamente nesta versão — omitido conforme spec.
+        // <dest> (apenas se houver CPF — obrigatório acima de R$ 10.000)
+        if (documento.CpfConsumidor is not null)
+            infNFe.AppendChild(BuildDest(doc, documento.CpfConsumidor, documento.NomeConsumidor));
 
         // <det> (itens)
         for (var i = 0; i < documento.Items.Count; i++)
@@ -156,6 +157,25 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         Add("CRT", ((int)tenant.ConfiguracaoFiscal.Crt).ToString());
 
         return emit;
+    }
+
+    private static XmlElement BuildDest(XmlDocument doc, string cpf, string? nome)
+    {
+        var dest = doc.CreateElement("dest", NfeNs);
+
+        var Add = (string tag, string val) =>
+        {
+            var el = doc.CreateElement(tag, NfeNs);
+            el.InnerText = val;
+            dest.AppendChild(el);
+        };
+
+        Add("CPF", cpf);
+        if (!string.IsNullOrWhiteSpace(nome))
+            Add("xNome", nome.Length > 60 ? nome[..60] : nome);
+        Add("indIEDest", "9");   // 9 = não contribuinte (consumidor final NFC-e)
+
+        return dest;
     }
 
     private static XmlElement BuildDet(
