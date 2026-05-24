@@ -108,12 +108,13 @@ public class IssueDocumentCommandHandlerTests
     {
         var tenant = CriarTenantAtivo();
         var (handler, docRepo, _, _, _, _) = CriarHandler(tenant);
-        var command = CmdBase(tenant.Id, tenant.ClienteAppId, cpf: "12345678909");
+        // Nome obrigatório quando CPF é informado (invariante domain: schema NF-e exige xNome em <dest>)
+        var command = CmdBase(tenant.Id, tenant.ClienteAppId, cpf: "52998224725", nomeConsumidor: "Consumidor Teste");
 
         await handler.Handle(command, CancellationToken.None);
 
         await docRepo.Received(1).AddAsync(
-            Arg.Is<DocumentoFiscal>(d => d.CpfConsumidor == "12345678909"),
+            Arg.Is<DocumentoFiscal>(d => d.CpfConsumidor == "52998224725"),
             Arg.Any<CancellationToken>());
     }
 
@@ -122,7 +123,7 @@ public class IssueDocumentCommandHandlerTests
     {
         var tenant = CriarTenantAtivo();
         var (handler, docRepo, _, _, _, _) = CriarHandler(tenant);
-        var command = CmdBase(tenant.Id, tenant.ClienteAppId, cpf: "12345678909", nomeConsumidor: "João Silva");
+        var command = CmdBase(tenant.Id, tenant.ClienteAppId, cpf: "52998224725", nomeConsumidor: "João Silva");
 
         await handler.Handle(command, CancellationToken.None);
 

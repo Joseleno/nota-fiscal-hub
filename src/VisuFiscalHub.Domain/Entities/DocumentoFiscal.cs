@@ -108,6 +108,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         if (!IndPresencaValidos.Contains(indPresenca))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IndPresencaInvalido);
 
+        if (cpfConsumidor is not null && string.IsNullOrWhiteSpace(nomeConsumidor))
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NomeConsumidorObrigatorio);
+
         var itemList = items.ToList();
         if (itemList.Count == 0)
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.SemItens);

@@ -119,6 +119,14 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
                 qr => qr == null ? null : qr.UrlCompleta,
                 s => s == null ? null : QrCode.FromStorage(s));
 
+        builder.Property(d => d.CpfConsumidor)
+            .HasColumnName("cpf_consumidor")
+            .HasMaxLength(11);
+
+        builder.Property(d => d.NomeConsumidor)
+            .HasColumnName("nome_consumidor")
+            .HasMaxLength(60);
+
         builder.Property(d => d.MotivoRejeicao)
             .HasColumnName("motivo_rejeicao")
             .HasMaxLength(500);

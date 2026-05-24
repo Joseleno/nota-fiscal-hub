@@ -31,6 +31,9 @@ public static class DocumentoFiscalErrors
     public static readonly Error CpfInvalido =
         new("DocumentoFiscal.CpfInvalido", "O CPF do consumidor é inválido.");
 
+    public static readonly Error NomeConsumidorObrigatorio =
+        new("DocumentoFiscal.NomeConsumidorObrigatorio", "O nome do consumidor é obrigatório quando o CPF é informado.");
+
     public static readonly Error ChaveAcessoInvalida =
         new("DocumentoFiscal.ChaveAcessoInvalida", "A chave de acesso é inválida.");
 

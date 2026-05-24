@@ -123,7 +123,7 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         Add("indPres", ((int)documento.IndPresenca).ToString());
         Add("procEmi", "3");    // Emitido por contribuinte — API NF-e
         Add("verProc", "VisuFiscalHub 1.0");
-        Add("cIdToken", tenant.CIdToken!);
+        // cIdToken não é elemento do schema NF-e 4.0 — é usado apenas para compor a URL do QR Code
 
         return ide;
     }

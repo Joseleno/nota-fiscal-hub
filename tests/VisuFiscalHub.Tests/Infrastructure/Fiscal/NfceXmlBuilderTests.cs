@@ -182,7 +182,67 @@ public class NfceXmlBuilderTests
     }
 
     [Fact]
-    public void Construir_CIdToken_DeveEstarPresente()
+    public void Construir_CIdToken_NaoDeveEstarNoXml()
+    {
+        // cIdToken não é elemento do schema NF-e 4.0 — é usado apenas para compor a URL do QR Code.
+        // Incluí-lo no XML faz o SEFAZ rejeitar a nota por erro de schema.
+        var enc = CriarEncryption();
+        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var tenant = CriarTenant(enc);
+        var doc = CriarDocumento(tenant.Id);
+
+        var result = builder.Construir(doc, tenant);
+        result.IsSuccess.ShouldBeTrue();
+
+        var ns = new System.Xml.XmlNamespaceManager(result.Value.NameTable);
+        ns.AddNamespace("nfe", NfeNs);
+
+        var cIdToken = result.Value.SelectSingleNode("//nfe:cIdToken", ns);
+        cIdToken.ShouldBeNull("cIdToken não deve aparecer no XML enviado ao SEFAZ (não faz parte do schema NF-e 4.0)");
+    }
+
+    [Fact]
+    public void Construir_ComCpfConsumidor_DeveEmitirElementoDest()
+    {
+        var enc = CriarEncryption();
+        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var tenant = CriarTenant(enc);
+
+        var chave = ChaveAcesso.Gerar(35, "2601", "11222333000181", 65, "001",
+            "000000002", TipoEmissao.Normal, "99887766").Value;
+        var tributo = Tributo.Criar(TipoIcms.CSOSN, 400, 0m, 0m, 0m,
+            CstPisCofins.Cst07, 0m, 0m, 0m, CstPisCofins.Cst07, 0m, 0m, 0m).Value;
+        var produto = Produto.Criar("P001", "Produto", "12345678", null, "5102",
+            "UN", 1m, 100m, 0m, OrigemMercadoria.Nacional).Value;
+        var item = new ItemDocumento(1, produto, tributo);
+        var pag = Pagamento.Criar(TipoPagamento.Dinheiro, 100m).Value;
+
+        var docComConsumidor = DocumentoFiscal.Criar(
+            DocumentoFiscalId.New(), tenant.Id, ClienteAppId.New(),
+            $"idem-{Guid.NewGuid()}", TipoDocumento.NfCe,
+            chave, 2, "001", 1, [item], [pag], TimeProvider.System,
+            cpfConsumidor: "52998224725", nomeConsumidor: "João da Silva").Value;
+
+        var result = builder.Construir(docComConsumidor, tenant);
+        result.IsSuccess.ShouldBeTrue(result.IsFailure ? result.Error.Message : "");
+
+        var ns = new System.Xml.XmlNamespaceManager(result.Value.NameTable);
+        ns.AddNamespace("nfe", NfeNs);
+
+        var dest = result.Value.SelectSingleNode("//nfe:infNFe/nfe:dest", ns);
+        dest.ShouldNotBeNull("deve emitir elemento <dest> quando CPF do consumidor está presente");
+
+        var cpfNode = result.Value.SelectSingleNode("//nfe:dest/nfe:CPF", ns);
+        cpfNode.ShouldNotBeNull();
+        cpfNode!.InnerText.ShouldBe("52998224725");
+
+        var xNomeNode = result.Value.SelectSingleNode("//nfe:dest/nfe:xNome", ns);
+        xNomeNode.ShouldNotBeNull("xNome deve estar presente no dest");
+        xNomeNode!.InnerText.ShouldBe("João da Silva");
+    }
+
+    [Fact]
+    public void Construir_SemCpfConsumidor_NaoDeveEmitirElementoDest()
     {
         var enc = CriarEncryption();
         var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
@@ -195,9 +255,8 @@ public class NfceXmlBuilderTests
         var ns = new System.Xml.XmlNamespaceManager(result.Value.NameTable);
         ns.AddNamespace("nfe", NfeNs);
 
-        var cIdToken = result.Value.SelectSingleNode("//nfe:ide/nfe:cIdToken", ns);
-        cIdToken.ShouldNotBeNull("cIdToken deve estar presente no ide");
-        cIdToken!.InnerText.ShouldBe("000001");
+        var dest = result.Value.SelectSingleNode("//nfe:infNFe/nfe:dest", ns);
+        dest.ShouldBeNull("não deve emitir <dest> quando CPF do consumidor não está informado");
     }
 
     [Fact]
