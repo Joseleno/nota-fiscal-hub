@@ -87,7 +87,7 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         if (qrResult.IsFailure)
             return Result.Failure<XmlDocument>(qrResult.Error);
 
-        nfeEl.AppendChild(BuildInfNFeSupl(doc, qrResult.Value.UrlCompleta, urlConsulta));
+        infNFe.AppendChild(BuildInfNFeSupl(doc, qrResult.Value.UrlCompleta, urlConsulta));
 
         return Result.Success(doc);
     }
