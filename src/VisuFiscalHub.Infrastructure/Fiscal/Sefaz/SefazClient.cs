@@ -74,6 +74,8 @@ internal sealed class SefazClient : ISefazClient
         }
 
         var qrCodeUrl = ExtractQrCodeUrl(xmlResult.Value);
+        if (qrCodeUrl is null)
+            _logger.LogWarning("QR Code URL ausente no XML gerado para {DocumentoId} — DANFE pode ficar incompleto.", documentoId.Value);
 
         XmlDocument xmlAssinado;
         try
