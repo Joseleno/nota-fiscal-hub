@@ -9,5 +9,6 @@ public enum StatusDocumento
     Rejeitado = 5,
     Cancelado = 6,
     Falhou = 7,
-    Denegado = 8
+    Denegado = 8,
+    Cancelando = 9   // aguardando confirmação do SEFAZ
 }
