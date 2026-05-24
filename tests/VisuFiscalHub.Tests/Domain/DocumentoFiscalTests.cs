@@ -98,14 +98,6 @@ public class DocumentoFiscalTests
     }
 
     [Fact]
-    public void Cancelar_QuandoCriado_DeveRetornarErro()
-    {
-        var doc = DocumentoFiscalBuilder.Criado();
-        var result = doc.Cancelar(FixedTime(FixedNow));
-        result.IsFailure.ShouldBeTrue();
-    }
-
-    [Fact]
     public void Autorizar_DevePublicarDocumentoFiscalAutorizadoEvent()
     {
         var doc = DocumentoFiscalBuilder.Processando();
@@ -138,45 +130,126 @@ public class DocumentoFiscalTests
         doc.DomainEvents.OfType<DocumentoFiscalFalhouEvent>().ShouldHaveSingleItem();
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // IniciarCancelamento
+    // ──────────────────────────────────────────────────────────────
+
     [Fact]
-    public void Cancelar_QuandoDentro30Minutos_DeveTransicionarParaCancelado()
+    public void IniciarCancelamento_QuandoAutorizadoDentroDoPrazo_TransicionaParaCancelando()
     {
-        var authorizedAt = FixedNow;
-        var doc = DocumentoFiscalBuilder.Processando();
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
-        doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, FixedTime(authorizedAt));
-
-        var result = doc.Cancelar(FixedTime(authorizedAt.AddMinutes(29)));
-
+        var documento = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-10));
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
         result.IsSuccess.ShouldBeTrue();
-        doc.Status.ShouldBe(StatusDocumento.Cancelado);
+        documento.Status.ShouldBe(StatusDocumento.Cancelando);
+        documento.MotivoRejeicao.ShouldBeNull();
+        documento.DomainEvents.ShouldBeEmpty();
     }
 
     [Fact]
-    public void Cancelar_QuandoFora30Minutos_DeveRetornarErro()
+    public void IniciarCancelamento_QuandoPrazoExpirado_RetornaErro()
     {
-        var authorizedAt = FixedNow;
-        var doc = DocumentoFiscalBuilder.Processando();
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
-        doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, FixedTime(authorizedAt));
-
-        var result = doc.Cancelar(FixedTime(authorizedAt.AddMinutes(31)));
-
+        var authorizedAt = FixedNow.AddMinutes(-31);
+        var documento = DocumentoFiscalBuilder.Autorizado(authorizedAt);
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe(DocumentoFiscalErrors.PrazoDeCancelamentoExpirado.Code);
+        result.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
     }
 
     [Fact]
-    public void Cancelar_QuandoExatamente30Minutos_DeveRetornarErro()
+    public void IniciarCancelamento_QuandoExatamente30Minutos_RetornaErro()
     {
-        var authorizedAt = FixedNow;
-        var doc = DocumentoFiscalBuilder.Processando();
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
-        doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, FixedTime(authorizedAt));
+        var authorizedAt = FixedNow.AddHours(-1);
+        var documento = DocumentoFiscalBuilder.Autorizado(authorizedAt);
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(authorizedAt.AddMinutes(30)));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+    }
 
-        var result = doc.Cancelar(FixedTime(authorizedAt.AddMinutes(30)));
+    [Fact]
+    public void IniciarCancelamento_QuandoNaoAutorizado_RetornaErro()
+    {
+        var documento = DocumentoFiscalBuilder.Enfileirado();
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
+    }
 
-        result.IsFailure.ShouldBeTrue("documento autorizado há exatamente 30min não pode ser cancelado");
-        result.Error.Code.ShouldBe(DocumentoFiscalErrors.PrazoDeCancelamentoExpirado.Code);
+    [Fact]
+    public void IniciarCancelamento_QuandoJaCancelando_RetornaErro()
+    {
+        var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
+    }
+
+    [Fact]
+    public void IniciarCancelamento_QuandoCancelado_RetornaErro()
+    {
+        var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
+        documento.ConfirmarCancelamento(FixedNow);
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // ConfirmarCancelamento
+    // ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ConfirmarCancelamento_QuandoCancelando_TransicionaParaCancelado()
+    {
+        var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
+        var result = documento.ConfirmarCancelamento(FixedNow);
+        result.IsSuccess.ShouldBeTrue();
+        documento.Status.ShouldBe(StatusDocumento.Cancelado);
+        documento.CanceladoAt.ShouldBe(FixedNow);
+        documento.DomainEvents.ShouldContain(e => e is DocumentoFiscalCanceladoEvent);
+    }
+
+    [Fact]
+    public void ConfirmarCancelamento_QuandoNaoCancelando_RetornaErro()
+    {
+        var documento = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-5));
+        var result = documento.ConfirmarCancelamento(FixedNow);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // RejeitarCancelamento
+    // ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RejeitarCancelamento_QuandoCancelando_RevertaParaAutorizado()
+    {
+        var documento = DocumentoFiscalBuilder.Cancelando(FixedNow.AddMinutes(-5));
+        var result = documento.RejeitarCancelamento("Prazo encerrado no SEFAZ");
+        result.IsSuccess.ShouldBeTrue();
+        documento.Status.ShouldBe(StatusDocumento.Autorizado);
+        documento.MotivoRejeicao.ShouldBe("Prazo encerrado no SEFAZ");
+        documento.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void RejeitarCancelamento_QuandoNaoCancelando_RetornaErro()
+    {
+        var documento = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-5));
+        var result = documento.RejeitarCancelamento("motivo");
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
+    }
+
+    [Fact]
+    public void IniciarCancelamento_AposaRejeicao_LimpaMotivo()
+    {
+        var authorizedAt = FixedNow.AddMinutes(-5);
+        var documento = DocumentoFiscalBuilder.Cancelando(authorizedAt);
+        documento.RejeitarCancelamento("Motivo anterior");
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsSuccess.ShouldBeTrue();
+        documento.MotivoRejeicao.ShouldBeNull();
     }
 }

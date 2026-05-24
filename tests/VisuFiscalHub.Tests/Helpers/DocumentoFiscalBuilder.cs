@@ -104,6 +104,7 @@ internal static class DocumentoFiscalBuilder
         var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
         doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, new FixedTimeProvider(authorizedAt))
            .IsSuccess.ShouldBeTrue("Autorizar() falhou no builder — verifique as invariantes.");
+        doc.ClearDomainEvents();
         return doc;
     }
 
@@ -112,6 +113,7 @@ internal static class DocumentoFiscalBuilder
         var doc = Autorizado(authorizedAt, numero);
         doc.IniciarCancelamento(new FixedTimeProvider(authorizedAt.AddMinutes(1)))
            .IsSuccess.ShouldBeTrue("IniciarCancelamento() falhou no builder — verifique as invariantes.");
+        doc.ClearDomainEvents();
         return doc;
     }
 

@@ -76,6 +76,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
     public string? MotivoRejeicao { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? AuthorizedAt { get; private set; }
+    public DateTimeOffset? CanceladoAt { get; private set; }
 
     public IReadOnlyList<ItemDocumento> Items => _items.AsReadOnly();
     public IReadOnlyList<Pagamento> Pagamentos => _pagamentos.AsReadOnly();
@@ -205,28 +206,48 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         return Result.Success();
     }
 
-    // Cancela o documento se ainda dentro do prazo de 30 minutos após autorização.
-    // Boundary estrito: AuthorizedAt + 30min == utcNow → NÃO pode cancelar (usa <, não <=).
-    public Result Cancelar(TimeProvider timeProvider)
+    public Result IniciarCancelamento(TimeProvider timeProvider)
     {
         if (Status != StatusDocumento.Autorizado)
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
 
-        var utcNow = timeProvider.GetUtcNow();
-        var prazoLimite = AuthorizedAt!.Value.AddMinutes(30);
+        if (AuthorizedAt is null)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
 
-        if (utcNow >= prazoLimite)
+        var utcNow = timeProvider.GetUtcNow();
+        if (utcNow >= AuthorizedAt.Value.AddMinutes(30))
             return Result.Failure(DocumentoFiscalErrors.PrazoDeCancelamentoExpirado);
 
+        MotivoRejeicao = null;
+        Status = StatusDocumento.Cancelando;
+        return Result.Success();
+    }
+
+    public Result ConfirmarCancelamento(DateTimeOffset canceladoAt)
+    {
+        if (Status != StatusDocumento.Cancelando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
         Status = StatusDocumento.Cancelado;
+        CanceladoAt = canceladoAt;
 
         AddDomainEvent(new DocumentoFiscalCanceladoEvent(
             Id,
             TenantId,
-            utcNow,
+            canceladoAt,
             Guid.CreateVersion7(),
-            utcNow));
+            canceladoAt));
 
+        return Result.Success();
+    }
+
+    public Result RejeitarCancelamento(string motivo)
+    {
+        if (Status != StatusDocumento.Cancelando)
+            return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
+
+        Status = StatusDocumento.Autorizado;
+        MotivoRejeicao = motivo;
         return Result.Success();
     }
 

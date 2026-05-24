@@ -59,6 +59,7 @@ public sealed class NfceProcessingJob
             or StatusDocumento.Rejeitado
             or StatusDocumento.Denegado
             or StatusDocumento.Cancelado
+            or StatusDocumento.Cancelando
             or StatusDocumento.Falhou)
         {
             _logger.LogInformation("Documento {DocumentoId} já em status final {Status} — ignorado.",
