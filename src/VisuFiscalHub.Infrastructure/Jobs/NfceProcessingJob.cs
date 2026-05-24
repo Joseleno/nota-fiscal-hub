@@ -147,7 +147,13 @@ public sealed class NfceProcessingJob
             throw new InvalidOperationException($"NProt ausente na autorização de {documento.Id.Value}.");
         }
 
-        var qrCode = QrCode.FromStorage(documento.ChaveAcesso.Valor);
+        if (string.IsNullOrWhiteSpace(retorno.QrCodeUrl))
+        {
+            _logger.LogError("QrCodeUrl ausente no retorno SEFAZ para {DocumentoId}", documento.Id.Value);
+            throw new InvalidOperationException($"QrCodeUrl ausente na autorização de {documento.Id.Value}.");
+        }
+
+        var qrCode = QrCode.FromStorage(retorno.QrCodeUrl);
         var authorizedAt = _timeProvider.GetUtcNow();
 
         var authResult = documento.Autorizar(
@@ -193,7 +199,8 @@ public sealed class NfceProcessingJob
 
         if (consulta.Autorizado && !string.IsNullOrWhiteSpace(consulta.NProt))
         {
-            var qrCode = QrCode.FromStorage(documento.ChaveAcesso.Valor);
+            var qrCode = documento.QrCode
+                ?? QrCode.FromStorage(documento.ChaveAcesso.Valor);
             var authorizedAt = _timeProvider.GetUtcNow();
 
             var authResult = documento.Autorizar(
