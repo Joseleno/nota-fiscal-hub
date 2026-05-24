@@ -63,7 +63,8 @@ internal static class SefazRetornoParser
                 CStat:         cStat,
                 XMotivo:       xMotivo,
                 NProt:         nProt,
-                XmlAutorizado: autorizado ? xmlProt : null));
+                XmlAutorizado: autorizado ? xmlProt : null,
+                QrCodeUrl:     null));
         }
         catch (XmlException ex)
         {

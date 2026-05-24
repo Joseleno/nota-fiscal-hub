@@ -73,6 +73,8 @@ internal sealed class SefazClient : ISefazClient
             return Result.Failure<SefazRetorno>(xmlResult.Error);
         }
 
+        var qrCodeUrl = ExtractQrCodeUrl(xmlResult.Value);
+
         XmlDocument xmlAssinado;
         try
         {
@@ -110,7 +112,9 @@ internal sealed class SefazClient : ISefazClient
                 new Error("Sefaz.HttpFalhou", $"Falha na comunicação com SEFAZ: {ex.Message}"));
         }
 
-        return SefazRetornoParser.Parse(soapResponse);
+        var retorno = SefazRetornoParser.Parse(soapResponse);
+        if (retorno.IsFailure) return retorno;
+        return Result.Success(retorno.Value with { QrCodeUrl = qrCodeUrl });
     }
 
     public async Task<Result<SefazConsultaRetorno>> ConsultarNfeAsync(
@@ -215,6 +219,13 @@ internal sealed class SefazClient : ISefazClient
             return Result.Failure<SefazConsultaRetorno>(
                 new Error("Sefaz.ConsultaXmlInvalido", $"Falha ao parsear consulta SEFAZ: {ex.Message}"));
         }
+    }
+
+    private static string? ExtractQrCodeUrl(XmlDocument doc)
+    {
+        var ns = new XmlNamespaceManager(doc.NameTable);
+        ns.AddNamespace("nfe", "http://www.portalfiscal.inf.br/nfe");
+        return doc.SelectSingleNode("//nfe:infNFeSupl/nfe:qrCode", ns)?.InnerText;
     }
 
     private Result<SefazRetorno> Falha(string motivo, DocumentoFiscalId id)

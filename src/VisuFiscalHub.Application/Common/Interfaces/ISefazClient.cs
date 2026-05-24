@@ -8,7 +8,8 @@ public sealed record SefazRetorno(
     string CStat,
     string XMotivo,
     string? NProt,
-    string? XmlAutorizado);
+    string? XmlAutorizado,
+    string? QrCodeUrl);
 
 public sealed record SefazConsultaRetorno(
     bool Encontrado,
