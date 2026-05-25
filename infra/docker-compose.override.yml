@@ -3,14 +3,35 @@
 services:
   hub:
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Docker
       Serilog__MinimumLevel__Default: Debug
       HangfireDashboard__User: ""
       HangfireDashboard__Password: ""
       POSTGRES_INCLUDE_ERROR_DETAIL: "true"
     volumes:
       - ../src/VisuFiscalHub.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
+      - ../src/VisuFiscalHub.Api/appsettings.Docker.json:/app/appsettings.Docker.json:ro
+
+  seq:
+    image: datalust/seq:latest
+    container_name: visu-fiscal-seq
+    environment:
+      - ACCEPT_EULA=Y
+    ports:
+      - "5341:5341"
+      - "8081:80"
+    volumes:
+      - seq-data:/data
+    networks:
+      - hub-network
 
   postgres:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
+
+volumes:
+  seq-data:
+
+networks:
+  hub-network:
+    external: true

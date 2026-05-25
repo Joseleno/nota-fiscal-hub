@@ -52,7 +52,8 @@ try
         config.ReadFrom.Configuration(ctx.Configuration)
               .ReadFrom.Services(services)
               .Enrich.FromLogContext()
-              .WriteTo.Console());
+              .Enrich.WithMachineName()
+              .Enrich.WithThreadId());
 
     // ── Application + Infrastructure ────────────────────────────────────────
     builder.Services.AddApplication();
