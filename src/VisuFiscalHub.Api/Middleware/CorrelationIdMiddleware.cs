@@ -1,5 +1,6 @@
 using Serilog.Context;
 using System.Text.RegularExpressions;
+using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Api.Middleware;
 
@@ -25,6 +26,7 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next)
 
         context.Response.Headers["X-Correlation-Id"] = correlationId;
         context.Items["CorrelationId"] = correlationId;
+        CorrelationIdAmbient.Set(correlationId);
 
         using var _ = LogContext.PushProperty("CorrelationId", correlationId);
         await next(context);

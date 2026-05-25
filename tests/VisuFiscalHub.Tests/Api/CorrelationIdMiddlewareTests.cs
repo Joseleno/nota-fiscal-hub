@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Shouldly;
 using VisuFiscalHub.Api.Middleware;
+using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Tests.Api;
 
@@ -56,5 +57,24 @@ public class CorrelationIdMiddlewareTests
 
         var id = context.Response.Headers["X-Correlation-Id"].ToString();
         id.ShouldBe("id-123malicious");
+    }
+
+    [Fact]
+    public async Task Invoke_CorrelationIdSetadoNoAmbient_DuranteExecucao()
+    {
+        string? ambientDuranteExecucao = null;
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Correlation-Id"] = "test-correlation-123";
+
+        RequestDelegate next = ctx =>
+        {
+            ambientDuranteExecucao = CorrelationIdAmbient.Current;
+            return Task.CompletedTask;
+        };
+
+        var middleware = new CorrelationIdMiddleware(next);
+        await middleware.InvokeAsync(context);
+
+        ambientDuranteExecucao.ShouldBe("test-correlation-123");
     }
 }
