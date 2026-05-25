@@ -460,6 +460,40 @@ try
         })
         .RequireRateLimiting("api");
 
+    documentos.MapPost("/nfe",
+        async (
+            IssueNfeRequest request,
+            HttpContext ctx,
+            ICurrentUserContext userCtx,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var idempotencyKey = ctx.Request.Headers["X-Idempotency-Key"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+                return Results.Problem(
+                    detail: "DocumentoFiscal.IdempotencyKeyInvalida",
+                    title: "X-Idempotency-Key é obrigatório.",
+                    statusCode: StatusCodes.Status422UnprocessableEntity);
+
+            var command = new IssueDocumentCommand
+            {
+                TenantId = userCtx.TenantId,
+                ClienteAppId = userCtx.ClienteAppId,
+                IdempotencyKey = idempotencyKey,
+                Tipo = TipoDocumento.NFe,
+                Itens = request.Itens,
+                Pagamentos = request.Pagamentos,
+                IndPresenca = request.IndPresenca,
+                NatOp = request.NatOp,
+                NfeDestinatario = request.NfeDestinatario,
+                ModFrete = request.ModFrete
+            };
+
+            return (await mediator.Send(command, ct))
+                .ToHttpResult(r => Results.Accepted($"/api/v1/documentos/{r.DocumentoId.Value}/status", r));
+        })
+        .RequireRateLimiting("api");
+
     documentos.MapGet("/{id:guid}/status",
         async (
             Guid id,
@@ -574,5 +608,13 @@ internal sealed record IssueNfceRequest(
     IReadOnlyList<PagamentoDto> Pagamentos,
     ConsumidorDto? Consumidor,
     int IndPresenca = 1);
+
+internal sealed record IssueNfeRequest(
+    IReadOnlyList<ItemDocumentoDto> Itens,
+    IReadOnlyList<PagamentoDto> Pagamentos,
+    NfeDestinatarioDto NfeDestinatario,
+    string NatOp,
+    int IndPresenca = 0,
+    int ModFrete = 9);
 
 public partial class Program { }
