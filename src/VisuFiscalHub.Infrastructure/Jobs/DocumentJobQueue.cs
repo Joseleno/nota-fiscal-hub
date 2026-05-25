@@ -17,7 +17,7 @@ internal sealed class DocumentJobQueue : IDocumentJobQueue
     {
         // Enfileira o job de processamento SEFAZ via Hangfire (fire-and-forget).
         // O job é persistido no PostgreSQL — sobrevive a restarts do processo.
-        _jobClient.Enqueue<NfceProcessingJob>(job => job.ExecuteAsync(id, CancellationToken.None));
+        _jobClient.Enqueue<FiscalDocumentProcessingJob>(job => job.ExecuteAsync(id, CancellationToken.None));
         return Task.CompletedTask;
     }
 }

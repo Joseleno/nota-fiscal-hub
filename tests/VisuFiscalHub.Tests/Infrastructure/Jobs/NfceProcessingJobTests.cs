@@ -14,7 +14,7 @@ using VisuFiscalHub.Tests.Helpers;
 namespace VisuFiscalHub.Tests.Infrastructure.Jobs;
 
 /// <summary>
-/// Testa o roteamento de ExecuteAsync do NfceProcessingJob conforme cStat retornado pela SEFAZ.
+/// Testa o roteamento de ExecuteAsync do FiscalDocumentProcessingJob conforme cStat retornado pela SEFAZ.
 /// O DocumentoFiscal real é usado para garantir que as transições de estado são exercitadas
 /// com as invariantes do domínio, não apenas com mocks.
 /// </summary>
@@ -32,9 +32,9 @@ public class NfceProcessingJobTests
     private const string FakeQrUrl =
         "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=43260111222333000181650010000000011000000014|2|1|a3f1c2b4d5e6f7890a1b2c3d4e5f6a7b8c9d0e1f";
 
-    private NfceProcessingJob CreateJob() =>
+    private FiscalDocumentProcessingJob CreateJob() =>
         new(_documentoRepo, _tenantRepo, _sefazClient, _unitOfWork, _timeProvider,
-            NullLogger<NfceProcessingJob>.Instance);
+            NullLogger<FiscalDocumentProcessingJob>.Instance);
 
     // ── documento não encontrado ──────────────────────────────────────────────────
 
@@ -164,7 +164,7 @@ public class NfceProcessingJobTests
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
 
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   true,
@@ -188,7 +188,7 @@ public class NfceProcessingJobTests
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
 
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<SefazConsultaRetorno>(new Error("Sefaz.Timeout", "Timeout na consulta.")));
 
         await Should.ThrowAsync<InvalidOperationException>(
@@ -347,7 +347,7 @@ public class NfceProcessingJobTests
 
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
                 NProt: "135260000099999", XmlProtocolo: "<nfeProc/>")));
@@ -368,7 +368,7 @@ public class NfceProcessingJobTests
         var documento = DocumentoFiscalBuilder.Processando(id: id);
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
                 NProt: "135260000099998", XmlProtocolo: "<nfeProc/>")));

@@ -55,5 +55,8 @@ public sealed record QrCode
         return new(urlCompleta);
     }
 
+    // Sentinel for document types that don't use QR codes (NF-e Modelo 55).
+    public static QrCode NaoAplicavel() => new(string.Empty);
+
     public override string ToString() => UrlCompleta;
 }

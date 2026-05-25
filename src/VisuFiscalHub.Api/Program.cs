@@ -531,7 +531,7 @@ try
             "*/30 * * * * *"); // A cada 30 segundos — latência de entrega webhook
 
         RecurringJob.AddOrUpdate<ReconciliacaoJobProcessor>(
-            "reconciliacao-nfce",
+            "reconciliacao-fiscal",
             job => job.ExecuteAsync(CancellationToken.None),
             "*/5 * * * *"); // A cada 5 minutos
     }

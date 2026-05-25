@@ -10,30 +10,31 @@ using VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
 namespace VisuFiscalHub.Infrastructure.Jobs;
 
 /// <summary>
-/// Job Hangfire que processa uma NFC-e do estado Enfileirado (ou Processando pós-crash) até
-/// Autorizado / Rejeitado / Denegado. Falhas transitórias mantêm status Processando para que
-/// o retry do Hangfire possa reiniciar — Falhar() só é chamado pelo ReconciliacaoJobProcessor
-/// que detecta o documento travado após todos os retries esgotados.
+/// Job Hangfire que processa um documento fiscal (NFC-e ou NF-e) do estado Enfileirado
+/// (ou Processando pós-crash) até Autorizado / Rejeitado / Denegado. Falhas transitórias
+/// mantêm status Processando para que o retry do Hangfire possa reiniciar — Falhar() só é
+/// chamado pelo ReconciliacaoJobProcessor que detecta o documento travado após todos os
+/// retries esgotados.
 /// </summary>
 [AutomaticRetry(Attempts = 5, DelaysInSeconds = [30, 120, 600, 1800, 3600],
     OnAttemptsExceeded = AttemptsExceededAction.Fail)]
 [DisableConcurrentExecution(timeoutInSeconds: 60)]
-public sealed class NfceProcessingJob
+public sealed class FiscalDocumentProcessingJob
 {
     private readonly IDocumentoFiscalRepository _documentoRepo;
     private readonly ITenantRepository _tenantRepo;
     private readonly ISefazClient _sefazClient;
     private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<NfceProcessingJob> _logger;
+    private readonly ILogger<FiscalDocumentProcessingJob> _logger;
 
-    public NfceProcessingJob(
+    public FiscalDocumentProcessingJob(
         IDocumentoFiscalRepository documentoRepo,
         ITenantRepository tenantRepo,
         ISefazClient sefazClient,
         IUnitOfWork unitOfWork,
         TimeProvider timeProvider,
-        ILogger<NfceProcessingJob> logger)
+        ILogger<FiscalDocumentProcessingJob> logger)
     {
         _documentoRepo = documentoRepo;
         _tenantRepo = tenantRepo;
@@ -45,7 +46,7 @@ public sealed class NfceProcessingJob
 
     public async Task ExecuteAsync(DocumentoFiscalId documentoId, CancellationToken ct)
     {
-        _logger.LogInformation("Iniciando processamento NFC-e {DocumentoId}", documentoId.Value);
+        _logger.LogInformation("Iniciando processamento documento {DocumentoId}", documentoId.Value);
 
         var documento = await _documentoRepo.GetByIdForUpdateAsync(documentoId, ct);
         if (documento is null)
@@ -144,17 +145,21 @@ public sealed class NfceProcessingJob
     {
         if (string.IsNullOrWhiteSpace(retorno.NProt))
         {
-            _logger.LogError("SEFAZ retornou Autorizado mas NProt está vazio para {DocumentoId}", documento.Id.Value);
+            _logger.LogError("NProt ausente para {DocumentoId}", documento.Id.Value);
             throw new InvalidOperationException($"NProt ausente na autorização de {documento.Id.Value}.");
         }
 
-        if (string.IsNullOrWhiteSpace(retorno.QrCodeUrl))
+        // NFC-e requires QR code; NF-e does not have one
+        if (documento.Tipo == TipoDocumento.NfCe && string.IsNullOrWhiteSpace(retorno.QrCodeUrl))
         {
-            _logger.LogError("QrCodeUrl ausente no retorno SEFAZ para {DocumentoId}", documento.Id.Value);
+            _logger.LogError("QrCodeUrl ausente para NFC-e {DocumentoId}", documento.Id.Value);
             throw new InvalidOperationException($"QrCodeUrl ausente na autorização de {documento.Id.Value}.");
         }
 
-        var qrCode = QrCode.FromStorage(retorno.QrCodeUrl);
+        var qrCode = documento.Tipo == TipoDocumento.NfCe
+            ? QrCode.FromStorage(retorno.QrCodeUrl!)
+            : QrCode.NaoAplicavel();
+
         var authorizedAt = _timeProvider.GetUtcNow();
 
         var authResult = documento.Autorizar(
@@ -175,7 +180,7 @@ public sealed class NfceProcessingJob
         await _documentoRepo.UpdateAsync(documento, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        _logger.LogInformation("NFC-e {DocumentoId} AUTORIZADA. Protocolo: {Protocolo}",
+        _logger.LogInformation("Documento {DocumentoId} AUTORIZADO. Protocolo: {Protocolo}",
             documento.Id.Value, retorno.NProt);
     }
 
@@ -184,7 +189,7 @@ public sealed class NfceProcessingJob
         CancellationToken ct)
     {
         var consultaResult = await _sefazClient.ConsultarNfeAsync(
-            documento.ChaveAcesso.Valor, documento.TenantId, ct);
+            documento.ChaveAcesso.Valor, documento.TenantId, documento.Tipo, ct);
 
         if (consultaResult.IsFailure)
         {
@@ -227,7 +232,7 @@ public sealed class NfceProcessingJob
             await _documentoRepo.UpdateAsync(documento, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            _logger.LogInformation("NFC-e {DocumentoId} AUTORIZADA via duplicidade. Protocolo: {NProt}",
+            _logger.LogInformation("Documento {DocumentoId} AUTORIZADO via duplicidade. Protocolo: {NProt}",
                 documento.Id.Value, consulta.NProt);
         }
         else
@@ -262,7 +267,7 @@ public sealed class NfceProcessingJob
         await _documentoRepo.UpdateAsync(documento, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        _logger.LogWarning("NFC-e {DocumentoId} REJEITADA. cStat={CStat} xMotivo={XMotivo}",
+        _logger.LogWarning("Documento {DocumentoId} REJEITADO. cStat={CStat} xMotivo={XMotivo}",
             documento.Id.Value, retorno.CStat, retorno.XMotivo);
     }
 
@@ -288,7 +293,7 @@ public sealed class NfceProcessingJob
         await _documentoRepo.UpdateAsync(documento, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        _logger.LogCritical("NFC-e {DocumentoId} DENEGADA para CNPJ {Cnpj}. cStat={CStat} xMotivo={XMotivo}",
+        _logger.LogCritical("Documento {DocumentoId} DENEGADO para CNPJ {Cnpj}. cStat={CStat} xMotivo={XMotivo}",
             documento.Id.Value, cnpjEmitente, retorno.CStat, retorno.XMotivo);
     }
 }

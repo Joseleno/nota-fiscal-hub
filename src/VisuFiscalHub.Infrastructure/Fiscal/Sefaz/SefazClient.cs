@@ -2,6 +2,7 @@ using System.Xml;
 using Microsoft.Extensions.Logging;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Common;
+using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
 
@@ -73,9 +74,12 @@ internal sealed class SefazClient : ISefazClient
             return Result.Failure<SefazRetorno>(xmlResult.Error);
         }
 
-        var qrCodeUrl = ExtractQrCodeUrl(xmlResult.Value);
-        if (qrCodeUrl is null)
-            _logger.LogWarning("QR Code URL ausente no XML gerado para {DocumentoId} — DANFE pode ficar incompleto.", documentoId.Value);
+        var qrCodeUrl = documento.Tipo == TipoDocumento.NfCe
+            ? ExtractQrCodeUrl(xmlResult.Value)
+            : null;
+
+        if (qrCodeUrl is null && documento.Tipo == TipoDocumento.NfCe)
+            _logger.LogWarning("QR Code URL ausente no XML NFC-e para {DocumentoId}.", documentoId.Value);
 
         XmlDocument xmlAssinado;
         try
@@ -94,7 +98,9 @@ internal sealed class SefazClient : ISefazClient
 
         var xmlStr   = xmlAssinado.OuterXml;
         var ufCodigo = tenant.ConfiguracaoFiscal.UfCodigo;
-        var url      = SefazEndpointResolver.Autorizacao(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
+        var url      = documento.Tipo == TipoDocumento.NFe
+            ? SefazEndpointResolver.AutorizacaoNfe(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente)
+            : SefazEndpointResolver.Autorizacao(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
         // TDec_015: 15 dígitos numéricos. Formato: yyyyMMddHHmmss + ms/10 (1 dígito).
         // O dígito de milissegundo previne colisão em retries no mesmo segundo UTC.
         var now    = _timeProvider.GetUtcNow();
@@ -122,6 +128,7 @@ internal sealed class SefazClient : ISefazClient
     public async Task<Result<SefazConsultaRetorno>> ConsultarNfeAsync(
         string chaveAcesso,
         TenantId tenantId,
+        TipoDocumento tipo,
         CancellationToken ct)
     {
         // Consulta de NFC-e utiliza o mesmo endpoint de autorização (serviço NFeConsultaProtocolo4).
@@ -141,7 +148,9 @@ internal sealed class SefazClient : ISefazClient
         var tpAmb    = (int)tenant.ConfiguracaoFiscal.Ambiente;
 
         // URL de consulta mapeada explicitamente — nunca derivada por string.Replace.
-        var url      = SefazEndpointResolver.ConsultaProtocolo(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
+        var url = tipo == TipoDocumento.NFe
+            ? SefazEndpointResolver.ConsultaProtocoloNfe(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente)
+            : SefazEndpointResolver.ConsultaProtocolo(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
         var envelope = BuildConsultaEnvelope(chaveAcesso, ufCodigo, tpAmb);
 
         string soapResponse;

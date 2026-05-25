@@ -1,5 +1,6 @@
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Common;
+using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Tests.Integration.Infrastructure;
@@ -19,8 +20,8 @@ public sealed class FakeSefazClient : ISefazClient
             XmlAutorizado: "<protNFe/>",
             QrCodeUrl: "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=43260111222333000181650010000000011000000014|2|1|a3f1c2b4d5e6f7890a1b2c3d4e5f6a7b8c9d0e1f")));
 
-    private Func<string, TenantId, Task<Result<SefazConsultaRetorno>>> _consultaHandler =
-        (_, _) => Task.FromResult(Result.Success(new SefazConsultaRetorno(
+    private Func<string, TenantId, TipoDocumento, Task<Result<SefazConsultaRetorno>>> _consultaHandler =
+        (_, _, _) => Task.FromResult(Result.Success(new SefazConsultaRetorno(
             Encontrado: true,
             Autorizado: true,
             CStat: "100",
@@ -49,7 +50,7 @@ public sealed class FakeSefazClient : ISefazClient
             Autorizado: false, CStat: cStat, XMotivo: "NF-e em duplicidade",
             NProt: null, XmlAutorizado: null, QrCodeUrl: null)));
 
-        _consultaHandler = (_, _) => Task.FromResult(Result.Success(new SefazConsultaRetorno(
+        _consultaHandler = (_, _, _) => Task.FromResult(Result.Success(new SefazConsultaRetorno(
             Encontrado: true, Autorizado: true, CStat: "100",
             NProt: nProtConsulta, XmlProtocolo: "<protNFe/>")));
     }
@@ -59,6 +60,6 @@ public sealed class FakeSefazClient : ISefazClient
         _submitHandler(documentoId, tenantId);
 
     public Task<Result<SefazConsultaRetorno>> ConsultarNfeAsync(
-        string chaveAcesso, TenantId tenantId, CancellationToken ct) =>
-        _consultaHandler(chaveAcesso, tenantId);
+        string chaveAcesso, TenantId tenantId, TipoDocumento tipo, CancellationToken ct) =>
+        _consultaHandler(chaveAcesso, tenantId, tipo);
 }

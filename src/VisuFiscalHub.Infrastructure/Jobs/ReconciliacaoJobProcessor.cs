@@ -76,7 +76,7 @@ public sealed class ReconciliacaoJobProcessor
         }
 
         var consultaResult = await _sefazClient.ConsultarNfeAsync(
-            documento.ChaveAcesso.Valor, documento.TenantId, ct);
+            documento.ChaveAcesso.Valor, documento.TenantId, documento.Tipo, ct);
 
         if (consultaResult.IsFailure)
         {

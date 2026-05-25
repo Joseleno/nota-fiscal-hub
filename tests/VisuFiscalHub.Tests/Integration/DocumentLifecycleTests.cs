@@ -35,11 +35,11 @@ public sealed class DocumentLifecycleTests : IntegrationTestBase
         return (http, body!.DocumentoId.Value);
     }
 
-    // Invoca NfceProcessingJob diretamente via DI — dispensa Hangfire em execução.
+    // Invoca FiscalDocumentProcessingJob diretamente via DI — dispensa Hangfire em execução.
     private async Task ProcessarAsync(Guid documentoId)
     {
         using var scope = Factory.Services.CreateScope();
-        var job = scope.ServiceProvider.GetRequiredService<NfceProcessingJob>();
+        var job = scope.ServiceProvider.GetRequiredService<FiscalDocumentProcessingJob>();
         await job.ExecuteAsync(new DocumentoFiscalId(documentoId), CancellationToken.None);
     }
 

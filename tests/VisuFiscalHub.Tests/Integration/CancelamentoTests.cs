@@ -31,7 +31,7 @@ public sealed class CancelamentoTests : IntegrationTestBase
         var docId = emitirBody!.DocumentoId.Value;
 
         using var scope = Factory.Services.CreateScope();
-        var job = scope.ServiceProvider.GetRequiredService<NfceProcessingJob>();
+        var job = scope.ServiceProvider.GetRequiredService<FiscalDocumentProcessingJob>();
         await job.ExecuteAsync(new DocumentoFiscalId(docId), CancellationToken.None);
 
         return (http, docId);

@@ -115,7 +115,7 @@ public static class DependencyInjection
 
         services.AddScoped<IDocumentJobQueue, DocumentJobQueue>();
         services.AddScoped<OutboxRelayJob>();
-        services.AddScoped<NfceProcessingJob>();
+        services.AddScoped<FiscalDocumentProcessingJob>();
         services.AddScoped<ReconciliacaoJobProcessor>();
         services.AddScoped<CancelamentoJob>();
         services.AddScoped<ICancelamentoJobQueue, HangfireCancelamentoJobQueue>();

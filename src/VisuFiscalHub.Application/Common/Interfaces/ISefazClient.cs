@@ -1,4 +1,5 @@
 using VisuFiscalHub.Domain.Common;
+using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 
 namespace VisuFiscalHub.Application.Common.Interfaces;
@@ -28,5 +29,6 @@ public interface ISefazClient
     Task<Result<SefazConsultaRetorno>> ConsultarNfeAsync(
         string chaveAcesso,
         TenantId tenantId,
+        TipoDocumento tipo,
         CancellationToken ct);
 }

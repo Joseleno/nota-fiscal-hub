@@ -45,7 +45,7 @@ public class ReconciliacaoJobProcessorTests
         await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         await _sefazClient.DidNotReceiveWithAnyArgs()
-            .ConsultarNfeAsync(default!, default, default);
+            .ConsultarNfeAsync(default!, default, default, default);
     }
 
     // ── threshold passado ao repositório ─────────────────────────────────────────
@@ -74,7 +74,7 @@ public class ReconciliacaoJobProcessorTests
         ConfigurarDocumentosTravados(documento);
 
         _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<SefazConsultaRetorno>(
                 new Error("Sefaz.Timeout", "Timeout na consulta.")));
 
@@ -149,7 +149,7 @@ public class ReconciliacaoJobProcessorTests
         ConfigurarDocumentosTravados(documento);
 
         _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   true,
@@ -188,7 +188,7 @@ public class ReconciliacaoJobProcessorTests
         ConfigurarDocumentosTravados(documento);
 
         _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   false,
@@ -259,7 +259,7 @@ public class ReconciliacaoJobProcessorTests
             .Returns(new[] { doc1, doc2 });
 
         _sefazClient
-            .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   false,
                 Autorizado:   false,
@@ -272,7 +272,7 @@ public class ReconciliacaoJobProcessorTests
         doc1.Status.ShouldBe(StatusDocumento.Falhou);
         doc2.Status.ShouldBe(StatusDocumento.Falhou);
         await _sefazClient.Received(2)
-            .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<CancellationToken>());
+            .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>());
         // Cada documento produz um SaveChangesAsync independente.
         await _unitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -286,7 +286,7 @@ public class ReconciliacaoJobProcessorTests
 
     private void ConfigurarConsultaAutorizado(DocumentoFiscal documento, string protocolo)
         => _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   true,
@@ -296,7 +296,7 @@ public class ReconciliacaoJobProcessorTests
 
     private void ConfigurarConsultaNaoEncontrado(DocumentoFiscal documento)
         => _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   false,
                 Autorizado:   false,
