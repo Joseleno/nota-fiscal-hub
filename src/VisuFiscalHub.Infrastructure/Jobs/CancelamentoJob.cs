@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using Serilog.Context;
 using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
@@ -73,6 +74,9 @@ internal sealed class CancelamentoJob
                 documentoId.Value);
             return;
         }
+
+        using var tenantScope = LogContext.PushProperty("TenantId", documento.TenantId.Value);
+        using var docScope    = LogContext.PushProperty("DocumentoId", documentoId.Value);
 
         var tenant = await _tenantRepo.GetByIdAsync(documento.TenantId, ct);
         if (tenant is null || !tenant.IsActive)
