@@ -17,6 +17,8 @@ public sealed class GlobalExceptionHandler(
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
+        var correlationId = httpContext.Items["CorrelationId"] as string;
+
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
@@ -25,7 +27,8 @@ public sealed class GlobalExceptionHandler(
             {
                 Status = StatusCodes.Status500InternalServerError,
                 Title = "Erro interno do servidor.",
-                Detail = "Ocorreu um erro inesperado. Por favor, tente novamente mais tarde."
+                Detail = "Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.",
+                Extensions = { ["correlationId"] = correlationId }
             }
         });
     }
