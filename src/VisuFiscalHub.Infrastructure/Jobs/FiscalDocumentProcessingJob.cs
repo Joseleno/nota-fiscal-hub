@@ -1,11 +1,14 @@
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using Serilog.Context;
 using VisuFiscalHub.Application.Common.Interfaces;
+using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Domain.ValueObjects;
 using VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
+using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Infrastructure.Jobs;
 
@@ -27,6 +30,7 @@ public sealed class FiscalDocumentProcessingJob
     private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<FiscalDocumentProcessingJob> _logger;
+    private readonly ApplicationDbContext _dbContext;
 
     public FiscalDocumentProcessingJob(
         IDocumentoFiscalRepository documentoRepo,
@@ -34,7 +38,8 @@ public sealed class FiscalDocumentProcessingJob
         ISefazClient sefazClient,
         IUnitOfWork unitOfWork,
         TimeProvider timeProvider,
-        ILogger<FiscalDocumentProcessingJob> logger)
+        ILogger<FiscalDocumentProcessingJob> logger,
+        ApplicationDbContext dbContext)
     {
         _documentoRepo = documentoRepo;
         _tenantRepo = tenantRepo;
@@ -42,6 +47,7 @@ public sealed class FiscalDocumentProcessingJob
         _unitOfWork = unitOfWork;
         _timeProvider = timeProvider;
         _logger = logger;
+        _dbContext = dbContext;
     }
 
     public async Task ExecuteAsync(DocumentoFiscalId documentoId, CancellationToken ct)
@@ -54,6 +60,9 @@ public sealed class FiscalDocumentProcessingJob
             _logger.LogError("Documento {DocumentoId} não encontrado no processamento", documentoId.Value);
             return;
         }
+
+        using var tenantScope = LogContext.PushProperty("TenantId", documento.TenantId.Value);
+        using var docScope    = LogContext.PushProperty("DocumentoId", documentoId.Value);
 
         // Idempotência: status finais são terminais — não processar novamente.
         if (documento.Status is StatusDocumento.Autorizado
@@ -177,7 +186,17 @@ public sealed class FiscalDocumentProcessingJob
                 $"Falha ao autorizar {documento.Id.Value}: {authResult.Error.Code}");
         }
 
+        var attempt = DeliveryAttempt.Criar(
+            documento.Id,
+            TipoTentativa.Envio,
+            _timeProvider.GetUtcNow(),
+            success: true,
+            responseCode: retorno.CStat,
+            responseMessage: null,
+            elapsedMs: retorno.ElapsedMs);
+
         await _documentoRepo.UpdateAsync(documento, ct);
+        _dbContext.DeliveryAttempts.Add(attempt);
         await _unitOfWork.SaveChangesAsync(ct);
 
         _logger.LogInformation("Documento {DocumentoId} AUTORIZADO. Protocolo: {Protocolo}",
@@ -230,7 +249,27 @@ public sealed class FiscalDocumentProcessingJob
                     $"Falha ao autorizar duplicidade {documento.Id.Value}: {authResult.Error.Code}");
             }
 
+            var attemptEnvio = DeliveryAttempt.Criar(
+                documento.Id,
+                TipoTentativa.Envio,
+                _timeProvider.GetUtcNow(),
+                success: false,
+                responseCode: "572",
+                responseMessage: "Duplicidade detectada — consulta realizada",
+                elapsedMs: 0L);
+
+            var attemptConsulta = DeliveryAttempt.Criar(
+                documento.Id,
+                TipoTentativa.Consulta,
+                _timeProvider.GetUtcNow(),
+                success: true,
+                responseCode: consulta.CStat,
+                responseMessage: null,
+                elapsedMs: consulta.ElapsedMs);
+
             await _documentoRepo.UpdateAsync(documento, ct);
+            _dbContext.DeliveryAttempts.Add(attemptEnvio);
+            _dbContext.DeliveryAttempts.Add(attemptConsulta);
             await _unitOfWork.SaveChangesAsync(ct);
 
             _logger.LogInformation("Documento {DocumentoId} AUTORIZADO via duplicidade. Protocolo: {NProt}",
@@ -265,7 +304,17 @@ public sealed class FiscalDocumentProcessingJob
                 $"Falha ao rejeitar {documento.Id.Value}: {rejectResult.Error.Code}");
         }
 
+        var attempt = DeliveryAttempt.Criar(
+            documento.Id,
+            TipoTentativa.Envio,
+            _timeProvider.GetUtcNow(),
+            success: false,
+            responseCode: retorno.CStat,
+            responseMessage: retorno.XMotivo,
+            elapsedMs: retorno.ElapsedMs);
+
         await _documentoRepo.UpdateAsync(documento, ct);
+        _dbContext.DeliveryAttempts.Add(attempt);
         await _unitOfWork.SaveChangesAsync(ct);
 
         _logger.LogWarning("Documento {DocumentoId} REJEITADO. cStat={CStat} xMotivo={XMotivo}",
@@ -291,7 +340,17 @@ public sealed class FiscalDocumentProcessingJob
                 $"Falha ao denegar {documento.Id.Value}: {denyResult.Error.Code}");
         }
 
+        var attempt = DeliveryAttempt.Criar(
+            documento.Id,
+            TipoTentativa.Envio,
+            _timeProvider.GetUtcNow(),
+            success: false,
+            responseCode: retorno.CStat,
+            responseMessage: motivo,
+            elapsedMs: retorno.ElapsedMs);
+
         await _documentoRepo.UpdateAsync(documento, ct);
+        _dbContext.DeliveryAttempts.Add(attempt);
         await _unitOfWork.SaveChangesAsync(ct);
 
         _logger.LogCritical("Documento {DocumentoId} DENEGADO para CNPJ {Cnpj}. cStat={CStat} xMotivo={XMotivo}",

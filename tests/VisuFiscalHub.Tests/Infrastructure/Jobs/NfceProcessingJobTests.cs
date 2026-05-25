@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -9,6 +11,7 @@ using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Domain.ValueObjects;
 using VisuFiscalHub.Infrastructure.Jobs;
+using VisuFiscalHub.Infrastructure.Persistence;
 using VisuFiscalHub.Tests.Helpers;
 
 namespace VisuFiscalHub.Tests.Infrastructure.Jobs;
@@ -32,9 +35,43 @@ public class FiscalDocumentProcessingJobTests
     private const string FakeQrUrl =
         "https://www.sefaz.rs.gov.br/NFCE/NFCE-consulta.aspx?p=43260111222333000181650010000000011000000014|2|1|a3f1c2b4d5e6f7890a1b2c3d4e5f6a7b8c9d0e1f";
 
-    private FiscalDocumentProcessingJob CreateJob() =>
-        new(_documentoRepo, _tenantRepo, _sefazClient, _unitOfWork, _timeProvider,
-            NullLogger<FiscalDocumentProcessingJob>.Instance);
+    private FiscalDocumentProcessingJob CreateJob()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        var dbContext = new ApplicationDbContext(options, NullLoggerFactory.Instance);
+        return new(_documentoRepo, _tenantRepo, _sefazClient, _unitOfWork, _timeProvider,
+            NullLogger<FiscalDocumentProcessingJob>.Instance, dbContext);
+    }
+
+    private (FiscalDocumentProcessingJob job,
+             IDocumentoFiscalRepository documentoRepo,
+             ITenantRepository tenantRepo,
+             ISefazClient sefazClient,
+             ApplicationDbContext dbContext,
+             IUnitOfWork unitOfWork,
+             TimeProvider timeProvider) CriarJobComDbContext()
+    {
+        var documentoRepo = Substitute.For<IDocumentoFiscalRepository>();
+        var tenantRepo    = Substitute.For<ITenantRepository>();
+        var sefazClient   = Substitute.For<ISefazClient>();
+        var unitOfWork    = Substitute.For<IUnitOfWork>();
+        var timeProvider  = new FixedTimeProvider(FixedNow);
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        var dbContext = new ApplicationDbContext(options, NullLoggerFactory.Instance);
+
+        var job = new FiscalDocumentProcessingJob(
+            documentoRepo, tenantRepo, sefazClient, unitOfWork, timeProvider,
+            NullLogger<FiscalDocumentProcessingJob>.Instance, dbContext);
+
+        return (job, documentoRepo, tenantRepo, sefazClient, dbContext, unitOfWork, timeProvider);
+    }
 
     // ── documento não encontrado ──────────────────────────────────────────────────
 
@@ -381,6 +418,51 @@ public class FiscalDocumentProcessingJobTests
         documento.Status.ShouldBe(StatusDocumento.Autorizado);
         documento.QrCode.ShouldNotBeNull("fallback deve preencher QrCode com chave de acesso");
         documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso.Valor);
+    }
+
+    // ── DeliveryAttempt registrado em cada resultado SEFAZ ───────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_SefazAutorizado_CriaDeliveryAttemptEnvio()
+    {
+        var (job, documentoRepo, _, sefazClient, dbContext, unitOfWork, _) = CriarJobComDbContext();
+        var doc = DocumentoFiscalBuilder.Enfileirado();
+        documentoRepo.GetByIdForUpdateAsync(doc.Id, Arg.Any<CancellationToken>()).Returns(doc);
+        sefazClient.SubmeterAutorizacaoAsync(doc.Id, doc.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazRetorno(
+                Autorizado: true, CStat: "100", XMotivo: "Autorizado",
+                NProt: "135260000000001", XmlAutorizado: "<protNFe/>",
+                QrCodeUrl: FakeQrUrl, ElapsedMs: 150L)));
+
+        await job.ExecuteAsync(doc.Id, CancellationToken.None);
+
+        dbContext.DeliveryAttempts.Local.ShouldContain(a =>
+            a.DocumentoFiscalId == doc.Id &&
+            a.TipoTentativa == TipoTentativa.Envio &&
+            a.Success &&
+            a.ResponseCode == "100" &&
+            a.ElapsedMs == 150L);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SefazRejeitado_CriaDeliveryAttemptEnvioFalso()
+    {
+        var (job, documentoRepo, _, sefazClient, dbContext, unitOfWork, _) = CriarJobComDbContext();
+        var doc = DocumentoFiscalBuilder.Enfileirado();
+        documentoRepo.GetByIdForUpdateAsync(doc.Id, Arg.Any<CancellationToken>()).Returns(doc);
+        sefazClient.SubmeterAutorizacaoAsync(doc.Id, doc.TenantId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazRetorno(
+                Autorizado: false, CStat: "999", XMotivo: "Rejeição",
+                NProt: null, XmlAutorizado: null,
+                QrCodeUrl: null, ElapsedMs: 80L)));
+
+        await job.ExecuteAsync(doc.Id, CancellationToken.None);
+
+        dbContext.DeliveryAttempts.Local.ShouldContain(a =>
+            a.DocumentoFiscalId == doc.Id &&
+            a.TipoTentativa == TipoTentativa.Envio &&
+            !a.Success &&
+            a.ElapsedMs == 80L);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────
