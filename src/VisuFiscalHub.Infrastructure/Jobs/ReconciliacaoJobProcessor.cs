@@ -99,7 +99,7 @@ public sealed class ReconciliacaoJobProcessor
                 _timeProvider.GetUtcNow(),
                 success: false,
                 responseCode: null,
-                responseMessage: consultaResult.Error.Message,
+                responseMessage: consultaResult.Error.Code,
                 elapsedMs: 0L);
             _dbContext.DeliveryAttempts.Add(attemptFalha);
             await _unitOfWork.SaveChangesAsync(ct);
