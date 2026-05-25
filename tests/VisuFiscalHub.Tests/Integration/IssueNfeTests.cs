@@ -55,8 +55,8 @@ public sealed class IssueNfeTests : IntegrationTestBase
                 origemMercadoria = 0,
                 tributo = new
                 {
-                    tipoIcms = 0,        // TipoIcms.CST
-                    csosnOuCst = 40,
+                    tipoIcms = 1,        // TipoIcms.CSOSN (Simples Nacional)
+                    csosnOuCst = 400,
                     aliquotaIcms = 0.0,
                     baseCalculoIcms = 0.0,
                     valorIcms = 0.0,
