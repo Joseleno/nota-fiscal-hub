@@ -208,16 +208,31 @@ internal static class SefazEndpointResolver
     }
 
     // ── NF-e Modelo 55 endpoints ────────────────────────────────────────────
-    // SVRS: AC AL AP DF ES PB RJ RN RO RR SC SE TO
+    // SVRS: AC(12) AL(27) AP(16) CE(23) DF(53) ES(32) PA(15) PB(25) PI(22) RJ(33) RN(24) RO(11) RR(14) SC(42) SE(28) TO(17)
     private static readonly IReadOnlySet<int> UfsSvrsNfe = new HashSet<int>
     {
-        12, 27, 16, 53, 32, 25, 33, 24, 11, 14, 42, 28, 17
+        12, // AC
+        27, // AL
+        16, // AP
+        23, // CE
+        53, // DF
+        32, // ES
+        15, // PA
+        25, // PB
+        22, // PI
+        33, // RJ
+        24, // RN
+        11, // RO
+        14, // RR
+        42, // SC
+        28, // SE
+        17  // TO
     };
 
-    // SVAN: AM BA CE GO MA MS MT PA PE PI
+    // SVAN: MA(21) only
     private static readonly IReadOnlySet<int> UfsSvanNfe = new HashSet<int>
     {
-        13, 29, 23, 52, 21, 50, 51, 15, 26, 22
+        21  // MA
     };
 
     private const string SvrsNfeP = "https://nfe.svrs.rs.gov.br/ws";
@@ -237,14 +252,26 @@ internal static class SefazEndpointResolver
 
         return ufCodigo switch
         {
+            13 => h ? "https://hom.sefaz.am.gov.br/services2/services/NfeAutorizacao4"
+                    : "https://nfe.sefaz.am.gov.br/services2/services/NfeAutorizacao4",            // AM
+            29 => h ? "https://hnfe.sefaz.ba.gov.br/webservices/NFeAutorizacao4/NFeAutorizacao4.asmx"
+                    : "https://nfe.sefaz.ba.gov.br/webservices/NFeAutorizacao4/NFeAutorizacao4.asmx", // BA
             31 => h ? "https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4"
-                    : "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4",
+                    : "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4",               // MG
             35 => h ? "https://homologacao.nfe.fazenda.sp.gov.br/nfeservice/services/NFeAutorizacao4"
-                    : "https://nfe.fazenda.sp.gov.br/nfeservice/services/NFeAutorizacao4",
+                    : "https://nfe.fazenda.sp.gov.br/nfeservice/services/NFeAutorizacao4",         // SP
             41 => h ? "https://homologacao.nfe.pr.gov.br/nfe/NFeAutorizacao4"
-                    : "https://nfe.pr.gov.br/nfe/NFeAutorizacao4",
+                    : "https://nfe.pr.gov.br/nfe/NFeAutorizacao4",                                 // PR
             43 => h ? "https://nfe-homologacao.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx"
-                    : "https://nfe.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx",
+                    : "https://nfe.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx",      // RS
+            50 => h ? "https://hom.nfe.fazenda.ms.gov.br/ws/NFeAutorizacao4"
+                    : "https://nfe.fazenda.ms.gov.br/ws/NFeAutorizacao4",                          // MS
+            51 => h ? "https://homologacao.sefaz.mt.gov.br/services/NFeAutorizacao4"
+                    : "https://nfe.sefaz.mt.gov.br/services/NFeAutorizacao4",                      // MT
+            52 => h ? "https://hnfe.sefaz.go.gov.br/nfe/services/NFeAutorizacao4"
+                    : "https://nfe.sefaz.go.gov.br/nfe/services/NFeAutorizacao4",                  // GO
+            26 => h ? "https://nfeh.sefaz.pe.gov.br/nfe-service/services/NFeAutorizacao4"
+                    : "https://nfe.sefaz.pe.gov.br/nfe-service/services/NFeAutorizacao4",          // PE
             _ => throw new InvalidOperationException($"UF {ufCodigo} sem endpoint NF-e de autorização mapeado.")
         };
     }
@@ -263,14 +290,26 @@ internal static class SefazEndpointResolver
 
         return ufCodigo switch
         {
+            13 => h ? "https://hom.sefaz.am.gov.br/services2/services/NfeConsultaProtocolo4"
+                    : "https://nfe.sefaz.am.gov.br/services2/services/NfeConsultaProtocolo4",            // AM
+            29 => h ? "https://hnfe.sefaz.ba.gov.br/webservices/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx"
+                    : "https://nfe.sefaz.ba.gov.br/webservices/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx", // BA
             31 => h ? "https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeConsultaProtocolo4"
-                    : "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeConsultaProtocolo4",
+                    : "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeConsultaProtocolo4",               // MG
             35 => h ? "https://homologacao.nfe.fazenda.sp.gov.br/nfeservice/services/NFeConsultaProtocolo4"
-                    : "https://nfe.fazenda.sp.gov.br/nfeservice/services/NFeConsultaProtocolo4",
+                    : "https://nfe.fazenda.sp.gov.br/nfeservice/services/NFeConsultaProtocolo4",         // SP
             41 => h ? "https://homologacao.nfe.pr.gov.br/nfe/NFeConsultaProtocolo4"
-                    : "https://nfe.pr.gov.br/nfe/NFeConsultaProtocolo4",
+                    : "https://nfe.pr.gov.br/nfe/NFeConsultaProtocolo4",                                 // PR
             43 => h ? "https://nfe-homologacao.sefazrs.rs.gov.br/ws/NfeConsultaProtocolo/NFeConsultaProtocolo4.asmx"
-                    : "https://nfe.sefazrs.rs.gov.br/ws/NfeConsultaProtocolo/NFeConsultaProtocolo4.asmx",
+                    : "https://nfe.sefazrs.rs.gov.br/ws/NfeConsultaProtocolo/NFeConsultaProtocolo4.asmx", // RS
+            50 => h ? "https://hom.nfe.fazenda.ms.gov.br/ws/NFeConsultaProtocolo4"
+                    : "https://nfe.fazenda.ms.gov.br/ws/NFeConsultaProtocolo4",                          // MS
+            51 => h ? "https://homologacao.sefaz.mt.gov.br/services/NFeConsultaProtocolo4"
+                    : "https://nfe.sefaz.mt.gov.br/services/NFeConsultaProtocolo4",                      // MT
+            52 => h ? "https://hnfe.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4"
+                    : "https://nfe.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4",                  // GO
+            26 => h ? "https://nfeh.sefaz.pe.gov.br/nfe-service/services/NFeConsultaProtocolo4"
+                    : "https://nfe.sefaz.pe.gov.br/nfe-service/services/NFeConsultaProtocolo4",          // PE
             _ => throw new InvalidOperationException($"UF {ufCodigo} sem endpoint NF-e de consulta mapeado.")
         };
     }
@@ -289,14 +328,26 @@ internal static class SefazEndpointResolver
 
         return ufCodigo switch
         {
+            13 => h ? "https://hom.sefaz.am.gov.br/services2/services/NfeRecepcaoEvento4"
+                    : "https://nfe.sefaz.am.gov.br/services2/services/NfeRecepcaoEvento4",            // AM
+            29 => h ? "https://hnfe.sefaz.ba.gov.br/webservices/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx"
+                    : "https://nfe.sefaz.ba.gov.br/webservices/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx", // BA
             31 => h ? "https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4"
-                    : "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4",
+                    : "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4",               // MG
             35 => h ? "https://homologacao.nfe.fazenda.sp.gov.br/nfeservice/services/NFeRecepcaoEvento4"
-                    : "https://nfe.fazenda.sp.gov.br/nfeservice/services/NFeRecepcaoEvento4",
+                    : "https://nfe.fazenda.sp.gov.br/nfeservice/services/NFeRecepcaoEvento4",         // SP
             41 => h ? "https://homologacao.nfe.pr.gov.br/nfe/NFeRecepcaoEvento4"
-                    : "https://nfe.pr.gov.br/nfe/NFeRecepcaoEvento4",
+                    : "https://nfe.pr.gov.br/nfe/NFeRecepcaoEvento4",                                 // PR
             43 => h ? "https://nfe-homologacao.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx"
-                    : "https://nfe.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx",
+                    : "https://nfe.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx",   // RS
+            50 => h ? "https://hom.nfe.fazenda.ms.gov.br/ws/NFeRecepcaoEvento4"
+                    : "https://nfe.fazenda.ms.gov.br/ws/NFeRecepcaoEvento4",                          // MS
+            51 => h ? "https://homologacao.sefaz.mt.gov.br/services/NFeRecepcaoEvento4"
+                    : "https://nfe.sefaz.mt.gov.br/services/NFeRecepcaoEvento4",                      // MT
+            52 => h ? "https://hnfe.sefaz.go.gov.br/nfe/services/NFeRecepcaoEvento4"
+                    : "https://nfe.sefaz.go.gov.br/nfe/services/NFeRecepcaoEvento4",                  // GO
+            26 => h ? "https://nfeh.sefaz.pe.gov.br/nfe-service/services/NFeRecepcaoEvento4"
+                    : "https://nfe.sefaz.pe.gov.br/nfe-service/services/NFeRecepcaoEvento4",          // PE
             _ => throw new InvalidOperationException($"UF {ufCodigo} sem endpoint NF-e de evento mapeado.")
         };
     }
