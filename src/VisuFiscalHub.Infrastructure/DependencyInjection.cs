@@ -104,7 +104,8 @@ public static class DependencyInjection
             config
                 .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
                 .UseSimpleAssemblyNameTypeSerializer()
-                .UseRecommendedSerializerSettings();
+                .UseRecommendedSerializerSettings()
+                .UseFilter(new CorrelationIdJobFilter());
             if (!isTest)
                 config.UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(connectionString));
         });
