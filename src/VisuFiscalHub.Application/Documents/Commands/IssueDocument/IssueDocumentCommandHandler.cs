@@ -85,8 +85,12 @@ public sealed class IssueDocumentCommandHandler
         // (ChaveAcesso.Gerar, DocumentoFiscal.Criar) produz uma lacuna permanente na numeração.
         // Manter ChaveAcesso.Gerar e DocumentoFiscal.Criar com invariantes estritos e sem novas
         // operações fallíveis entre aqui e SaveChangesAsync.
+        var serie = command.Tipo == TipoDocumento.NFe
+            ? tenant.ConfiguracaoFiscal.SerieNfe ?? tenant.ConfiguracaoFiscal.Serie
+            : tenant.ConfiguracaoFiscal.Serie;
+
         var numeroResult = await _sequenceManager.GetNextNumeroAsync(
-            command.TenantId, tenant.ConfiguracaoFiscal.Serie, cancellationToken);
+            command.TenantId, serie, cancellationToken);
         if (numeroResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(numeroResult.Error);
 
@@ -102,7 +106,7 @@ public sealed class IssueDocumentCommandHandler
             aamm,
             tenant.Cnpj.Valor,
             (int)command.Tipo,
-            tenant.ConfiguracaoFiscal.Serie,
+            serie,
             numeroResult.Value.ToString(),
             TipoEmissao.Normal,
             cNF);
@@ -111,6 +115,19 @@ public sealed class IssueDocumentCommandHandler
             return Result.Failure<IssueDocumentResponse>(chaveResult.Error);
 
         // 7. Criar DocumentoFiscal
+        Domain.ValueObjects.NfeDestinatario? nfeDestinatario = null;
+        if (command.NfeDestinatario is { } destDto)
+        {
+            var destResult = Domain.ValueObjects.NfeDestinatario.Criar(
+                destDto.CnpjOuCpf, destDto.RazaoSocial, destDto.IndIeDest, destDto.Ie,
+                destDto.Logradouro, destDto.Numero, destDto.Complemento,
+                destDto.Bairro, destDto.Municipio, destDto.CodigoMunicipio,
+                destDto.Uf, destDto.Cep, destDto.Email);
+            if (destResult.IsFailure)
+                return Result.Failure<IssueDocumentResponse>(destResult.Error);
+            nfeDestinatario = destResult.Value;
+        }
+
         var documentoResult = DocumentoFiscal.Criar(
             new DocumentoFiscalId(Guid.CreateVersion7()),
             command.TenantId,
@@ -119,13 +136,16 @@ public sealed class IssueDocumentCommandHandler
             command.Tipo,
             chaveResult.Value,
             numeroResult.Value,
-            tenant.ConfiguracaoFiscal.Serie,
+            serie,
             command.IndPresenca,
             itemsResult.Value,
             pagamentosResult.Value,
             _timeProvider,
             command.Consumidor?.Cpf,
-            command.Consumidor?.Nome);
+            command.Consumidor?.Nome,
+            nfeDestinatario,
+            command.NatOp,
+            command.ModFrete);
 
         if (documentoResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(documentoResult.Error);

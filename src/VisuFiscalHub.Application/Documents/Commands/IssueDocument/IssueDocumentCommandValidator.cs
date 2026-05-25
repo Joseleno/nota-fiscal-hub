@@ -1,10 +1,12 @@
 using FluentValidation;
+using VisuFiscalHub.Domain.Enums;
 
 namespace VisuFiscalHub.Application.Documents.Commands.IssueDocument;
 
 internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDocumentCommand>
 {
-    private static readonly int[] IndPresencaValidos = [1, 3, 4, 9];
+    private static readonly int[] IndPresencaValidosNfce = [1, 3, 4, 9];
+    private static readonly int[] IndPresencaValidosNfe  = [0, 1, 2, 3, 4, 5, 9];
 
     public IssueDocumentCommandValidator()
     {
@@ -19,8 +21,12 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
             .NotEmpty().WithMessage("A lista de pagamentos não pode ser vazia.");
 
         RuleFor(x => x.IndPresenca)
-            .Must(v => IndPresencaValidos.Contains(v))
-            .WithMessage("IndPresenca deve ser 1, 3, 4 ou 9. O valor 2 é explicitamente rejeitado.");
+            .Must((cmd, v) =>
+            {
+                var validos = cmd.Tipo == TipoDocumento.NFe ? IndPresencaValidosNfe : IndPresencaValidosNfce;
+                return validos.Contains(v);
+            })
+            .WithMessage("IndPresenca inválido para o tipo de documento.");
 
         RuleForEach(x => x.Itens).ChildRules(item =>
         {
@@ -61,5 +67,21 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
                 return true;
             })
             .WithMessage("CPF do consumidor é obrigatório quando o valor total excede R$ 10.000,00.");
+
+        When(x => x.Tipo == TipoDocumento.NFe, () =>
+        {
+            RuleFor(x => x.NfeDestinatario)
+                .NotNull().WithMessage("Destinatário é obrigatório para NF-e.");
+
+            RuleFor(x => x.NatOp)
+                .NotEmpty().WithMessage("Natureza da operação é obrigatória para NF-e.")
+                .MaximumLength(60);
+        });
+
+        When(x => x.Tipo == TipoDocumento.NfCe, () =>
+        {
+            RuleFor(x => x.NfeDestinatario)
+                .Null().WithMessage("Destinatário NF-e não é permitido em NFC-e Modelo 65.");
+        });
     }
 }

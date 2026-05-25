@@ -16,6 +16,11 @@ public sealed record IssueDocumentCommand : ICommand<Result<IssueDocumentRespons
     public IReadOnlyList<PagamentoDto> Pagamentos { get; init; } = [];
     public ConsumidorDto? Consumidor { get; init; }
     public int IndPresenca { get; init; } = 1;
+
+    // NF-e only
+    public NfeDestinatarioDto? NfeDestinatario { get; init; }
+    public string? NatOp { get; init; }
+    public int ModFrete { get; init; } = 9;
 }
 
 public sealed record ItemDocumentoDto(
@@ -49,3 +54,18 @@ public sealed record TributoDto(
 public sealed record PagamentoDto(TipoPagamento TipoPagamento, decimal Valor);
 
 public sealed record ConsumidorDto(string? Cpf, string? Nome);
+
+public sealed record NfeDestinatarioDto(
+    string CnpjOuCpf,
+    string RazaoSocial,
+    int IndIeDest,
+    string? Ie,
+    string Logradouro,
+    string Numero,
+    string? Complemento,
+    string Bairro,
+    string Municipio,
+    string CodigoMunicipio,
+    string Uf,
+    string Cep,
+    string? Email);
