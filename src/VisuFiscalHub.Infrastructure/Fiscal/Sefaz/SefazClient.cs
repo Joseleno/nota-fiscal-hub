@@ -107,6 +107,7 @@ internal sealed class SefazClient : ISefazClient
         var idLote = now.ToString("yyyyMMddHHmmss") + (now.Millisecond / 100).ToString();
         var envelope = SoapEnvelopeBuilder.BuildAutorizacao(xmlStr, ufCodigo, idLote);
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         string soapResponse;
         try
         {
@@ -120,9 +121,10 @@ internal sealed class SefazClient : ISefazClient
                 new Error("Sefaz.HttpFalhou", $"Falha na comunicação com SEFAZ: {ex.Message}"));
         }
 
+        sw.Stop();
         var retorno = SefazRetornoParser.Parse(soapResponse);
         if (retorno.IsFailure) return retorno;
-        return Result.Success(retorno.Value with { QrCodeUrl = qrCodeUrl });
+        return Result.Success(retorno.Value with { QrCodeUrl = qrCodeUrl, ElapsedMs = sw.ElapsedMilliseconds });
     }
 
     public async Task<Result<SefazConsultaRetorno>> ConsultarNfeAsync(
@@ -153,6 +155,7 @@ internal sealed class SefazClient : ISefazClient
             : SefazEndpointResolver.ConsultaProtocolo(ufCodigo, tenant.ConfiguracaoFiscal.Ambiente);
         var envelope = BuildConsultaEnvelope(chaveAcesso, ufCodigo, tpAmb);
 
+        var swConsulta = System.Diagnostics.Stopwatch.StartNew();
         string soapResponse;
         try
         {
@@ -165,7 +168,10 @@ internal sealed class SefazClient : ISefazClient
                 new Error("Sefaz.ConsultaFalhou", $"Falha na consulta SEFAZ: {ex.Message}"));
         }
 
-        return ParseConsultaResponse(soapResponse);
+        swConsulta.Stop();
+        var parseResult = ParseConsultaResponse(soapResponse);
+        if (parseResult.IsFailure) return parseResult;
+        return Result.Success(parseResult.Value with { ElapsedMs = swConsulta.ElapsedMilliseconds });
     }
 
     private static string BuildConsultaEnvelope(string chaveAcesso, int cUF, int tpAmb)
@@ -219,11 +225,12 @@ internal sealed class SefazClient : ISefazClient
             var encontrado = !SefazRetornoParser.IsNaoEncontrado(cStat);
 
             return Result.Success(new SefazConsultaRetorno(
-                Encontrado: encontrado,
-                Autorizado: autorizado,
-                CStat:      cStat,
-                NProt:      nProt,
-                XmlProtocolo: xmlProt));
+                Encontrado:   encontrado,
+                Autorizado:   autorizado,
+                CStat:        cStat,
+                NProt:        nProt,
+                XmlProtocolo: xmlProt,
+                ElapsedMs:    0L));
         }
         catch (XmlException ex)
         {

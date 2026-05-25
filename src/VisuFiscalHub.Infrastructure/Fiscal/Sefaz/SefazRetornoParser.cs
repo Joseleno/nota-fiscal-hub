@@ -64,7 +64,8 @@ internal static class SefazRetornoParser
                 XMotivo:       xMotivo,
                 NProt:         nProt,
                 XmlAutorizado: autorizado ? xmlProt : null,
-                QrCodeUrl:     null)); // preenchido por SefazClient após extração do XML pré-assinatura
+                QrCodeUrl:     null,   // preenchido por SefazClient após extração do XML pré-assinatura
+                ElapsedMs:     0L));   // preenchido por SefazClient após medir a chamada HTTP
         }
         catch (XmlException ex)
         {

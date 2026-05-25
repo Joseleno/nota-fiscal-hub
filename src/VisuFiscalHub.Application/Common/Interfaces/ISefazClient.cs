@@ -10,14 +10,16 @@ public sealed record SefazRetorno(
     string XMotivo,
     string? NProt,
     string? XmlAutorizado,
-    string? QrCodeUrl);
+    string? QrCodeUrl,
+    long ElapsedMs);
 
 public sealed record SefazConsultaRetorno(
     bool Encontrado,
     bool Autorizado,
     string CStat,
     string? NProt,
-    string? XmlProtocolo);
+    string? XmlProtocolo,
+    long ElapsedMs);
 
 public interface ISefazClient
 {

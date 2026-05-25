@@ -155,7 +155,8 @@ public class ReconciliacaoJobProcessorTests
                 Autorizado:   true,
                 CStat:        "100",
                 NProt:        null,
-                XmlProtocolo: null)));
+                XmlProtocolo: null,
+                ElapsedMs:    0L)));
 
         await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
@@ -194,7 +195,8 @@ public class ReconciliacaoJobProcessorTests
                 Autorizado:   false,
                 CStat:        "110",
                 NProt:        null,
-                XmlProtocolo: null)));
+                XmlProtocolo: null,
+                ElapsedMs:    0L)));
 
         await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
@@ -265,7 +267,8 @@ public class ReconciliacaoJobProcessorTests
                 Autorizado:   false,
                 CStat:        "217",
                 NProt:        null,
-                XmlProtocolo: null)));
+                XmlProtocolo: null,
+                ElapsedMs:    0L)));
 
         await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
@@ -292,7 +295,8 @@ public class ReconciliacaoJobProcessorTests
                 Autorizado:   true,
                 CStat:        "100",
                 NProt:        protocolo,
-                XmlProtocolo: "<nfeProc/>")));
+                XmlProtocolo: "<nfeProc/>",
+                ElapsedMs:    0L)));
 
     private void ConfigurarConsultaNaoEncontrado(DocumentoFiscal documento)
         => _sefazClient
@@ -302,7 +306,8 @@ public class ReconciliacaoJobProcessorTests
                 Autorizado:   false,
                 CStat:        "217",
                 NProt:        null,
-                XmlProtocolo: null)));
+                XmlProtocolo: null,
+                ElapsedMs:    0L)));
 
     // Força o status via reflexão para simular corridas de dados sem APIs públicas de transição.
     private static void ForcarStatus(DocumentoFiscal documento, StatusDocumento status)

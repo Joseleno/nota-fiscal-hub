@@ -146,7 +146,8 @@ public class FiscalDocumentProcessingJobTests
                 XMotivo:       "Autorizado o uso da NF-e",
                 NProt:         null,
                 XmlAutorizado: "<nfeProc/>",
-                QrCodeUrl:     "https://fake-url")));
+                QrCodeUrl:     "https://fake-url",
+                ElapsedMs:     0L)));
 
         await Should.ThrowAsync<InvalidOperationException>(
             () => CreateJob().ExecuteAsync(id, CancellationToken.None));
@@ -170,7 +171,8 @@ public class FiscalDocumentProcessingJobTests
                 Autorizado:   true,
                 CStat:        "100",
                 NProt:        "135260000099999",
-                XmlProtocolo: "<nfeProc/>")));
+                XmlProtocolo: "<nfeProc/>",
+                ElapsedMs:    0L)));
 
         await CreateJob().ExecuteAsync(id, CancellationToken.None);
 
@@ -314,7 +316,8 @@ public class FiscalDocumentProcessingJobTests
                 XMotivo:       "Autorizado o uso da NF-e",
                 NProt:         "315260000000099",
                 XmlAutorizado: "<nfeProc/>",
-                QrCodeUrl:     expectedQrUrl)));
+                QrCodeUrl:     expectedQrUrl,
+                ElapsedMs:     0L)));
 
         await CreateJob().ExecuteAsync(id, CancellationToken.None);
 
@@ -350,7 +353,7 @@ public class FiscalDocumentProcessingJobTests
         _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
-                NProt: "135260000099999", XmlProtocolo: "<nfeProc/>")));
+                NProt: "135260000099999", XmlProtocolo: "<nfeProc/>", ElapsedMs: 0L)));
 
         await CreateJob().ExecuteAsync(id, CancellationToken.None);
 
@@ -371,7 +374,7 @@ public class FiscalDocumentProcessingJobTests
         _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
-                NProt: "135260000099998", XmlProtocolo: "<nfeProc/>")));
+                NProt: "135260000099998", XmlProtocolo: "<nfeProc/>", ElapsedMs: 0L)));
 
         await CreateJob().ExecuteAsync(id, CancellationToken.None);
 
@@ -390,7 +393,8 @@ public class FiscalDocumentProcessingJobTests
                 XMotivo:       "Autorizado o uso da NF-e",
                 NProt:         protocolo,
                 XmlAutorizado: "<nfeProc/>",
-                QrCodeUrl:     FakeQrUrl)));
+                QrCodeUrl:     FakeQrUrl,
+                ElapsedMs:     0L)));
 
     private void ConfigurarSefazRetorno(
         DocumentoFiscalId id,
@@ -405,7 +409,8 @@ public class FiscalDocumentProcessingJobTests
                 XMotivo:       xMotivo,
                 NProt:         null,
                 XmlAutorizado: null,
-                QrCodeUrl:     null)));
+                QrCodeUrl:     null,
+                ElapsedMs:     0L)));
 
     private static Tenant CriarTenantFake(ClienteAppId clienteAppId)
     {
