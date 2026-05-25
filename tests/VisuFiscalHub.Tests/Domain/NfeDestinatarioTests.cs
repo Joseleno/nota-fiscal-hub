@@ -117,4 +117,43 @@ public class NfeDestinatarioTests
             email: null);
         result.IsFailure.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Criar_IndIeDest2_ComIeISENTO_Sucesso()
+    {
+        var result = NfeDestinatario.Criar(
+            cnpjOuCpf: "11222333000181",
+            razaoSocial: "Empresa Isenta Ltda",
+            indIeDest: 2, ie: "ISENTO",
+            logradouro: "Rua X", numero: "1", complemento: null,
+            bairro: "B", municipio: "M", codigoMunicipio: "1234567",
+            uf: "SP", cep: "01310100", email: null);
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Criar_IndIeDest2_SemIeISENTO_Retorna_Falha()
+    {
+        var result = NfeDestinatario.Criar(
+            cnpjOuCpf: "11222333000181",
+            razaoSocial: "Empresa Isenta Ltda",
+            indIeDest: 2, ie: "123456",  // not "ISENTO"
+            logradouro: "Rua X", numero: "1", complemento: null,
+            bairro: "B", municipio: "M", codigoMunicipio: "1234567",
+            uf: "SP", cep: "01310100", email: null);
+        result.IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Criar_IndIeDest9_ComIe_Retorna_Falha()
+    {
+        var result = NfeDestinatario.Criar(
+            cnpjOuCpf: "11222333000181",
+            razaoSocial: "Nao Contribuinte",
+            indIeDest: 9, ie: "123456",  // IE not allowed for indIeDest=9
+            logradouro: "Rua X", numero: "1", complemento: null,
+            bairro: "B", municipio: "M", codigoMunicipio: "1234567",
+            uf: "SP", cep: "01310100", email: null);
+        result.IsFailure.ShouldBeTrue();
+    }
 }

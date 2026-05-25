@@ -56,6 +56,12 @@ public sealed partial record NfeDestinatario(
         if (indIeDest == 1 && string.IsNullOrWhiteSpace(ie))
             return Result.Failure<NfeDestinatario>(DocumentoFiscalErrors.NfeDestinatarioInvalido);
 
+        if (indIeDest == 2 && !string.Equals(ie?.Trim(), "ISENTO", StringComparison.OrdinalIgnoreCase))
+            return Result.Failure<NfeDestinatario>(DocumentoFiscalErrors.NfeDestinatarioInvalido);
+
+        if (indIeDest == 9 && !string.IsNullOrWhiteSpace(ie))
+            return Result.Failure<NfeDestinatario>(DocumentoFiscalErrors.NfeDestinatarioInvalido);
+
         if (string.IsNullOrWhiteSpace(logradouro) || logradouro.Length > 60)
             return Result.Failure<NfeDestinatario>(DocumentoFiscalErrors.NfeDestinatarioInvalido);
 
@@ -71,7 +77,7 @@ public sealed partial record NfeDestinatario(
         if (string.IsNullOrWhiteSpace(codigoMunicipio) || !CodigoMunicipioRegex().IsMatch(codigoMunicipio))
             return Result.Failure<NfeDestinatario>(DocumentoFiscalErrors.NfeDestinatarioInvalido);
 
-        if (string.IsNullOrWhiteSpace(uf) || uf.Length != 2)
+        if (string.IsNullOrWhiteSpace(uf) || uf.Length != 2 || !uf.All(char.IsLetter))
             return Result.Failure<NfeDestinatario>(DocumentoFiscalErrors.NfeDestinatarioInvalido);
 
         if (string.IsNullOrWhiteSpace(cep) || !CepRegex().IsMatch(cep))
@@ -86,4 +92,14 @@ public sealed partial record NfeDestinatario(
             bairro.Trim(), municipio.Trim(), codigoMunicipio, uf.ToUpperInvariant(),
             cep, emailNorm));
     }
+
+    public static NfeDestinatario FromStorage(
+        string cnpjOuCpf, string razaoSocial, int indIeDest, string? ie,
+        string logradouro, string numero, string? complemento,
+        string bairro, string municipio, string codigoMunicipio,
+        string uf, string cep, string? email)
+        => new(cnpjOuCpf, razaoSocial, indIeDest, ie,
+               logradouro, numero, complemento,
+               bairro, municipio, codigoMunicipio,
+               uf, cep, email);
 }
