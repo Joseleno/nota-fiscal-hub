@@ -9,8 +9,10 @@ namespace VisuFiscalHub.Domain.Entities;
 
 public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 {
-    // Valores válidos para NFC-e per SEFAZ NT 2019.001. O valor 2 (internet) é rejeitado.
-    private static readonly IReadOnlySet<int> IndPresencaValidos = new HashSet<int> { 1, 3, 4, 9 };
+    // Valores válidos por tipo de documento per SEFAZ NT 2019.001.
+    // NFC-e: valor 2 (internet) é explicitamente rejeitado; NF-e aceita 0-5 e 9.
+    private static readonly IReadOnlySet<int> IndPresencaNfce = new HashSet<int> { 1, 3, 4, 9 };
+    private static readonly IReadOnlySet<int> IndPresencaNfe  = new HashSet<int> { 0, 1, 2, 3, 4, 5, 9 };
 
     private readonly List<ItemDocumento> _items = [];
     private readonly List<Pagamento> _pagamentos = [];
@@ -38,7 +40,10 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         string? nomeConsumidor,
         List<ItemDocumento> items,
         List<Pagamento> pagamentos,
-        DateTimeOffset createdAt) : base(id)
+        DateTimeOffset createdAt,
+        NfeDestinatario? nfeDestinatario,
+        string? natOp,
+        int modFrete) : base(id)
     {
         TenantId = tenantId;
         ClienteAppId = clienteAppId;
@@ -54,6 +59,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         _items = items;
         _pagamentos = pagamentos;
         CreatedAt = createdAt;
+        NfeDestinatario = nfeDestinatario;
+        NatOp = natOp;
+        ModFrete = modFrete;
     }
 
     public TenantId TenantId { get; private set; }
@@ -64,6 +72,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
     public string IdempotencyKey { get; private set; }
     public TipoDocumento Tipo { get; private set; }
     public ChaveAcesso ChaveAcesso { get; private set; }
+    public NfeDestinatario? NfeDestinatario { get; private set; }
+    public string? NatOp { get; private set; }
+    public int ModFrete { get; private set; } = 9;
     public long Numero { get; private set; }
     public string Serie { get; private set; }
     public int IndPresenca { get; private set; }
@@ -95,7 +106,10 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         IEnumerable<Pagamento> pagamentos,
         TimeProvider timeProvider,
         string? cpfConsumidor = null,
-        string? nomeConsumidor = null)
+        string? nomeConsumidor = null,
+        NfeDestinatario? nfeDestinatario = null,
+        string? natOp = null,
+        int modFrete = 9)
     {
         if (tenantId == default)
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TenantInvalido);
@@ -106,8 +120,21 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
 
-        if (!IndPresencaValidos.Contains(indPresenca))
+        var indPresencaValidos = tipo == TipoDocumento.NFe ? IndPresencaNfe : IndPresencaNfce;
+        if (!indPresencaValidos.Contains(indPresenca))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IndPresencaInvalido);
+
+        if (tipo == TipoDocumento.NFe)
+        {
+            if (nfeDestinatario is null)
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.DestinatarioObrigatorioParaNfe);
+            if (string.IsNullOrWhiteSpace(natOp))
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NatOpObrigatoriaNfe);
+        }
+        else if (nfeDestinatario is not null)
+        {
+            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.DestinatarioNaoPermitidoEmNfce);
+        }
 
         if (cpfConsumidor is not null && string.IsNullOrWhiteSpace(nomeConsumidor))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NomeConsumidorObrigatorio);
@@ -132,7 +159,10 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             nomeConsumidor,
             itemList,
             pagamentoList,
-            timeProvider.GetUtcNow()));
+            timeProvider.GetUtcNow(),
+            nfeDestinatario,
+            natOp,
+            modFrete));
     }
 
     public Result Enfileirar()
@@ -215,7 +245,11 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
 
         var utcNow = timeProvider.GetUtcNow();
-        if (utcNow >= AuthorizedAt.Value.AddMinutes(30))
+        var prazo = Tipo == TipoDocumento.NFe
+            ? AuthorizedAt.Value.AddHours(24)
+            : AuthorizedAt.Value.AddMinutes(30);
+
+        if (utcNow >= prazo)
             return Result.Failure(DocumentoFiscalErrors.PrazoDeCancelamentoExpirado);
 
         MotivoRejeicao = null;

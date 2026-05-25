@@ -1,4 +1,5 @@
 using Shouldly;
+using VisuFiscalHub.Domain.Common;
 using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Identifiers;
@@ -150,6 +151,129 @@ internal static class DocumentoFiscalBuilder
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
         statusProp.SetValue(doc, status);
 
+        return doc;
+    }
+
+    internal static NfeDestinatario ValidoNfeDestinatario() =>
+        NfeDestinatario.Criar(
+            cnpjOuCpf: "11222333000181",
+            razaoSocial: "Empresa Teste Ltda",
+            indIeDest: 9, ie: null,
+            logradouro: "Rua Teste", numero: "100", complemento: null,
+            bairro: "Centro", municipio: "São Paulo",
+            codigoMunicipio: "3550308", uf: "SP", cep: "01310100",
+            email: null).Value;
+
+    internal static Result<DocumentoFiscal> CriarNfe(
+        NfeDestinatario? destinatario,
+        string? natOp = "Venda de mercadoria")
+    {
+        var chaveAcesso = ChaveAcesso.Gerar(
+            cUF:    35,
+            aamm:   "2601",
+            cnpj:   "11222333000181",
+            mod:    55,
+            serie:  "001",
+            nNF:    "000000001",
+            tpEmis: TipoEmissao.Normal,
+            cNF:    "12345678").Value;
+
+        var tributo = Tributo.Criar(
+            tipoIcms:        TipoIcms.CSOSN,
+            csosnOuCst:      400,
+            aliquotaIcms:    0m,
+            baseCalculoIcms: 0m,
+            valorIcms:       0m,
+            cstPis:          CstPisCofins.Cst07,
+            baseCalculoPis:  0m,
+            aliquotaPis:     0m,
+            valorPis:        0m,
+            cstCofins:       CstPisCofins.Cst07,
+            baseCalculoCofins: 0m,
+            aliquotaCofins:  0m,
+            valorCofins:     0m).Value;
+
+        var produto = Produto.Criar(
+            codigoProduto:   "PROD001",
+            descricao:       "Produto Teste",
+            ncm:             "12345678",
+            cest:            null,
+            cfopSaida:       "5102",
+            unidadeComercial: "UN",
+            quantidade:      1m,
+            valorUnitario:   10m,
+            valorDesconto:   0m,
+            origemMercadoria: OrigemMercadoria.Nacional).Value;
+
+        var item      = new ItemDocumento(1, produto, tributo);
+        var pagamento = Pagamento.Criar(TipoPagamento.Dinheiro, 10m).Value;
+
+        return DocumentoFiscal.Criar(
+            id:             DocumentoFiscalId.New(),
+            tenantId:       new TenantId(Guid.NewGuid()),
+            clienteAppId:   ClienteAppId.New(),
+            idempotencyKey: "idem-nfe-test",
+            tipo:           TipoDocumento.NFe,
+            chaveAcesso:    chaveAcesso,
+            numero:         1,
+            serie:          "001",
+            indPresenca:    0,
+            items:          [item],
+            pagamentos:     [pagamento],
+            timeProvider:   TimeProvider.System,
+            nfeDestinatario: destinatario,
+            natOp:          natOp);
+    }
+
+    internal static Result<DocumentoFiscal> CriarNfceComDestinatario(NfeDestinatario dest)
+    {
+        var chaveAcesso = ChaveAcesso.Gerar(
+            cUF:    35,
+            aamm:   "2601",
+            cnpj:   "12345678000195",
+            mod:    65,
+            serie:  "001",
+            nNF:    "000000002",
+            tpEmis: TipoEmissao.Normal,
+            cNF:    "12345678").Value;
+
+        var tributo = Tributo.Criar(
+            tipoIcms: TipoIcms.CSOSN, csosnOuCst: 400,
+            aliquotaIcms: 0m, baseCalculoIcms: 0m, valorIcms: 0m,
+            cstPis: CstPisCofins.Cst07, baseCalculoPis: 0m, aliquotaPis: 0m, valorPis: 0m,
+            cstCofins: CstPisCofins.Cst07, baseCalculoCofins: 0m, aliquotaCofins: 0m, valorCofins: 0m).Value;
+
+        var produto = Produto.Criar(
+            codigoProduto: "PROD001", descricao: "Produto Teste", ncm: "12345678", cest: null,
+            cfopSaida: "5102", unidadeComercial: "UN", quantidade: 1m, valorUnitario: 10m,
+            valorDesconto: 0m, origemMercadoria: OrigemMercadoria.Nacional).Value;
+
+        return DocumentoFiscal.Criar(
+            id:             DocumentoFiscalId.New(),
+            tenantId:       new TenantId(Guid.NewGuid()),
+            clienteAppId:   ClienteAppId.New(),
+            idempotencyKey: "idem-nfce-test",
+            tipo:           TipoDocumento.NfCe,
+            chaveAcesso:    chaveAcesso,
+            numero:         2,
+            serie:          "001",
+            indPresenca:    1,
+            items:          [new ItemDocumento(1, produto, tributo)],
+            pagamentos:     [Pagamento.Criar(TipoPagamento.Dinheiro, 10m).Value],
+            timeProvider:   TimeProvider.System,
+            nfeDestinatario: dest);
+    }
+
+    internal static DocumentoFiscal AutorizadoNfe(DateTimeOffset authorizedAt)
+    {
+        var dest = ValidoNfeDestinatario();
+        var doc  = CriarNfe(dest).Value;
+        doc.Enfileirar().IsSuccess.ShouldBeTrue();
+        doc.IniciarProcessamento().IsSuccess.ShouldBeTrue();
+        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
+        doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, new FixedTimeProvider(authorizedAt))
+           .IsSuccess.ShouldBeTrue("Autorizar() falhou no builder NF-e.");
+        doc.ClearDomainEvents();
         return doc;
     }
 }

@@ -276,4 +276,73 @@ public class DocumentoFiscalTests
         result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
         documento.Status.ShouldBe(StatusDocumento.Cancelando);
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // NF-e specific rules
+    // ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Criar_Nfe_SemDestinatario_RetornaErro()
+    {
+        var result = DocumentoFiscalBuilder.CriarNfe(destinatario: null);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.DestinatarioObrigatorioParaNfe");
+    }
+
+    [Fact]
+    public void Criar_Nfe_ComDestinatario_Sucesso()
+    {
+        var result = DocumentoFiscalBuilder.CriarNfe(destinatario: DocumentoFiscalBuilder.ValidoNfeDestinatario());
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.NfeDestinatario.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Criar_Nfe_SemNatOp_RetornaErro()
+    {
+        var result = DocumentoFiscalBuilder.CriarNfe(
+            destinatario: DocumentoFiscalBuilder.ValidoNfeDestinatario(),
+            natOp: null);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.NatOpObrigatoriaNfe");
+    }
+
+    [Fact]
+    public void Criar_Nfce_ComDestinatario_RetornaErro()
+    {
+        var result = DocumentoFiscalBuilder.CriarNfceComDestinatario(
+            DocumentoFiscalBuilder.ValidoNfeDestinatario());
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.DestinatarioNaoPermitidoEmNfce");
+    }
+
+    [Fact]
+    public void IniciarCancelamento_Nfe_DentroDe24h_Sucesso()
+    {
+        var authorizedAt = FixedNow.AddHours(-23);
+        var documento = DocumentoFiscalBuilder.AutorizadoNfe(authorizedAt);
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsSuccess.ShouldBeTrue();
+        documento.Status.ShouldBe(StatusDocumento.Cancelando);
+    }
+
+    [Fact]
+    public void IniciarCancelamento_Nfe_Apos24h_RetornaErro()
+    {
+        var authorizedAt = FixedNow.AddHours(-25);
+        var documento = DocumentoFiscalBuilder.AutorizadoNfe(authorizedAt);
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+    }
+
+    [Fact]
+    public void IniciarCancelamento_Nfce_Apos30Min_RetornaErro()
+    {
+        var authorizedAt = FixedNow.AddMinutes(-31);
+        var documento = DocumentoFiscalBuilder.Autorizado(authorizedAt);
+        var result = documento.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+    }
 }
