@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -140,6 +141,23 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
 
         builder.Property(d => d.CanceladoAt)
             .HasColumnName("cancelado_at");
+
+        builder.Property(x => x.NatOp)
+            .HasColumnName("nat_op")
+            .HasMaxLength(60);
+
+        builder.Property(x => x.ModFrete)
+            .HasColumnName("mod_frete")
+            .HasDefaultValue(9)
+            .IsRequired();
+
+        builder.Property(x => x.NfeDestinatario)
+            .HasColumnName("nfe_destinatario")
+            .HasColumnType("jsonb")
+            .HasConversion(
+                new ValueConverter<NfeDestinatario?, string?>(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    s => s == null ? null : JsonSerializer.Deserialize<NfeDestinatario>(s, (JsonSerializerOptions?)null)));
 
         // HasField obrigatório — a propriedade pública expõe IReadOnlyList<T>, incompatível com EF Core.
         // Declara o backing field antes do OwnsMany para que o EF Core use _items para leitura/escrita.

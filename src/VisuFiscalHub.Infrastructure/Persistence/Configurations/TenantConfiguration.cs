@@ -85,6 +85,9 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             cfg.Property(c => c.InscricaoEstadual)
                 .HasColumnName("inscricao_estadual")
                 .HasMaxLength(14);
+            cfg.Property(c => c.SerieNfe)
+                .HasColumnName("serie_nfe")
+                .HasMaxLength(3);
         });
 
         builder.Property(t => t.Csc)
