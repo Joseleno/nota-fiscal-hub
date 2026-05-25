@@ -63,6 +63,9 @@ public static class DependencyInjection
 
         services.AddSingleton(TimeProvider.System);
 
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICorrelationContext, HttpCorrelationContext>();
+
         services.AddScoped<IClienteAppRepository, ClienteAppRepository>();
         services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IDocumentoFiscalRepository, DocumentoFiscalRepository>();

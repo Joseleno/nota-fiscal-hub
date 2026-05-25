@@ -213,6 +213,7 @@ try
     });
 
     app.UseExceptionHandler();
+    app.UseMiddleware<CorrelationIdMiddleware>();
 
     app.Use(async (ctx, next) =>
     {
