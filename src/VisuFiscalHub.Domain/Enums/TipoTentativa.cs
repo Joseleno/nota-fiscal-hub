@@ -4,6 +4,6 @@ public enum TipoTentativa
 {
     Envio = 1,
     Consulta = 2,
-    Retry = 3,
+    // 3 removido (era Retry — nunca persistido no banco)
     Cancelamento = 4   // tentativa de cancelamento via NfeRecepcaoEvento4
 }
