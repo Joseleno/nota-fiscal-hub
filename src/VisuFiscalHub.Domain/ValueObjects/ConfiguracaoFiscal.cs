@@ -10,7 +10,8 @@ public sealed partial record ConfiguracaoFiscal(
     string Serie,
     AmbienteSefaz Ambiente,
     int UfCodigo,
-    string? InscricaoEstadual)
+    string? InscricaoEstadual,
+    string? SerieNfe = null)
 {
     // Série deve ser numérica de 1 a 3 dígitos — obrigatório para evitar SQL injection no DDL da sequence
     [GeneratedRegex(@"^[0-9]{1,3}$")]
@@ -28,7 +29,8 @@ public sealed partial record ConfiguracaoFiscal(
         string serie,
         AmbienteSefaz ambiente,
         int ufCodigo,
-        string? inscricaoEstadual = null)
+        string? inscricaoEstadual = null,
+        string? serieNfe = null)
     {
         if (string.IsNullOrWhiteSpace(serie) || !SerieRegex().IsMatch(serie))
             return Result.Failure<ConfiguracaoFiscal>(TenantErrors.ConfiguracaoFiscalInvalida);
@@ -36,8 +38,11 @@ public sealed partial record ConfiguracaoFiscal(
         if (!CodigosUfValidos.Contains(ufCodigo))
             return Result.Failure<ConfiguracaoFiscal>(TenantErrors.ConfiguracaoFiscalInvalida);
 
+        if (serieNfe is not null && !SerieRegex().IsMatch(serieNfe))
+            return Result.Failure<ConfiguracaoFiscal>(TenantErrors.ConfiguracaoFiscalInvalida);
+
         var ie = string.IsNullOrWhiteSpace(inscricaoEstadual) ? null : inscricaoEstadual.Trim();
 
-        return Result.Success(new ConfiguracaoFiscal(crt, serie, ambiente, ufCodigo, ie));
+        return Result.Success(new ConfiguracaoFiscal(crt, serie, ambiente, ufCodigo, ie, serieNfe));
     }
 }

@@ -1,0 +1,36 @@
+using Shouldly;
+using VisuFiscalHub.Domain.Enums;
+using VisuFiscalHub.Domain.ValueObjects;
+
+namespace VisuFiscalHub.Tests.Domain;
+
+public class ConfiguracaoFiscalTests
+{
+    [Fact]
+    public void Criar_SemSerieNfe_Sucesso_SerieNfeNula()
+    {
+        var result = ConfiguracaoFiscal.Criar(
+            RegimeTributario.SimplesNacional, "001", AmbienteSefaz.Homologacao, 35, null);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SerieNfe.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Criar_ComSerieNfeValida_Sucesso()
+    {
+        var result = ConfiguracaoFiscal.Criar(
+            RegimeTributario.SimplesNacional, "001", AmbienteSefaz.Homologacao, 35, null,
+            serieNfe: "001");
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SerieNfe.ShouldBe("001");
+    }
+
+    [Fact]
+    public void Criar_ComSerieNfeInvalida_Retorna_Falha()
+    {
+        var result = ConfiguracaoFiscal.Criar(
+            RegimeTributario.SimplesNacional, "001", AmbienteSefaz.Homologacao, 35, null,
+            serieNfe: "ABCD");
+        result.IsFailure.ShouldBeTrue();
+    }
+}
