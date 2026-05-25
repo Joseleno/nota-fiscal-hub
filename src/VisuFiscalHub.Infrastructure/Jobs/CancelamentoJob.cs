@@ -98,7 +98,9 @@ internal sealed class CancelamentoJob
             xmlEvento, certificate, $"#ID110111{documento.ChaveAcesso.Valor}01");
 
         var envelope = SoapEnvelopeBuilder.BuildEvento(xmlAssinado.OuterXml, ufCodigo);
-        var url      = SefazEndpointResolver.ResolveEvento(ufCodigo, ambiente);
+        var url      = documento.Tipo == TipoDocumento.NFe
+            ? SefazEndpointResolver.ResolveEventoNfe(ufCodigo, ambiente)
+            : SefazEndpointResolver.ResolveEvento(ufCodigo, ambiente);
 
         var sw = Stopwatch.StartNew();
         bool success = false;
