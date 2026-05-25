@@ -24,6 +24,8 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
             .Where(e => e.DomainEvents.Count != 0)
             .ToList();
 
+        var correlationId = CorrelationIdAmbient.Current;
+
         var outboxMessages = entities
             .SelectMany(e => e.DomainEvents)
             .Select(domainEvent => new OutboxMessage
@@ -32,7 +34,8 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
                 // FullName omite versão do assembly — sobrevive a upgrades sem quebrar desserialização
                 EventType = domainEvent.GetType().FullName!,
                 Payload = JsonSerializer.Serialize(domainEvent, domainEvent.GetType()),
-                OccurredAt = domainEvent.OccurredAt
+                OccurredAt = domainEvent.OccurredAt,
+                CorrelationId = correlationId
             })
             .ToList();
 
