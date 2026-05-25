@@ -147,7 +147,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
         var primeiroItem = documento.Items.FirstOrDefault();
         var idDest = primeiroItem?.Produto.CfopSaida.StartsWith("6") == true ? "2" : "1";
         Add("idDest", idDest);
-        Add("cMunFG", documento.NfeDestinatario!.CodigoMunicipio);
+        Add("cMunFG", tenant.Endereco.CodigoMunicipio.ToString());
         Add("tpImp", "1");
         Add("tpEmis", "1");
         Add("cDV", documento.ChaveAcesso.Valor[^1..]);

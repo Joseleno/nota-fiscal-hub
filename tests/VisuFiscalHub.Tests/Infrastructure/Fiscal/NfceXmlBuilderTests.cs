@@ -10,7 +10,7 @@ using VisuFiscalHub.Infrastructure.Fiscal.XmlBuilder;
 
 namespace VisuFiscalHub.Tests.Infrastructure.Fiscal;
 
-public class NfceXmlBuilderTests
+public class FiscalDocumentXmlBuilderTests
 {
     private const string NfeNs = "http://www.portalfiscal.inf.br/nfe";
 
@@ -25,12 +25,6 @@ public class NfceXmlBuilderTests
             .AddInMemoryCollection(new Dictionary<string, string?> { ["CERT:EncryptionKey"] = key })
             .Build();
         return new CertificateEncryptionService(cfg);
-    }
-
-    private static FiscalDocumentXmlBuilder CriarBuilder()
-    {
-        var enc = CriarEncryption();
-        return new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
     }
 
     private static Tenant CriarTenant(CertificateEncryptionService enc)
