@@ -4,7 +4,7 @@ using VisuFiscalHub.Domain.Entities;
 
 namespace VisuFiscalHub.Application.Common.Interfaces;
 
-public interface INfceXmlBuilder
+public interface IFiscalDocumentXmlBuilder
 {
     Result<XmlDocument> Construir(DocumentoFiscal documento, Tenant tenant);
 }

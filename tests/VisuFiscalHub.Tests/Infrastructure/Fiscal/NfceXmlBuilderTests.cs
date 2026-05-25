@@ -27,10 +27,10 @@ public class NfceXmlBuilderTests
         return new CertificateEncryptionService(cfg);
     }
 
-    private static NfceXmlBuilder CriarBuilder()
+    private static FiscalDocumentXmlBuilder CriarBuilder()
     {
         var enc = CriarEncryption();
-        return new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        return new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
     }
 
     private static Tenant CriarTenant(CertificateEncryptionService enc)
@@ -82,7 +82,7 @@ public class NfceXmlBuilderTests
     public void Construir_InfNFeSupl_DeveSerFilhoDeInfNFe()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -109,7 +109,7 @@ public class NfceXmlBuilderTests
     public void Construir_InfNFeSupl_DeveConterQrCode()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -128,7 +128,7 @@ public class NfceXmlBuilderTests
     public void Construir_InfNFeSupl_DeveConterUrlFe()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -147,7 +147,7 @@ public class NfceXmlBuilderTests
     public void Construir_ProcEmi_DeveSerIgualA3()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -166,7 +166,7 @@ public class NfceXmlBuilderTests
     public void Construir_VerProc_DeveEstarPresente()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -187,7 +187,7 @@ public class NfceXmlBuilderTests
         // cIdToken não é elemento do schema NF-e 4.0 — é usado apenas para compor a URL do QR Code.
         // Incluí-lo no XML faz o SEFAZ rejeitar a nota por erro de schema.
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -205,7 +205,7 @@ public class NfceXmlBuilderTests
     public void Construir_ComCpfConsumidor_DeveEmitirElementoDest()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
 
         var chave = ChaveAcesso.Gerar(35, "2601", "11222333000181", 65, "001",
@@ -245,7 +245,7 @@ public class NfceXmlBuilderTests
     public void Construir_SemCpfConsumidor_NaoDeveEmitirElementoDest()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 
@@ -263,7 +263,7 @@ public class NfceXmlBuilderTests
     public void Construir_QrCodeUrl_NaoDeveConterCsc()
     {
         var enc = CriarEncryption();
-        var builder = new NfceXmlBuilder(new QrCodeGenerator(), enc);
+        var builder = new FiscalDocumentXmlBuilder(new QrCodeGenerator(), enc);
         var tenant = CriarTenant(enc);
         var doc = CriarDocumento(tenant.Id);
 

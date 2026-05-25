@@ -75,7 +75,7 @@ public static class DependencyInjection
         services.AddSingleton<ICertificateEncryptionService, CertificateEncryptionService>();
         services.AddScoped<IQrCodeGenerator, QrCodeGenerator>();
         services.AddScoped<ITributacaoCalculator, TributacaoCalculator>();
-        services.AddScoped<INfceXmlBuilder, NfceXmlBuilder>();
+        services.AddScoped<IFiscalDocumentXmlBuilder, FiscalDocumentXmlBuilder>();
         services.AddSingleton<XmlSigner>();
 
         // Fase 6b — Certificados com cache

@@ -16,7 +16,7 @@ internal sealed class SefazClient : ISefazClient
     private readonly IDocumentoFiscalRepository _documentoRepo;
     private readonly ITenantRepository _tenantRepo;
     private readonly ITenantCertificateProvider _certProvider;
-    private readonly INfceXmlBuilder _xmlBuilder;
+    private readonly IFiscalDocumentXmlBuilder _xmlBuilder;
     private readonly XmlSigner _signer;
     private readonly SefazHttpClient _httpClient;
     private readonly TimeProvider _timeProvider;
@@ -26,7 +26,7 @@ internal sealed class SefazClient : ISefazClient
         IDocumentoFiscalRepository documentoRepo,
         ITenantRepository tenantRepo,
         ITenantCertificateProvider certProvider,
-        INfceXmlBuilder xmlBuilder,
+        IFiscalDocumentXmlBuilder xmlBuilder,
         XmlSigner signer,
         SefazHttpClient httpClient,
         TimeProvider timeProvider,

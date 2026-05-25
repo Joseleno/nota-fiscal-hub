@@ -3,17 +3,18 @@ using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Common;
 using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
+using VisuFiscalHub.Domain.ValueObjects;
 
 namespace VisuFiscalHub.Infrastructure.Fiscal.XmlBuilder;
 
-internal sealed class NfceXmlBuilder : INfceXmlBuilder
+internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
 {
     private const string NfeNs = "http://www.portalfiscal.inf.br/nfe";
 
     private readonly IQrCodeGenerator _qrCodeGenerator;
     private readonly ICertificateEncryptionService _encryptionService;
 
-    public NfceXmlBuilder(
+    public FiscalDocumentXmlBuilder(
         IQrCodeGenerator qrCodeGenerator,
         ICertificateEncryptionService encryptionService)
     {
@@ -22,6 +23,13 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
     }
 
     public Result<XmlDocument> Construir(DocumentoFiscal documento, Tenant tenant)
+    {
+        return documento.Tipo == TipoDocumento.NFe
+            ? ConstruirNfe(documento, tenant)
+            : ConstruirNfce(documento, tenant);
+    }
+
+    private Result<XmlDocument> ConstruirNfce(DocumentoFiscal documento, Tenant tenant)
     {
         if (tenant.CIdToken is null)
             return Result.Failure<XmlDocument>(
@@ -91,6 +99,108 @@ internal sealed class NfceXmlBuilder : INfceXmlBuilder
         infNFe.AppendChild(BuildInfNFeSupl(doc, qrResult.Value.UrlCompleta, urlConsulta));
 
         return Result.Success(doc);
+    }
+
+    private Result<XmlDocument> ConstruirNfe(DocumentoFiscal documento, Tenant tenant)
+    {
+        var doc = new XmlDocument { PreserveWhitespace = false };
+        var decl = doc.CreateXmlDeclaration("1.0", "UTF-8", null);
+        doc.AppendChild(decl);
+
+        var nfeEl = doc.CreateElement("NFe", NfeNs);
+        doc.AppendChild(nfeEl);
+
+        var infNFe = doc.CreateElement("infNFe", NfeNs);
+        infNFe.SetAttribute("Id", $"NFe{documento.ChaveAcesso.Valor}");
+        infNFe.SetAttribute("versao", "4.00");
+        nfeEl.AppendChild(infNFe);
+
+        UfFusoHorario.Mapa.TryGetValue(tenant.ConfiguracaoFiscal.UfCodigo, out var offset);
+        var dhEmi = documento.CreatedAt.ToOffset(offset).ToString("yyyy-MM-ddTHH:mm:sszzz");
+
+        infNFe.AppendChild(BuildIdeNfe(doc, documento, tenant, dhEmi));
+        infNFe.AppendChild(BuildEmit(doc, tenant));
+        infNFe.AppendChild(BuildDestNfe(doc, documento.NfeDestinatario!));
+        for (var i = 0; i < documento.Items.Count; i++)
+            infNFe.AppendChild(BuildDet(doc, documento.Items[i], i + 1, tenant.ConfiguracaoFiscal.Crt));
+        infNFe.AppendChild(BuildTotal(doc, documento));
+        infNFe.AppendChild(BuildTranspNfe(doc, documento));
+        infNFe.AppendChild(BuildPag(doc, documento));
+
+        return Result.Success(doc);
+    }
+
+    private static XmlElement BuildIdeNfe(XmlDocument doc, DocumentoFiscal documento, Tenant tenant, string dhEmi)
+    {
+        var ide = doc.CreateElement("ide", NfeNs);
+        void Add(string tag, string val) { var el = doc.CreateElement(tag, NfeNs); el.InnerText = val; ide.AppendChild(el); }
+
+        Add("cUF", tenant.ConfiguracaoFiscal.UfCodigo.ToString());
+        Add("cNF", documento.ChaveAcesso.Valor[35..43]);
+        Add("natOp", documento.NatOp ?? "Venda de Mercadoria");
+        Add("mod", "55");
+        Add("serie", documento.Serie.PadLeft(3, '0'));
+        Add("nNF", documento.Numero.ToString().PadLeft(9, '0'));
+        Add("dhEmi", dhEmi);
+        Add("dhSaiEnt", dhEmi);
+        Add("tpNF", "1");
+        var primeiroItem = documento.Items.FirstOrDefault();
+        var idDest = primeiroItem?.Produto.CfopSaida.StartsWith("6") == true ? "2" : "1";
+        Add("idDest", idDest);
+        Add("cMunFG", documento.NfeDestinatario!.CodigoMunicipio);
+        Add("tpImp", "1");
+        Add("tpEmis", "1");
+        Add("cDV", documento.ChaveAcesso.Valor[^1..]);
+        Add("tpAmb", ((int)tenant.ConfiguracaoFiscal.Ambiente).ToString());
+        Add("finNFe", "1");
+        Add("indFinal", "0");
+        Add("indPres", documento.IndPresenca.ToString());
+        Add("procEmi", "0");
+        Add("verProc", "VisuFiscalHub 1.0");
+
+        return ide;
+    }
+
+    private static XmlElement BuildDestNfe(XmlDocument doc, NfeDestinatario dest)
+    {
+        var destEl = doc.CreateElement("dest", NfeNs);
+        void Add(string tag, string val) { var el = doc.CreateElement(tag, NfeNs); el.InnerText = val; destEl.AppendChild(el); }
+        void AddTo(XmlElement parent, string tag, string val) { var el = doc.CreateElement(tag, NfeNs); el.InnerText = val; parent.AppendChild(el); }
+
+        if (dest.CnpjOuCpf.Length == 14)
+            Add("CNPJ", dest.CnpjOuCpf);
+        else
+            Add("CPF", dest.CnpjOuCpf);
+
+        Add("xNome", dest.RazaoSocial);
+
+        var enderDest = doc.CreateElement("enderDest", NfeNs);
+        AddTo(enderDest, "xLgr", dest.Logradouro);
+        AddTo(enderDest, "nro", dest.Numero);
+        if (!string.IsNullOrEmpty(dest.Complemento)) AddTo(enderDest, "xCpl", dest.Complemento);
+        AddTo(enderDest, "xBairro", dest.Bairro);
+        AddTo(enderDest, "cMun", dest.CodigoMunicipio);
+        AddTo(enderDest, "xMun", dest.Municipio);
+        AddTo(enderDest, "UF", dest.Uf);
+        AddTo(enderDest, "CEP", dest.Cep);
+        AddTo(enderDest, "cPais", "1058");
+        AddTo(enderDest, "xPais", "Brasil");
+        destEl.AppendChild(enderDest);
+
+        Add("indIEDest", dest.IndIeDest.ToString());
+        if (dest.Ie is not null) Add("IE", dest.Ie);
+        if (dest.Email is not null) Add("email", dest.Email);
+
+        return destEl;
+    }
+
+    private static XmlElement BuildTranspNfe(XmlDocument doc, DocumentoFiscal documento)
+    {
+        var transp = doc.CreateElement("transp", NfeNs);
+        var modFrete = doc.CreateElement("modFrete", NfeNs);
+        modFrete.InnerText = documento.ModFrete.ToString();
+        transp.AppendChild(modFrete);
+        return transp;
     }
 
     private static XmlElement BuildIde(
