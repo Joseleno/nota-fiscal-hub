@@ -29,6 +29,10 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(o => o.ProcessedAt)
             .HasColumnName("processed_at");
 
+        builder.Property(o => o.CorrelationId)
+            .HasColumnName("correlation_id")
+            .HasMaxLength(128);
+
         // Índice (processed_at, occurred_at): suporta WHERE processed_at IS NULL ORDER BY occurred_at
         // do OutboxRelayJob — NULLs ficam no início no PostgreSQL (NULLS FIRST padrão)
         builder.HasIndex(o => new { o.ProcessedAt, o.OccurredAt })

@@ -3,6 +3,7 @@ using Hangfire;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Serilog.Context;
 using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Infrastructure.Jobs;
@@ -51,6 +52,10 @@ public class OutboxRelayJob
         {
             if (message.ProcessedAt is not null)
                 continue;
+
+            using IDisposable? corrProp = message.CorrelationId is not null
+                ? LogContext.PushProperty("CorrelationId", message.CorrelationId)
+                : null;
 
             try
             {

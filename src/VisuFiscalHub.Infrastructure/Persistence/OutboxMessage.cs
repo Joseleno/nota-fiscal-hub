@@ -7,4 +7,5 @@ public sealed class OutboxMessage
     public string Payload { get; init; } = string.Empty;
     public DateTimeOffset OccurredAt { get; init; }
     public DateTimeOffset? ProcessedAt { get; set; }
+    public string? CorrelationId { get; init; }
 }
