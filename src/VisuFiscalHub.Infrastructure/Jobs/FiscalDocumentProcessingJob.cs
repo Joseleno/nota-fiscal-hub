@@ -205,13 +205,14 @@ public sealed class FiscalDocumentProcessingJob
 
         if (consulta.Autorizado && !string.IsNullOrWhiteSpace(consulta.NProt))
         {
-            if (documento.QrCode is null)
+            if (documento.Tipo == TipoDocumento.NfCe && documento.QrCode is null)
                 _logger.LogWarning(
                     "QrCode não persistido para {DocumentoId} — usando chave de acesso como fallback (URL incompleta).",
                     documento.Id.Value);
 
-            var qrCode = documento.QrCode
-                ?? QrCode.FromStorage(documento.ChaveAcesso.Valor);
+            var qrCode = documento.Tipo == TipoDocumento.NfCe
+                ? (documento.QrCode ?? QrCode.FromStorage(documento.ChaveAcesso.Valor))
+                : QrCode.NaoAplicavel();
             var authorizedAt = _timeProvider.GetUtcNow();
 
             var authResult = documento.Autorizar(

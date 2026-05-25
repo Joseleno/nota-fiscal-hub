@@ -18,7 +18,7 @@ namespace VisuFiscalHub.Tests.Infrastructure.Jobs;
 /// O DocumentoFiscal real é usado para garantir que as transições de estado são exercitadas
 /// com as invariantes do domínio, não apenas com mocks.
 /// </summary>
-public class NfceProcessingJobTests
+public class FiscalDocumentProcessingJobTests
 {
     private static readonly DateTimeOffset FixedNow =
         new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);

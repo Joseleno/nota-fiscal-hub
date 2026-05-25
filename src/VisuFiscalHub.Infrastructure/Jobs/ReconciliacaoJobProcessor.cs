@@ -13,7 +13,7 @@ namespace VisuFiscalHub.Infrastructure.Jobs;
 ///   1. Consulta SEFAZ (ConsultarNfeAsync) para saber o estado real do documento.
 ///   2. Se SEFAZ confirma autorizado → Autorizar e publicar evento.
 ///   3. Se SEFAZ não encontrou ou rejeição definitiva → Falhar e publicar evento.
-///   4. Se consulta SEFAZ falhou (timeout/rede) → reenfileira NfceProcessingJob para retry.
+///   4. Se consulta SEFAZ falhou (timeout/rede) → reenfileira FiscalDocumentProcessingJob para retry.
 /// </summary>
 [DisableConcurrentExecution(timeoutInSeconds: 120)]
 [AutomaticRetry(Attempts = 0)]
@@ -80,7 +80,7 @@ public sealed class ReconciliacaoJobProcessor
 
         if (consultaResult.IsFailure)
         {
-            // Consulta também falhou (rede/timeout) — reenfileirar para retry do NfceProcessingJob.
+            // Consulta também falhou (rede/timeout) — reenfileirar para retry do FiscalDocumentProcessingJob.
             _logger.LogWarning("Consulta SEFAZ falhou para {DocumentoId}: {Error} — reenfileirando.",
                 documento.Id.Value, consultaResult.Error.Code);
             await _documentJobQueue.EnqueueProcessingAsync(documento.Id, ct);
@@ -117,13 +117,14 @@ public sealed class ReconciliacaoJobProcessor
             return;
         }
 
-        if (documento.QrCode is null)
+        if (documento.Tipo == TipoDocumento.NfCe && documento.QrCode is null)
             _logger.LogWarning(
                 "QrCode não persistido para {DocumentoId} — usando chave de acesso como fallback (URL incompleta).",
                 documento.Id.Value);
 
-        var qrCode = documento.QrCode
-            ?? QrCode.FromStorage(documento.ChaveAcesso.Valor);
+        var qrCode = documento.Tipo == TipoDocumento.NfCe
+            ? (documento.QrCode ?? QrCode.FromStorage(documento.ChaveAcesso.Valor))
+            : QrCode.NaoAplicavel();
         var authorizedAt = _timeProvider.GetUtcNow();
 
         var authResult = documento.Autorizar(
@@ -156,7 +157,7 @@ public sealed class ReconciliacaoJobProcessor
 
         if (failResult.IsFailure)
         {
-            // Documento pode ter sido transitado para status final pelo NfceProcessingJob
+            // Documento pode ter sido transitado para status final pelo FiscalDocumentProcessingJob
             // concorrentemente entre GetProcessandoAntigoAsync e esta chamada — não é um erro.
             _logger.LogInformation(
                 "Documento {DocumentoId} não pôde ser marcado como Falhou durante reconciliação " +
