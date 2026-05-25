@@ -63,7 +63,7 @@ public class IssueDocumentNfeCommandValidatorTests
     public void Nfe_ComDestinatarioValido_Valido()
     {
         var result = _validator.TestValidate(BaseNfeCommand());
-        result.ShouldNotHaveValidationErrorFor(x => x.NfeDestinatario);
+        result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]
@@ -105,6 +105,6 @@ public class IssueDocumentNfeCommandValidatorTests
     {
         var cmd = BaseNfeCommand() with { IndPresenca = 0 };
         var result = _validator.TestValidate(cmd);
-        result.ShouldNotHaveValidationErrorFor(x => x.IndPresenca);
+        result.ShouldNotHaveAnyValidationErrors();
     }
 }

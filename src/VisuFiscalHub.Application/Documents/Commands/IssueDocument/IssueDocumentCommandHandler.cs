@@ -71,7 +71,7 @@ public sealed class IssueDocumentCommandHandler
         if (tenant.ClienteAppId != command.ClienteAppId)
             return Result.Failure<IssueDocumentResponse>(TenantErrors.NaoPertenceAoClienteApp);
 
-        // 3. Construir itens e pagamentos antes de consumir a sequence
+        // 3. Construir itens, pagamentos e destinatário antes de consumir a sequence
         var itemsResult = BuildItems(command.Itens);
         if (itemsResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(itemsResult.Error);
@@ -79,6 +79,19 @@ public sealed class IssueDocumentCommandHandler
         var pagamentosResult = BuildPagamentos(command.Pagamentos);
         if (pagamentosResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(pagamentosResult.Error);
+
+        Domain.ValueObjects.NfeDestinatario? nfeDestinatario = null;
+        if (command.NfeDestinatario is { } destDto)
+        {
+            var destResult = Domain.ValueObjects.NfeDestinatario.Criar(
+                destDto.CnpjOuCpf, destDto.RazaoSocial, destDto.IndIeDest, destDto.Ie,
+                destDto.Logradouro, destDto.Numero, destDto.Complemento,
+                destDto.Bairro, destDto.Municipio, destDto.CodigoMunicipio,
+                destDto.Uf, destDto.Cep, destDto.Email);
+            if (destResult.IsFailure)
+                return Result.Failure<IssueDocumentResponse>(destResult.Error);
+            nfeDestinatario = destResult.Value;
+        }
 
         // 4. Obter próximo número da sequence (após validações — evita consumir número em caso de falha).
         // ATENÇÃO: sequences PostgreSQL são não-transacionais. A partir deste ponto, qualquer falha
@@ -115,18 +128,6 @@ public sealed class IssueDocumentCommandHandler
             return Result.Failure<IssueDocumentResponse>(chaveResult.Error);
 
         // 7. Criar DocumentoFiscal
-        Domain.ValueObjects.NfeDestinatario? nfeDestinatario = null;
-        if (command.NfeDestinatario is { } destDto)
-        {
-            var destResult = Domain.ValueObjects.NfeDestinatario.Criar(
-                destDto.CnpjOuCpf, destDto.RazaoSocial, destDto.IndIeDest, destDto.Ie,
-                destDto.Logradouro, destDto.Numero, destDto.Complemento,
-                destDto.Bairro, destDto.Municipio, destDto.CodigoMunicipio,
-                destDto.Uf, destDto.Cep, destDto.Email);
-            if (destResult.IsFailure)
-                return Result.Failure<IssueDocumentResponse>(destResult.Error);
-            nfeDestinatario = destResult.Value;
-        }
 
         var documentoResult = DocumentoFiscal.Criar(
             new DocumentoFiscalId(Guid.CreateVersion7()),

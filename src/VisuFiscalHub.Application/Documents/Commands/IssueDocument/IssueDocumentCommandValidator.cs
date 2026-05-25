@@ -75,7 +75,7 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
 
             RuleFor(x => x.NatOp)
                 .NotEmpty().WithMessage("Natureza da operação é obrigatória para NF-e.")
-                .MaximumLength(60);
+                .MaximumLength(60).WithMessage("Natureza da operação não pode exceder 60 caracteres.");
         });
 
         When(x => x.Tipo == TipoDocumento.NfCe, () =>
