@@ -32,7 +32,17 @@ public class ReconciliacaoJobProcessorTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
-    private ReconciliacaoJobProcessor CreateProcessor() => CriarJobComDbContext().job;
+    private ReconciliacaoJobProcessor CreateProcessor()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        var dbContext = new ApplicationDbContext(options, NullLoggerFactory.Instance);
+        return new ReconciliacaoJobProcessor(
+            _documentoRepo, _sefazClient, _documentJobQueue, _unitOfWork, _timeProvider,
+            NullLogger<ReconciliacaoJobProcessor>.Instance, dbContext);
+    }
 
     private (ReconciliacaoJobProcessor job,
              IDocumentoFiscalRepository documentoRepo,
