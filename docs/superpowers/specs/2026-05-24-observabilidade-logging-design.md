@@ -8,56 +8,161 @@ Tornar o VisuFiscalHub observável em produção: rastrear uma requisição HTTP
 
 ## Seção 1 — Correlation ID e Enriquecimento de Contexto
 
-### X-Correlation-Id Header
+### X-Correlation-Id Header — `CorrelationIdMiddleware`
 
-Cada requisição HTTP recebe um `CorrelationId` único. O middleware:
+Cada requisição HTTP recebe um `CorrelationId` único. O middleware `CorrelationIdMiddleware`:
 
-1. Lê `X-Correlation-Id` do header da requisição (se presente, reusa; se ausente, gera `Guid.NewGuid().ToString("N")`).
+1. Lê `X-Correlation-Id` do header da requisição. Se presente, reusa o valor (truncado a 128 chars para evitar log injection). Se ausente, gera `Guid.NewGuid().ToString("N")`.
 2. Escreve `X-Correlation-Id` no header da resposta.
-3. Injeta no contexto Serilog via `using var _ = LogContext.PushProperty("CorrelationId", correlationId)` — o `using` garante disposal ao final da requisição, evitando vazamento entre threads do pool.
+3. Armazena o `correlationId` em `HttpContext.Items["CorrelationId"]` para que componentes downstream (ex: `GlobalExceptionHandler`) possam lê-lo sem depender do Serilog.
+4. Injeta no contexto Serilog via `LogContext.PushProperty`, com disposal garantido pelo `using` que engloba o `await next(context)`:
 
-### Jobs Hangfire
+```csharp
+public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+{
+    var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+        is { Length: > 0 } h ? h[..Math.Min(h.Length, 128)] : Guid.NewGuid().ToString("N");
 
-Jobs Hangfire (reconciliação, processamento fiscal, cancelamento) não têm requisição HTTP, mas precisam de rastreabilidade. A solução é um `IServerFilter` (`CorrelationIdJobFilter`) que:
+    context.Response.Headers["X-Correlation-Id"] = correlationId;
+    context.Items["CorrelationId"] = correlationId;
 
-1. Em `OnPerforming`: lê `correlationId` do `PerformContext.Items` (colocado pelo job ao ser enfileirado, se disponível) ou gera novo via fallback: `correlationId ?? Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N")`.
-2. Empurra `CorrelationId` via `LogContext.PushProperty` com `using` em escopo de `IDisposable` armazenado em `PerformContext.Items`.
-3. Em `OnPerformed`: descarta o `IDisposable`.
+    using var _ = LogContext.PushProperty("CorrelationId", correlationId);
+    await next(context);
+}
+```
 
-Isso significa que **nenhuma assinatura de método de job é alterada** — `correlationId` não vira parâmetro.
+**Posição no pipeline** — o middleware deve ser adicionado em `Program.cs` **antes** de `UseSerilogRequestLogging()` para que o log de request já inclua `CorrelationId`, e logo após `UseExceptionHandler()`:
+
+```csharp
+app.UseExceptionHandler("/error");
+app.UseMiddleware<CorrelationIdMiddleware>();   // ← antes de UseSerilogRequestLogging
+app.UseSerilogRequestLogging();
+app.UseRateLimiter();
+// ...
+```
+
+### `ICorrelationContext` — propagação para a camada Application
+
+Para que command handlers possam propagar `CorrelationId` para `OutboxMessage` sem acessar `HttpContext` diretamente (violação de Clean Architecture), uma interface Scoped é definida na camada Application:
+
+```csharp
+// Application.Common.Interfaces
+public interface ICorrelationContext
+{
+    string? CorrelationId { get; }
+}
+```
+
+A implementação em Infrastructure lê de `IHttpContextAccessor`:
+
+```csharp
+// Infrastructure
+internal sealed class HttpCorrelationContext(IHttpContextAccessor accessor) : ICorrelationContext
+{
+    public string? CorrelationId =>
+        accessor.HttpContext?.Items["CorrelationId"] as string;
+}
+```
+
+Registrada como `Scoped` no container. Injetada nos command handlers que criam `OutboxMessage`.
+
+### Jobs Hangfire — `CorrelationIdJobFilter`
+
+Jobs Hangfire não têm requisição HTTP, mas precisam de rastreabilidade. A solução é um `IServerFilter`:
+
+```csharp
+internal sealed class CorrelationIdJobFilter : IServerFilter
+{
+    private static readonly object _scopeKey = new();
+
+    public void OnPerforming(PerformingContext context)
+    {
+        // Usa o JobId como CorrelationId — garante o mesmo valor em todos os retries
+        var correlationId = context.BackgroundJob.Id;
+        var scope = LogContext.PushProperty("CorrelationId", correlationId);
+        context.Items[_scopeKey] = scope;
+    }
+
+    public void OnPerformed(PerformedContext context)
+    {
+        if (context.Items.TryGetValue(_scopeKey, out var scope))
+            ((IDisposable)scope).Dispose();
+    }
+}
+```
+
+**Por que usar `BackgroundJob.Id`:** O `PerformContext` é recriado a cada tentativa — não há mecanismo nativo do Hangfire para persistir dados entre tentativas via `Items`. Usar o `JobId` (que é estável entre retries) garante que todos os retries do mesmo job apareçam no Seq sob o mesmo `CorrelationId`, facilitando o diagnóstico de falhas transientes.
+
+**Chave tipada em `Items`:** O uso de `private static readonly object _scopeKey` evita colisão com outros filtros que usam chaves string genéricas.
+
+**Registro do filtro** em `DependencyInjection.cs`, na configuração do Hangfire:
+
+```csharp
+services.AddHangfire(config =>
+{
+    // ...configuração existente...
+    config.UseFilter(new CorrelationIdJobFilter());
+});
+```
 
 ### TenantId no Contexto dos Jobs
 
-No início de cada job (após carregar o documento/tenant), um único `LogContext.PushProperty("TenantId", tenant.Id.Value)` com `using` enriquece todos os logs subsequentes do job. Não é feito por chamada.
+No início de cada job, após carregar o documento e o tenant, empurra `TenantId` e `DocumentoId` via `LogContext.PushProperty` **uma vez**:
+
+```csharp
+using var _tenantProp = LogContext.PushProperty("TenantId", tenant.Id.Value);
+using var _docProp    = LogContext.PushProperty("DocumentoId", documentoId.Value);
+```
+
+**`ReconciliacaoJobProcessor` é multi-tenant e multi-documento.** Nesse job, os campos `TenantId` e `DocumentoId` devem ser empurrados **dentro do loop**, em cada iteração de `ReconciliarAsync`, não no topo do job — caso contrário todos os logs do loop carregarão os valores do primeiro documento.
 
 ### GlobalExceptionHandler
 
-O handler de exceções não tratadas inclui `CorrelationId` no `ProblemDetails` retornado para HTTP 500:
+O handler de exceções não tratadas inclui `CorrelationId` no `ProblemDetails` de HTTP 500. O valor é lido de `HttpContext.Items["CorrelationId"]` (escrito pelo `CorrelationIdMiddleware`) e adicionado via `Extensions`:
 
+```csharp
+var correlationId = httpContext.Items["CorrelationId"] as string;
+var details = new ProblemDetails
+{
+    Status = StatusCodes.Status500InternalServerError,
+    Title = "Internal Server Error",
+    Extensions = { ["correlationId"] = correlationId }
+};
+```
+
+Resultado JSON:
 ```json
 {
-  "type": "https://tools.ietf.org/html/rfc7807",
   "title": "Internal Server Error",
   "status": 500,
   "correlationId": "a3f2b1c4d5e6..."
 }
 ```
 
-Isso permite que o suporte correlacione um erro reportado pelo usuário com um log no Seq.
-
 ### OutboxMessage — CorrelationId
 
-A tabela `OutboxMessages` recebe a coluna `CorrelationId string?`. Quando uma mensagem de outbox é criada (dentro de um command handler), o `CorrelationId` atual é propagado. O webhook processor loga `CorrelationId` ao processar cada mensagem.
+A tabela `OutboxMessages` recebe a coluna `CorrelationId varchar(128)` nullable. O command handler que cria a `OutboxMessage` injeta `ICorrelationContext` e propaga o valor:
+
+```csharp
+var outbox = new OutboxMessage { ..., CorrelationId = _correlationContext.CorrelationId };
+```
+
+O `OutboxRelayJob` empurra o `CorrelationId` da mensagem via `LogContext.PushProperty` **dentro do loop**, uma vez por mensagem, para que o log de entrega de cada webhook carregue a rastreabilidade da requisição original.
+
+**Migration necessária:** `ALTER TABLE outbox_messages ADD COLUMN correlation_id varchar(128) NULL`.
 
 ### Campos estruturados mínimos por log
 
 | Campo | Fonte |
 |---|---|
-| `CorrelationId` | Middleware HTTP / `CorrelationIdJobFilter` |
-| `TenantId` | Job ou command handler |
-| `DocumentoId` | Job ou command handler |
-| `StatusCode` | Middleware request logging |
-| `ElapsedMs` | `UseSerilogRequestLogging` / job |
+| `CorrelationId` | `CorrelationIdMiddleware` / `CorrelationIdJobFilter` |
+| `TenantId` | Job (por iteração) ou command handler |
+| `DocumentoId` | Job (por iteração) |
+| `JobId` | `CorrelationIdJobFilter` — mesmo valor que `CorrelationId` nos jobs |
+| `StatusCode` | `UseSerilogRequestLogging` |
+| `ElapsedMs` | `UseSerilogRequestLogging` / `DeliveryAttempt` |
+| `RequestPath` | `UseSerilogRequestLogging` |
+| `MachineName` | `Enrich.WithMachineName()` |
 
 ---
 
@@ -65,10 +170,9 @@ A tabela `OutboxMessages` recebe a coluna `CorrelationId string?`. Quando uma me
 
 ### NuGet Packages
 
-Adicionar ao projeto `VisuFiscalHub.Api`:
+`Serilog.AspNetCore` já está presente no projeto (`10.0.0`). Adicionar apenas os ausentes:
 
 ```
-Serilog.AspNetCore
 Serilog.Sinks.Seq
 Serilog.Enrichers.Environment
 Serilog.Enrichers.Thread
@@ -76,30 +180,35 @@ Serilog.Enrichers.Thread
 
 ### Configuração Serilog em `Program.cs`
 
-```csharp
-builder.Host.UseSerilog((ctx, lc) => lc
-    .ReadFrom.Configuration(ctx.Configuration)
-    .Enrich.FromLogContext()
-    .Enrich.WithMachineName()
-    .Enrich.WithThreadId());
+Remover o `.WriteTo.Console()` hardcoded existente (linha 55 atual) e manter `ReadFrom.Services(services)` para suporte a enrichers que dependem de DI:
 
-// No pipeline:
-app.UseSerilogRequestLogging();
+```csharp
+builder.Host.UseSerilog((ctx, services, config) =>
+    config.ReadFrom.Configuration(ctx.Configuration)
+          .ReadFrom.Services(services)
+          .Enrich.FromLogContext()
+          .Enrich.WithMachineName()
+          .Enrich.WithThreadId());
 ```
 
-Sem `.WriteTo.Console()` hardcoded — o sink é configurado via `appsettings` para evitar duplicação.
+O sink Console é configurado via `appsettings` — sem hardcoded — eliminando duplicação.
 
 ### `appsettings.json` (base — todos os ambientes)
 
+Substituir a seção `"Logging"` existente (inativa quando Serilog está em uso) pela seção `"Serilog"`. A seção `"Logging"` deve ser removida para evitar configuração morta:
+
 ```json
 {
+  "AllowedHosts": "*",
+  "Jwt": { ... },
   "Serilog": {
     "MinimumLevel": {
       "Default": "Information",
       "Override": {
         "Microsoft": "Warning",
         "System": "Warning",
-        "Hangfire": "Information"
+        "Hangfire.Server": "Information",
+        "Hangfire": "Warning"
       }
     },
     "WriteTo": [
@@ -114,12 +223,19 @@ Sem `.WriteTo.Console()` hardcoded — o sink é configurado via `appsettings` p
 }
 ```
 
-Nota: `{Properties:j}` **não** está no template — evita inundar o console com JSON verboso.
+Notas:
+- `{Properties:j}` **não** está no template — evita inundar o console com JSON verboso.
+- `Hangfire.Server: Information` loga execuções; `Hangfire: Warning` silencia ruído de enfileiramento. O namespace mais específico tem precedência.
+- `Hangfire` em `Warning` evita ~30k logs/dia de enfileiramento em produção.
 
 ### `appsettings.Development.json` (dev local com IDE)
 
+O arquivo define o array `WriteTo` completo (Console + Seq). O sistema de configuração do ASP.NET Core **substitui** arrays por completo — não faz merge — portanto o Console deve ser repetido para não ser perdido:
+
 ```json
 {
+  "ConnectionStrings": { ... },
+  "Jwt": { ... },
   "Serilog": {
     "WriteTo": [
       {
@@ -139,109 +255,192 @@ Nota: `{Properties:j}` **não** está no template — evita inundar o console co
 }
 ```
 
+### `appsettings.Docker.json` (ambiente Docker)
+
+Em vez de sobrescrever elementos de array por variável de ambiente (frágil — depende de índice fixo), criar `appsettings.Docker.json` com a URL correta para o container:
+
+```json
+{
+  "Serilog": {
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "outputTemplate": "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {NewLine}{Exception}"
+        }
+      },
+      {
+        "Name": "Seq",
+        "Args": {
+          "serverUrl": "http://seq:5341"
+        }
+      }
+    ]
+  }
+}
+```
+
 ### Docker Compose
 
-O serviço `seq` recebe `hub-network` e o volume é declarado corretamente. A URL do Seq é injetada via variável de ambiente (override do `appsettings.Development.json`):
+O `docker-compose.override.yml` (dev local) recebe o serviço `seq` e monta `appsettings.Docker.json`. O serviço se chama `hub` (nome correto do projeto):
 
 ```yaml
+# infra/docker-compose.override.yml
 services:
-  api:
+  hub:
     environment:
-      - Serilog__WriteTo__1__Args__serverUrl=http://seq:5341
+      ASPNETCORE_ENVIRONMENT: Docker
+      Serilog__MinimumLevel__Default: Debug
+      HangfireDashboard__User: ""
+      HangfireDashboard__Password: ""
+      POSTGRES_INCLUDE_ERROR_DETAIL: "true"
+    volumes:
+      - ../src/VisuFiscalHub.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
+      - ../src/VisuFiscalHub.Api/appsettings.Docker.json:/app/appsettings.Docker.json:ro
 
   seq:
     image: datalust/seq:latest
+    container_name: visu-fiscal-seq
     environment:
       - ACCEPT_EULA=Y
     ports:
       - "5341:5341"
-      - "8080:80"
+      - "8081:80"
     volumes:
       - seq-data:/data
     networks:
       - hub-network
+
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
 
 volumes:
   seq-data:
 
 networks:
   hub-network:
-    driver: bridge
+    external: true
 ```
 
-### Campos no Seq
+O `ASPNETCORE_ENVIRONMENT: Docker` faz o ASP.NET Core carregar `appsettings.Docker.json`, que aponta para `http://seq:5341` — sem índice fixo, sem variável de ambiente frágil.
 
-Com `Enrich.FromLogContext()`, todos os campos empurrados via `LogContext.PushProperty` aparecem como propriedades estruturadas no Seq, consultáveis por:
-
-```
-CorrelationId = 'abc123'
-TenantId = '...'
-DocumentoId = '...'
-```
+**Nota:** A versão gratuita do Seq tem limite de ingestão. Para uso em produção, avaliar licença ou alternativas (Grafana Loki, Elastic).
 
 ---
 
 ## Seção 3 — DeliveryAttempt nos Jobs
 
-### Problema atual
+### Estado atual (o que existe hoje)
 
-`FiscalDocumentProcessingJob` e `ReconciliacaoJobProcessor` registram `DeliveryAttempt` mas com `ElapsedMs = 0` porque o tempo de resposta SEFAZ é medido internamente no `SefazClient` e não é retornado. `CancelamentoJob` usa `Stopwatch` próprio e já tem `ElapsedMs` correto.
+- `CancelamentoJob`: cria `DeliveryAttempt` com `Stopwatch` próprio — `ElapsedMs` correto.
+- `FiscalDocumentProcessingJob`: **não cria nenhum `DeliveryAttempt`** hoje. `ISefazClient` não expõe tempo de resposta.
+- `ReconciliacaoJobProcessor`: **não cria nenhum `DeliveryAttempt`** hoje.
+- `SefazClient`: **não tem `Stopwatch`** — tempo de resposta SEFAZ não é medido em nenhum lugar nesses fluxos.
 
-### Solução: `SefazResponse<T>`
+O escopo desta seção é **adicionar `DeliveryAttempt` do zero** nesses dois jobs, com `ElapsedMs` correto.
 
-`ISefazClient` passa a retornar um VO que inclui o tempo medido:
+### Solução: `ElapsedMs` em `SefazRetorno` e `SefazConsultaRetorno`
+
+Em vez de criar um wrapper genérico `SefazResponse<T>` (que resulta em double-envelope `Result<SefazResponse<T>>` e acesso via `.Value.Value`), adicionar `ElapsedMs` diretamente nos records existentes:
 
 ```csharp
-public sealed record SefazResponse<T>(T Value, long ElapsedMs);
+// Application.Common.Interfaces — ISefazClient.cs
+public sealed record SefazRetorno(
+    bool Autorizado,
+    string? NProtAutorizacao,
+    string? QrCodeUrl,
+    string CStat,
+    string XMotivo,
+    long ElapsedMs);        // ← novo campo
+
+public sealed record SefazConsultaRetorno(
+    bool Autorizado,
+    string? NProtAutorizacao,
+    string? QrCodeUrl,
+    string CStat,
+    string XMotivo,
+    long ElapsedMs);        // ← novo campo
 ```
 
-Métodos afetados em `ISefazClient`:
-- `SubmeterAutorizacaoAsync` → retorna `SefazResponse<AutorizacaoRetorno>`
-- `ConsultarNfeAsync` → retorna `SefazResponse<ConsultaRetorno>`
+O `SefazClient` mede com `Stopwatch` internamente e popula `ElapsedMs` em ambos os records. A assinatura de `ISefazClient` **não muda** — apenas os tipos de retorno recebem um campo extra.
 
-O `SefazClient` mede com `Stopwatch` internamente e popula `ElapsedMs`. Os jobs leem `response.ElapsedMs` ao criar o `DeliveryAttempt`.
+**Impacto em testes:** `NfceProcessingJobTests`, `ReconciliacaoJobProcessorTests` e `FakeSefazClient` instanciam `SefazRetorno` e `SefazConsultaRetorno` diretamente. Todos precisarão receber o argumento `ElapsedMs` (ex: `ElapsedMs: 0L` nos testes — valor irrelevante para a lógica testada).
 
-### AutorizarPorDuplicidadeAsync — DeliveryAttempt ausente
+### TipoTentativa — remoção de `Retry` sem renumeração
 
-O caminho de duplicidade (cStat=573) não registrava `DeliveryAttempt`. Passa a registrar com:
-- `TipoTentativa.Consulta` (não `Retry` — é uma consulta de status, não uma retransmissão)
-- `Success = true` (duplicidade = SEFAZ já aceitou)
-- `ElapsedMs` da consulta
-
-### TipoTentativa
-
-Enum revisado:
+`Retry = 3` não é usado em nenhum lugar do codebase. É removido do enum. `Cancelamento` mantém o valor `4` para não corromper dados históricos já persistidos no banco:
 
 ```csharp
 public enum TipoTentativa
 {
     Envio = 1,
     Consulta = 2,
-    Cancelamento = 3
+    // 3 removido (era Retry — nunca usado)
+    Cancelamento = 4
 }
 ```
 
-`Retry` é removido — semanticamente incorreto para o caminho de duplicidade. Todos os caminhos de consulta usam `TipoTentativa.Consulta`.
+**Nenhuma data migration necessária** — apenas a remoção do valor do enum C#.
 
-### Atomicidade: attempt + estado do documento
+### DeliveryAttempt em `FiscalDocumentProcessingJob`
 
-O padrão atual chama `SaveChangesAsync` duas vezes (uma para o documento, uma para o attempt). O design revisado salva ambos na mesma `SaveChangesAsync`:
+Adicionar criação de `DeliveryAttempt` nos helpers privados `AutorizarAsync`, `RejeitarAsync`, `DenegarAsync` e `AutorizarPorDuplicidadeAsync`. O attempt é salvo na **mesma `SaveChangesAsync`** que persiste o novo estado do documento (atomicidade):
 
 ```csharp
-// Atualiza documento (estado)
-// Adiciona DeliveryAttempt
+// Exemplo em AutorizarAsync:
+var attempt = DeliveryAttempt.Criar(
+    documentoId,
+    TipoTentativa.Envio,
+    _timeProvider.GetUtcNow(),
+    success: true,
+    responseCode: retorno.CStat,
+    responseMessage: null,
+    elapsedMs: retorno.ElapsedMs);
+
 _dbContext.DeliveryAttempts.Add(attempt);
-// Um único SaveChangesAsync
-await _unitOfWork.SaveChangesAsync(ct);
+await _unitOfWork.SaveChangesAsync(ct);   // salva documento + attempt juntos
 ```
 
-Se a transação falhar, nenhum dos dois é persistido — consistente. `CancelamentoJob` mantém o padrão de attempt em `CancellationToken.None` separado apenas para o registro de falha HTTP (onde o documento não foi atualizado ainda).
+**Caminho de duplicidade (`AutorizarPorDuplicidadeAsync`):** registra **dois** attempts:
+1. `TipoTentativa.Envio`, `Success = false`, `ResponseCode = "572"` — o envio que retornou duplicidade.
+2. `TipoTentativa.Consulta`, `Success = true`, `ResponseCode = retornoConsulta.CStat` — a consulta de resolução.
+
+Ambos salvos na mesma `SaveChangesAsync` que persiste o estado `Autorizado`.
+
+### DeliveryAttempt em `ReconciliacaoJobProcessor`
+
+Adicionar attempt em `ReconciliarAsync` após cada chamada a `ConsultarNfeAsync`:
+
+```csharp
+var attempt = DeliveryAttempt.Criar(
+    documento.Id,
+    TipoTentativa.Consulta,
+    _timeProvider.GetUtcNow(),
+    success: retorno.Autorizado,
+    responseCode: retorno.CStat,
+    responseMessage: retorno.XMotivo,
+    elapsedMs: retorno.ElapsedMs);
+
+_dbContext.DeliveryAttempts.Add(attempt);
+await _unitOfWork.SaveChangesAsync(ct);   // salva documento + attempt juntos
+```
+
+### CancelamentoJob — padrão existente mantido
+
+`CancelamentoJob` já registra `DeliveryAttempt` corretamente. Mantém o padrão de dois saves distintos porque:
+- **Falha HTTP** (catch): attempt salvo com `CancellationToken.None` antes do `throw` — documento não foi alterado.
+- **Falha de parse**: idem.
+- **Sucesso/rejeição**: documento salvo primeiro; attempt salvo em `RegistrarAttemptAsync` separado com `CancellationToken.None`.
+
+Este padrão é intencional no `CancelamentoJob` e não é alterado nesta fase.
 
 ### Log estruturado nos jobs
 
-Cada job, ao iniciar, empurra `TenantId` e `DocumentoId` via `LogContext.PushProperty` uma vez, não por chamada SEFAZ:
+Cada job empurra `TenantId` e `DocumentoId` via `LogContext.PushProperty` com `using`. Para `FiscalDocumentProcessingJob` e `CancelamentoJob` (um documento por execução), no início do método `ExecuteAsync`. Para `ReconciliacaoJobProcessor` (múltiplos documentos), **dentro do loop** em `ReconciliarAsync`:
 
 ```csharp
+// FiscalDocumentProcessingJob.ExecuteAsync — após carregar tenant e documento
 using var _tenantProp = LogContext.PushProperty("TenantId", tenant.Id.Value);
 using var _docProp    = LogContext.PushProperty("DocumentoId", documentoId.Value);
 ```
@@ -250,18 +449,31 @@ Campos adicionais nos logs de chamada SEFAZ: `{CStat}`, `{ElapsedMs}`, `{Url}`.
 
 ---
 
+## Migrations EF Core necessárias
+
+| Migration | Mudança |
+|---|---|
+| `AddCorrelationIdToOutboxMessages` | `ALTER TABLE outbox_messages ADD COLUMN correlation_id varchar(128) NULL` |
+
+A remoção de `TipoTentativa.Retry = 3` do enum C# **não requer migration de schema** (coluna `tipo_tentativa` permanece `integer`). Nenhuma data migration é necessária porque `Retry = 3` nunca foi persistido no banco.
+
+---
+
 ## Escopo desta fase
 
 **Incluído:**
-- Middleware `CorrelationIdMiddleware`
-- `CorrelationIdJobFilter` (Hangfire `IServerFilter`)
-- `GlobalExceptionHandler` com `CorrelationId` em ProblemDetails 500
-- Coluna `CorrelationId` em `OutboxMessages`
-- Configuração Serilog completa (packages, `appsettings`, Docker Compose)
-- `SefazResponse<T>` VO + `ElapsedMs` em `DeliveryAttempt`
-- `DeliveryAttempt` no caminho `AutorizarPorDuplicidadeAsync`
-- `TipoTentativa` sem `Retry` (renomear para `Consulta`)
-- Atomicidade attempt + documento
+- `CorrelationIdMiddleware` com `HttpContext.Items` e `LogContext.PushProperty`
+- `ICorrelationContext` (Application) + `HttpCorrelationContext` (Infrastructure)
+- `CorrelationIdJobFilter` (Hangfire `IServerFilter`) usando `BackgroundJob.Id`
+- `GlobalExceptionHandler` com `CorrelationId` em `ProblemDetails.Extensions`
+- `OutboxMessage.CorrelationId` + migration
+- Configuração Serilog completa (`Program.cs`, `appsettings.*`, `appsettings.Docker.json`)
+- Serviço `seq` no `docker-compose.override.yml`
+- `ElapsedMs` em `SefazRetorno` / `SefazConsultaRetorno` + `Stopwatch` no `SefazClient`
+- `DeliveryAttempt` em `FiscalDocumentProcessingJob` (Envio + Consulta + duplicidade)
+- `DeliveryAttempt` em `ReconciliacaoJobProcessor`
+- `TipoTentativa.Retry` removido (valor `4` = `Cancelamento` mantido)
+- Atomicidade attempt + documento em `FiscalDocumentProcessingJob` e `ReconciliacaoJobProcessor`
 - `LogContext.PushProperty` com `using` em todos os jobs
 
 **Excluído (fora de escopo):**
