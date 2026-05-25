@@ -59,7 +59,8 @@ public sealed class CreateTenantCommandHandler
             command.Serie,
             command.Ambiente,
             command.UfCodigo,
-            command.InscricaoEstadual);
+            command.InscricaoEstadual,
+            serieNfe: command.SerieNfe);
 
         if (configResult.IsFailure)
             return Result.Failure<TenantResponse>(configResult.Error);
@@ -104,7 +105,17 @@ public sealed class CreateTenantCommandHandler
 
             await _tenantRepository.AddAsync(tenant, ct);
             await _unitOfWork.SaveChangesAsync(ct);
-            return await _sequenceManager.EnsureNumeracaoSequenceAsync(tenant.Id, command.Serie, ct);
+            var seqResult = await _sequenceManager.EnsureNumeracaoSequenceAsync(tenant.Id, command.Serie, ct);
+            if (seqResult.IsFailure) return seqResult;
+
+            if (command.SerieNfe is not null)
+            {
+                var seqNfeResult = await _sequenceManager.EnsureNumeracaoSequenceAsync(
+                    tenant.Id, command.SerieNfe, ct);
+                if (seqNfeResult.IsFailure) return seqNfeResult;
+            }
+
+            return seqResult;
         }, cancellationToken);
 
         if (transactionResult.IsFailure)
