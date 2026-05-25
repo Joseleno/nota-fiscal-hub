@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -9,6 +11,7 @@ using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Domain.ValueObjects;
 using VisuFiscalHub.Infrastructure.Jobs;
+using VisuFiscalHub.Infrastructure.Persistence;
 using VisuFiscalHub.Tests.Helpers;
 
 namespace VisuFiscalHub.Tests.Infrastructure.Jobs;
@@ -31,7 +34,40 @@ public class ReconciliacaoJobProcessorTests
 
     private ReconciliacaoJobProcessor CreateProcessor() =>
         new(_documentoRepo, _sefazClient, _documentJobQueue, _unitOfWork, _timeProvider,
-            NullLogger<ReconciliacaoJobProcessor>.Instance);
+            NullLogger<ReconciliacaoJobProcessor>.Instance,
+            new ApplicationDbContext(
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                    .Options,
+                NullLoggerFactory.Instance));
+
+    private (ReconciliacaoJobProcessor job,
+             IDocumentoFiscalRepository documentoRepo,
+             ISefazClient sefazClient,
+             ApplicationDbContext dbContext,
+             IUnitOfWork unitOfWork,
+             IDocumentJobQueue documentJobQueue,
+             TimeProvider timeProvider) CriarJobComDbContext()
+    {
+        var documentoRepo    = Substitute.For<IDocumentoFiscalRepository>();
+        var sefazClient      = Substitute.For<ISefazClient>();
+        var documentJobQueue = Substitute.For<IDocumentJobQueue>();
+        var unitOfWork       = Substitute.For<IUnitOfWork>();
+        var timeProvider     = new FixedTimeProvider(FixedNow);
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        var dbContext = new ApplicationDbContext(options, NullLoggerFactory.Instance);
+
+        var job = new ReconciliacaoJobProcessor(
+            documentoRepo, sefazClient, documentJobQueue, unitOfWork, timeProvider,
+            NullLogger<ReconciliacaoJobProcessor>.Instance, dbContext);
+
+        return (job, documentoRepo, sefazClient, dbContext, unitOfWork, documentJobQueue, timeProvider);
+    }
 
     // ── sem documentos travados ───────────────────────────────────────────────────
 
@@ -65,7 +101,7 @@ public class ReconciliacaoJobProcessorTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── consulta SEFAZ falhou → reenfileira, não salva ───────────────────────────
+    // ── consulta SEFAZ falhou → reenfileira, salva DeliveryAttempt de falha ──────
 
     [Fact]
     public async Task ExecuteAsync_ConsultaSefazFalhou_ReenfileiraProcessingJob()
@@ -82,7 +118,8 @@ public class ReconciliacaoJobProcessorTests
 
         await _documentJobQueue.Received(1)
             .EnqueueProcessingAsync(documento.Id, Arg.Any<CancellationToken>());
-        await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(Arg.Any<CancellationToken>());
+        // Salva o DeliveryAttempt de falha antes de reenfileirar.
+        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── SEFAZ autorizado → Autorizado ────────────────────────────────────────────
@@ -278,6 +315,29 @@ public class ReconciliacaoJobProcessorTests
             .ConsultarNfeAsync(Arg.Any<string>(), Arg.Any<TenantId>(), Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>());
         // Cada documento produz um SaveChangesAsync independente.
         await _unitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ── DeliveryAttempt registrado na consulta SEFAZ ─────────────────────────────
+
+    [Fact]
+    public async Task ReconciliarAsync_SefazAutorizado_CriaDeliveryAttemptConsulta()
+    {
+        var (job, documentoRepo, sefazClient, dbContext, _, _, _) = CriarJobComDbContext();
+        var doc = DocumentoFiscalBuilder.Processando();
+        documentoRepo.GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new List<DocumentoFiscal> { doc });
+        sefazClient.ConsultarNfeAsync(doc.ChaveAcesso.Valor, doc.TenantId, doc.Tipo, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new SefazConsultaRetorno(
+                Encontrado: true, Autorizado: true, CStat: "100",
+                NProt: "135260000000001", XmlProtocolo: "<protNFe/>", ElapsedMs: 200L)));
+
+        await job.ExecuteAsync(CancellationToken.None);
+
+        dbContext.DeliveryAttempts.Local.ShouldContain(a =>
+            a.DocumentoFiscalId == doc.Id &&
+            a.TipoTentativa == TipoTentativa.Consulta &&
+            a.Success &&
+            a.ElapsedMs == 200L);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────

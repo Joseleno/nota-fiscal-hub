@@ -1,9 +1,12 @@
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using Serilog.Context;
 using VisuFiscalHub.Application.Common.Interfaces;
+using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Domain.ValueObjects;
+using VisuFiscalHub.Infrastructure.Persistence;
 
 namespace VisuFiscalHub.Infrastructure.Jobs;
 
@@ -27,6 +30,7 @@ public sealed class ReconciliacaoJobProcessor
     private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ReconciliacaoJobProcessor> _logger;
+    private readonly ApplicationDbContext _dbContext;
 
     public ReconciliacaoJobProcessor(
         IDocumentoFiscalRepository documentoRepo,
@@ -34,7 +38,8 @@ public sealed class ReconciliacaoJobProcessor
         IDocumentJobQueue documentJobQueue,
         IUnitOfWork unitOfWork,
         TimeProvider timeProvider,
-        ILogger<ReconciliacaoJobProcessor> logger)
+        ILogger<ReconciliacaoJobProcessor> logger,
+        ApplicationDbContext dbContext)
     {
         _documentoRepo = documentoRepo;
         _sefazClient = sefazClient;
@@ -42,6 +47,7 @@ public sealed class ReconciliacaoJobProcessor
         _unitOfWork = unitOfWork;
         _timeProvider = timeProvider;
         _logger = logger;
+        _dbContext = dbContext;
     }
 
     public async Task ExecuteAsync(CancellationToken ct)
@@ -63,6 +69,9 @@ public sealed class ReconciliacaoJobProcessor
 
     private async Task ReconciliarAsync(Domain.Entities.DocumentoFiscal documento, CancellationToken ct)
     {
+        using var tenantScope = LogContext.PushProperty("TenantId", documento.TenantId.Value);
+        using var docScope    = LogContext.PushProperty("DocumentoId", documento.Id.Value);
+
         _logger.LogWarning("Reconciliando {DocumentoId} (status={Status}, createdAt={CreatedAt})",
             documento.Id.Value, documento.Status, documento.CreatedAt);
 
@@ -83,6 +92,18 @@ public sealed class ReconciliacaoJobProcessor
             // Consulta também falhou (rede/timeout) — reenfileirar para retry do FiscalDocumentProcessingJob.
             _logger.LogWarning("Consulta SEFAZ falhou para {DocumentoId}: {Error} — reenfileirando.",
                 documento.Id.Value, consultaResult.Error.Code);
+
+            var attemptFalha = DeliveryAttempt.Criar(
+                documento.Id,
+                TipoTentativa.Consulta,
+                _timeProvider.GetUtcNow(),
+                success: false,
+                responseCode: null,
+                responseMessage: consultaResult.Error.Message,
+                elapsedMs: 0L);
+            _dbContext.DeliveryAttempts.Add(attemptFalha);
+            await _unitOfWork.SaveChangesAsync(ct);
+
             await _documentJobQueue.EnqueueProcessingAsync(documento.Id, ct);
             return;
         }
@@ -141,7 +162,17 @@ public sealed class ReconciliacaoJobProcessor
             return;
         }
 
+        var attempt = DeliveryAttempt.Criar(
+            documento.Id,
+            TipoTentativa.Consulta,
+            _timeProvider.GetUtcNow(),
+            success: true,
+            responseCode: consulta.CStat,
+            responseMessage: null,
+            elapsedMs: consulta.ElapsedMs);
+
         await _documentoRepo.UpdateAsync(documento, ct);
+        _dbContext.DeliveryAttempts.Add(attempt);
         await _unitOfWork.SaveChangesAsync(ct);
 
         _logger.LogInformation("Reconciliação: {DocumentoId} AUTORIZADO via consulta SEFAZ. Protocolo: {NProt}",
@@ -166,7 +197,17 @@ public sealed class ReconciliacaoJobProcessor
             return;
         }
 
+        var attempt = DeliveryAttempt.Criar(
+            documento.Id,
+            TipoTentativa.Consulta,
+            _timeProvider.GetUtcNow(),
+            success: false,
+            responseCode: null,
+            responseMessage: motivo,
+            elapsedMs: 0L);
+
         await _documentoRepo.UpdateAsync(documento, ct);
+        _dbContext.DeliveryAttempts.Add(attempt);
         await _unitOfWork.SaveChangesAsync(ct);
 
         _logger.LogError("Reconciliação: {DocumentoId} marcado como Falhou. Motivo: {Motivo}",
