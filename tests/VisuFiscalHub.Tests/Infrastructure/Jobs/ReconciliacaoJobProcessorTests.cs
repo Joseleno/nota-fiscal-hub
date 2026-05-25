@@ -32,15 +32,7 @@ public class ReconciliacaoJobProcessorTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
-    private ReconciliacaoJobProcessor CreateProcessor() =>
-        new(_documentoRepo, _sefazClient, _documentJobQueue, _unitOfWork, _timeProvider,
-            NullLogger<ReconciliacaoJobProcessor>.Instance,
-            new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>()
-                    .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-                    .Options,
-                NullLoggerFactory.Instance));
+    private ReconciliacaoJobProcessor CreateProcessor() => CriarJobComDbContext().job;
 
     private (ReconciliacaoJobProcessor job,
              IDocumentoFiscalRepository documentoRepo,
@@ -322,7 +314,7 @@ public class ReconciliacaoJobProcessorTests
     [Fact]
     public async Task ReconciliarAsync_SefazAutorizado_CriaDeliveryAttemptConsulta()
     {
-        var (job, documentoRepo, sefazClient, dbContext, _, _, _) = CriarJobComDbContext();
+        var (job, documentoRepo, sefazClient, dbContext, unitOfWork, _, _) = CriarJobComDbContext();
         var doc = DocumentoFiscalBuilder.Processando();
         documentoRepo.GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(new List<DocumentoFiscal> { doc });
@@ -338,6 +330,7 @@ public class ReconciliacaoJobProcessorTests
             a.TipoTentativa == TipoTentativa.Consulta &&
             a.Success &&
             a.ElapsedMs == 200L);
+        await unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────
