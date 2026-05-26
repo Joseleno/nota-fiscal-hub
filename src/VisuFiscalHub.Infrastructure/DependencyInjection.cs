@@ -127,7 +127,9 @@ public static class DependencyInjection
         services.AddScoped<ICancelamentoJobQueue, HangfireCancelamentoJobQueue>();
 
         // Fase 7 — Integração SEFAZ
-        // Sefaz:UseFakeClient=true ativa stubs locais (sem certificado, sem acesso à SEFAZ).
+        // SefazHttpClient é registrado sempre — CancelamentoJob injeta-o diretamente.
+        // Sefaz:UseFakeClient=true substitui apenas ISefazClient por stub local.
+        services.AddScoped<SefazHttpClient>();
         bool useFakeClient = configuration.GetValue<bool>("Sefaz:UseFakeClient");
         if (useFakeClient)
         {
@@ -135,8 +137,6 @@ public static class DependencyInjection
         }
         else
         {
-            // SefazHttpClient cria HttpClient por request para mTLS por-tenant — não usa factory.
-            services.AddScoped<SefazHttpClient>();
             services.AddScoped<ISefazClient, SefazClient>();
         }
 
