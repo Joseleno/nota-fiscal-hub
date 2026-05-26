@@ -3,7 +3,7 @@
 services:
   hub:
     environment:
-      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_ENVIRONMENT: Development
       Serilog__MinimumLevel__Default: Debug
       HangfireDashboard__User: ""
       HangfireDashboard__Password: ""
@@ -22,6 +22,8 @@ services:
       - "8081:80"
     volumes:
       - seq-data:/data
+    networks:
+      - hub-network
 
   postgres:
     ports:
