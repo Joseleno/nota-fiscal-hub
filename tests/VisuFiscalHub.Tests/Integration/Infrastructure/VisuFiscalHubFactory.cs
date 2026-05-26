@@ -25,6 +25,7 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
     public FakeDocumentJobQueue JobQueue { get; } = new();
     public FakeCancelamentoJobQueue CancelamentoJobQueue { get; } = new();
     public FakeSequenceManager SequenceManager { get; } = new();
+    public FakePrefeituraClient PrefeituraClient { get; } = new();
 
     private static readonly string[] EnvVarKeys =
     [
@@ -87,6 +88,10 @@ public sealed class VisuFiscalHubFactory : WebApplicationFactory<Program>
             // Replace ISefazClient with fake
             services.RemoveAll<ISefazClient>();
             services.AddSingleton<ISefazClient>(SefazClient);
+
+            // Replace IPrefeituraClient with fake
+            services.RemoveAll<IPrefeituraClient>();
+            services.AddSingleton<IPrefeituraClient>(PrefeituraClient);
 
             // Replace IDocumentJobQueue with a no-op stub — DocumentJobQueue depends on
             // Hangfire's IBackgroundJobClient which requires a real storage in production.

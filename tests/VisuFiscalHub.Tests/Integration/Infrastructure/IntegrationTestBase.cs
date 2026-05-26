@@ -20,6 +20,7 @@ public abstract class IntegrationTestBase : IDisposable
     protected readonly FakeSefazClient SefazFake;
     protected readonly FakeDocumentJobQueue JobQueue;
     protected readonly FakeSequenceManager SequenceManager;
+    protected readonly FakePrefeituraClient PrefeituraFake;
 
     protected IntegrationTestBase()
     {
@@ -31,6 +32,7 @@ public abstract class IntegrationTestBase : IDisposable
         SefazFake       = Factory.SefazClient;
         JobQueue        = Factory.JobQueue;
         SequenceManager = Factory.SequenceManager;
+        PrefeituraFake  = Factory.PrefeituraClient;
         JobQueue.Reset();
         SequenceManager.Reset();
     }
@@ -104,6 +106,44 @@ public abstract class IntegrationTestBase : IDisposable
             clienteAppId: clienteAppId,
             cnpj: Cnpj.Criar(cnpj).Value,
             razaoSocial: "Empresa Teste LTDA",
+            nomeFantasia: null,
+            configuracaoFiscal: configuracao,
+            endereco: endereco,
+            timeProvider: timeProvider).Value;
+
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+
+        return tenant.Id;
+    }
+
+    protected async Task<TenantId> CriarTenantNfseAsync(ClienteAppId clienteAppId, string cnpj = "11222333000181")
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
+
+        var configuracao = ConfiguracaoFiscal.Criar(
+            crt: RegimeTributario.SimplesNacional,
+            serie: "001",
+            ambiente: AmbienteSefaz.Homologacao,
+            ufCodigo: 35,
+            inscricaoMunicipal: "123456789").Value;
+
+        var endereco = Endereco.Criar(
+            logradouro: "Rua Teste",
+            numero: "100",
+            complemento: null,
+            bairro: "Centro",
+            municipio: "São Paulo",
+            codigoMunicipio: 3550308,
+            uf: "SP",
+            cep: "01310100").Value;
+
+        var tenant = Tenant.Criar(
+            clienteAppId: clienteAppId,
+            cnpj: Cnpj.Criar(cnpj).Value,
+            razaoSocial: "Empresa NFS-e Teste LTDA",
             nomeFantasia: null,
             configuracaoFiscal: configuracao,
             endereco: endereco,
