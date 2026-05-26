@@ -47,6 +47,20 @@ public sealed class PemNormalizerTests
     }
 
     [Fact]
+    public void Normalize_ComRLiteral_ConverteParaNewlineReal()
+    {
+        using var rsa = RSA.Create(2048);
+        var pemReal = rsa.ExportSubjectPublicKeyInfoPem();
+        var pemLiteral = pemReal.Replace("\n", "\\r");
+
+        var normalizado = PemNormalizer.Normalize(pemLiteral);
+
+        using var rsaImport = RSA.Create();
+        var ex = Record.Exception(() => rsaImport.ImportFromPem(normalizado));
+        ex.ShouldBeNull("PEM com \\r literal deve ser normalizável para ImportFromPem");
+    }
+
+    [Fact]
     public void Normalize_ChavePrivada_ImportFromPemFunciona()
     {
         using var rsa = RSA.Create(2048);

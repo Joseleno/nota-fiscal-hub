@@ -39,6 +39,7 @@ using VisuFiscalHub.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using VisuFiscalHub.Infrastructure;
 using VisuFiscalHub.Infrastructure.Persistence;
+using VisuFiscalHub.Infrastructure.Services;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -105,7 +106,7 @@ try
         .Select(pem =>
         {
             var rsa = RSA.Create();
-            rsa.ImportFromPem(VisuFiscalHub.Infrastructure.Services.PemNormalizer.Normalize(pem));
+            rsa.ImportFromPem(PemNormalizer.Normalize(pem));
             rsaInstances.Add(rsa);
             return (SecurityKey)new RsaSecurityKey(rsa);
         })
