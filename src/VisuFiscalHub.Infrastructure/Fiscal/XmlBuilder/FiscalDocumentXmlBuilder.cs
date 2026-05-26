@@ -24,9 +24,13 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
 
     public Result<XmlDocument> Construir(DocumentoFiscal documento, Tenant tenant)
     {
-        return documento.Tipo == TipoDocumento.NFe
-            ? ConstruirNfe(documento, tenant)
-            : ConstruirNfce(documento, tenant);
+        return documento.Tipo switch
+        {
+            TipoDocumento.NFe  => ConstruirNfe(documento, tenant),
+            TipoDocumento.NfCe => ConstruirNfce(documento, tenant),
+            _                  => throw new NotSupportedException(
+                $"FiscalDocumentXmlBuilder não suporta TipoDocumento.{documento.Tipo}. Use INfseXmlBuilder para NFSe.")
+        };
     }
 
     private Result<XmlDocument> ConstruirNfce(DocumentoFiscal documento, Tenant tenant)

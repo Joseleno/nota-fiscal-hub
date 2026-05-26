@@ -8,6 +8,11 @@ namespace VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
 /// Autorizadora SVRS cobre UFs sem serviço próprio (AC, AL, AP, DF, ES, PB, PI, RJ, RN, RO, RR, SC, SE, TO).
 /// Autorizadora SVC-AN utilizada como contingência nacional (não implementada nesta fase).
 /// </summary>
+/// <remarks>
+/// Este resolver é exclusivo para NF-e (Modelo 55) e NFC-e (Modelo 65).
+/// NFS-e usa <see cref="VisuFiscalHub.Application.Common.Interfaces.IPrefeituraClient"/> — nunca deve chamar métodos deste resolver.
+/// O guard é aplicado em FiscalDocumentProcessingJob antes de invocar este resolver.
+/// </remarks>
 internal static class SefazEndpointResolver
 {
     private const string SvrsP = "https://nfce.svrs.rs.gov.br/ws";
