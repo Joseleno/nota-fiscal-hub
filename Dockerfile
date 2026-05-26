@@ -31,12 +31,12 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-RUN useradd --no-create-home --shell /bin/false appuser
+RUN useradd --uid 10001 --no-create-home --shell /bin/false appuser \
+    && chown appuser:appuser /app
 COPY --chown=appuser:appuser --from=build /app/publish .
 USER appuser
 
 EXPOSE 8080
-ENV ASPNETCORE_ENVIRONMENT=Production \
-    ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:8080
 
 ENTRYPOINT ["dotnet", "VisuFiscalHub.Api.dll"]
