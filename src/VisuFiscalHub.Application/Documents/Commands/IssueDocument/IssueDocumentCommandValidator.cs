@@ -14,19 +14,22 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
         RuleFor(x => x.TenantId).NotEqual(default(Domain.Identifiers.TenantId));
         RuleFor(x => x.ClienteAppId).NotEqual(default(Domain.Identifiers.ClienteAppId));
 
-        RuleFor(x => x.Itens)
-            .NotEmpty().WithMessage("A lista de itens não pode ser vazia.");
+        When(x => x.Tipo != TipoDocumento.NFSe, () =>
+        {
+            RuleFor(x => x.Itens)
+                .NotEmpty().WithMessage("A lista de itens não pode ser vazia.");
+
+            RuleFor(x => x.IndPresenca)
+                .Must((cmd, v) =>
+                {
+                    var validos = cmd.Tipo == TipoDocumento.NFe ? IndPresencaValidosNfe : IndPresencaValidosNfce;
+                    return validos.Contains(v);
+                })
+                .WithMessage("IndPresenca inválido para o tipo de documento.");
+        });
 
         RuleFor(x => x.Pagamentos)
             .NotEmpty().WithMessage("A lista de pagamentos não pode ser vazia.");
-
-        RuleFor(x => x.IndPresenca)
-            .Must((cmd, v) =>
-            {
-                var validos = cmd.Tipo == TipoDocumento.NFe ? IndPresencaValidosNfe : IndPresencaValidosNfce;
-                return validos.Contains(v);
-            })
-            .WithMessage("IndPresenca inválido para o tipo de documento.");
 
         RuleForEach(x => x.Itens).ChildRules(item =>
         {
