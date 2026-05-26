@@ -43,9 +43,11 @@ public sealed partial record Tomador(
             || !cnpjOuCpf.All(char.IsDigit))
             return Result.Failure<Tomador>(DocumentoFiscalErrors.TomadorInvalido);
 
+        // ABRASF v2.04: xNome do tomador pode ter até 115 chars (vs 60 do NF-e SEFAZ)
         if (string.IsNullOrWhiteSpace(razaoSocial) || razaoSocial.Length > 115)
             return Result.Failure<Tomador>(DocumentoFiscalErrors.TomadorInvalido);
 
+        // ABRASF v2.04: xLgr do tomador pode ter até 125 chars (vs 60 do NF-e SEFAZ)
         if (string.IsNullOrWhiteSpace(logradouro) || logradouro.Length > 125)
             return Result.Failure<Tomador>(DocumentoFiscalErrors.TomadorInvalido);
 

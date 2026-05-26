@@ -73,6 +73,7 @@ public class TomadorTests
             uf: "SP", cep: "01310100", email: null, inscricaoMunicipal: null);
 
         result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TomadorInvalido");
     }
 
     [Fact]
@@ -86,6 +87,7 @@ public class TomadorTests
             uf: "SP", cep: "ABC", email: null, inscricaoMunicipal: null);
 
         result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TomadorInvalido");
     }
 
     [Fact]
@@ -101,4 +103,18 @@ public class TomadorTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.InscricaoMunicipal.ShouldBe("1234567");
     }
+
+    private static Tomador ValidTomador() => Tomador.Criar(
+        cnpjOuCpf: "11222333000181",
+        razaoSocial: "Empresa Tomadora Ltda",
+        logradouro: "Rua Teste",
+        numero: "100",
+        complemento: null,
+        bairro: "Centro",
+        municipio: "São Paulo",
+        codigoMunicipio: "3550308",
+        uf: "SP",
+        cep: "01310100",
+        email: null,
+        inscricaoMunicipal: null).Value;
 }
