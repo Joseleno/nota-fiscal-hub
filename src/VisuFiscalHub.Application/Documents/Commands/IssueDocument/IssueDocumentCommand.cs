@@ -21,6 +21,10 @@ public sealed record IssueDocumentCommand : ICommand<Result<IssueDocumentRespons
     public NfeDestinatarioDto? NfeDestinatario { get; init; }
     public string? NatOp { get; init; }
     public int ModFrete { get; init; } = 9;
+
+    // NFS-e only
+    public TomadorDto? Tomador { get; init; }
+    public ServicoNfseDto? ServicoNfse { get; init; }
 }
 
 public sealed record ItemDocumentoDto(
@@ -69,3 +73,27 @@ public sealed record NfeDestinatarioDto(
     string Uf,
     string Cep,
     string? Email);
+
+public sealed record TomadorDto(
+    string CnpjOuCpf,
+    string RazaoSocial,
+    string Logradouro,
+    string Numero,
+    string? Complemento,
+    string Bairro,
+    string Municipio,
+    string CodigoMunicipio,
+    string Uf,
+    string Cep,
+    string? Email,
+    string? InscricaoMunicipal);
+
+public sealed record ServicoNfseDto(
+    string CodigoServico,
+    string Discriminacao,
+    string? CodigoTributacaoMunicipio,
+    decimal AliquotaIss,
+    decimal BaseCalculoIss,
+    decimal ValorIss,
+    decimal? ValorDeducoes,
+    bool IssRetido);
