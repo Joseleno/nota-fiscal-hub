@@ -99,7 +99,7 @@ internal sealed class CancelamentoJob
             documento, tenant, justificativa, documento.Protocolo, utcNow, idLote);
 
         var xmlAssinado = _signer.Assinar(
-            xmlEvento, certificate, $"#ID110111{documento.ChaveAcesso.Valor}01");
+            xmlEvento, certificate, $"#ID110111{documento.ChaveAcesso!.Valor}01");
 
         var envelope = SoapEnvelopeBuilder.BuildEvento(xmlAssinado.OuterXml, ufCodigo);
         var url      = documento.Tipo == TipoDocumento.NFe

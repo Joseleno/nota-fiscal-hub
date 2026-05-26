@@ -87,7 +87,7 @@ internal sealed class SefazClient : ISefazClient
             xmlAssinado = _signer.Assinar(
                 xmlResult.Value,
                 certificate,
-                $"#NFe{documento.ChaveAcesso.Valor}");
+                $"#NFe{documento.ChaveAcesso!.Valor}");
         }
         catch (Exception ex)
         {

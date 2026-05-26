@@ -221,7 +221,7 @@ public sealed class FiscalDocumentProcessingJob
         CancellationToken ct)
     {
         var consultaResult = await _sefazClient.ConsultarNfeAsync(
-            documento.ChaveAcesso.Valor, documento.TenantId, documento.Tipo, ct);
+            documento.ChaveAcesso!.Valor, documento.TenantId, documento.Tipo, ct);
 
         if (consultaResult.IsFailure)
         {
@@ -243,7 +243,7 @@ public sealed class FiscalDocumentProcessingJob
                     documento.Id.Value);
 
             var qrCode = documento.Tipo == TipoDocumento.NfCe
-                ? (documento.QrCode ?? QrCode.FromStorage(documento.ChaveAcesso.Valor))
+                ? (documento.QrCode ?? QrCode.FromStorage(documento.ChaveAcesso!.Valor))
                 : QrCode.NaoAplicavel();
             var authorizedAt = _timeProvider.GetUtcNow();
 

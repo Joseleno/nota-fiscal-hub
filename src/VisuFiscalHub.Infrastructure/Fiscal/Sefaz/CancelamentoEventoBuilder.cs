@@ -19,7 +19,7 @@ internal static class CancelamentoEventoBuilder
         DateTimeOffset utcNow,
         string idLote)
     {
-        var chave    = documento.ChaveAcesso.Valor;
+        var chave    = documento.ChaveAcesso!.Valor;
         var ufCodigo = tenant.ConfiguracaoFiscal.UfCodigo;
         var tpAmb    = (int)tenant.ConfiguracaoFiscal.Ambiente;
         var cnpj     = tenant.Cnpj.Valor;

@@ -53,7 +53,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
 
         // <infNFe> com Id para a assinatura digital
         var infNFe = doc.CreateElement("infNFe", NfeNs);
-        infNFe.SetAttribute("Id", $"NFe{documento.ChaveAcesso.Valor}");
+        infNFe.SetAttribute("Id", $"NFe{documento.ChaveAcesso!.Valor}");
         infNFe.SetAttribute("versao", "4.00");
         nfeEl.AppendChild(infNFe);
 
@@ -115,7 +115,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
         doc.AppendChild(nfeEl);
 
         var infNFe = doc.CreateElement("infNFe", NfeNs);
-        infNFe.SetAttribute("Id", $"NFe{documento.ChaveAcesso.Valor}");
+        infNFe.SetAttribute("Id", $"NFe{documento.ChaveAcesso!.Valor}");
         infNFe.SetAttribute("versao", "4.00");
         nfeEl.AppendChild(infNFe);
 
@@ -140,7 +140,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
         void Add(string tag, string val) { var el = doc.CreateElement(tag, NfeNs); el.InnerText = val; ide.AppendChild(el); }
 
         Add("cUF", tenant.ConfiguracaoFiscal.UfCodigo.ToString());
-        Add("cNF", documento.ChaveAcesso.Valor[35..43]);
+        Add("cNF", documento.ChaveAcesso!.Valor[35..43]);
         Add("natOp", documento.NatOp ?? "Venda de Mercadoria");
         Add("mod", "55");
         Add("serie", documento.Serie.PadLeft(3, '0'));
@@ -154,7 +154,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
         Add("cMunFG", tenant.Endereco.CodigoMunicipio.ToString());
         Add("tpImp", "1");
         Add("tpEmis", "1");
-        Add("cDV", documento.ChaveAcesso.Valor[^1..]);
+        Add("cDV", documento.ChaveAcesso!.Valor[^1..]);
         Add("tpAmb", ((int)tenant.ConfiguracaoFiscal.Ambiente).ToString());
         Add("finNFe", "1");
         Add("indFinal", "0");
@@ -217,7 +217,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
         void Add(string tag, string val) { var el = doc.CreateElement(tag, NfeNs); el.InnerText = val; ide.AppendChild(el); }
 
         Add("cUF", tenant.ConfiguracaoFiscal.UfCodigo.ToString());
-        Add("cNF", documento.ChaveAcesso.Valor[35..43]); // posições 36-43 na chave (0-based: [35..43])
+        Add("cNF", documento.ChaveAcesso!.Valor[35..43]); // posições 36-43 na chave (0-based: [35..43])
         Add("natOp", "VENDA AO CONSUMIDOR");
         Add("mod", "65");
         Add("serie", tenant.ConfiguracaoFiscal.Serie.PadLeft(3, '0'));
@@ -230,7 +230,7 @@ internal sealed class FiscalDocumentXmlBuilder : IFiscalDocumentXmlBuilder
         Add("cMunFG", tenant.Endereco.CodigoMunicipio.ToString());
         Add("tpImp", "4");      // DANFE NFC-e
         Add("tpEmis", "1");     // Emissão normal
-        Add("cDV", documento.ChaveAcesso.Valor[^1..]);
+        Add("cDV", documento.ChaveAcesso!.Valor[^1..]);
         Add("tpAmb", ((int)tenant.ConfiguracaoFiscal.Ambiente).ToString());
         Add("finNFe", "1");     // NF-e normal
         Add("indFinal", "1");   // Consumidor final
