@@ -163,7 +163,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         }
 
         var itemList = items.ToList();
-        if (itemList.Count == 0)
+        // NFSe não possui itens de produto — o serviço é descrito por ServicoNfse.
+        if (itemList.Count == 0 && tipo != TipoDocumento.NFSe)
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.SemItens);
 
         var pagamentoList = pagamentos.ToList();

@@ -524,4 +524,30 @@ public class DocumentoFiscalTests
         resultNfCeFora.IsFailure.ShouldBeTrue();
         resultNfCeFora.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
     }
+
+    [Fact]
+    public void Criar_NFSe_SemItens_Sucesso()
+    {
+        var tenant = NfseTestHelpers.CriarTenantNfse();
+        var tomador = NfseTestHelpers.TomadorValido();
+        var servico = NfseTestHelpers.ServicoNfseValido();
+
+        var result = DocumentoFiscal.Criar(
+            id: new DocumentoFiscalId(Guid.NewGuid()),
+            tenantId: tenant.Id,
+            clienteAppId: tenant.ClienteAppId,
+            idempotencyKey: Guid.NewGuid().ToString(),
+            tipo: TipoDocumento.NFSe,
+            chaveAcesso: null,
+            numero: 1L,
+            serie: "001",
+            indPresenca: 0,
+            items: [],
+            pagamentos: [],
+            timeProvider: TimeProvider.System,
+            tomador: tomador,
+            servicoNfse: servico);
+
+        result.IsSuccess.ShouldBeTrue("NFSe deve ser criada sem itens de produto.");
+    }
 }
