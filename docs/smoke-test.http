@@ -1,0 +1,161 @@
+# VisuFiscalHub — Smoke Test NFC-e (modo fake)
+# Pré-requisitos:
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.override.yml up -d
+#   ASPNETCORE_ENVIRONMENT=Development (ativado pelo override)
+#   Sefaz:UseFakeClient=true (ativado pelo appsettings.Development.json)
+#
+# Sequência: 1 → 2 → 3 → 4 → 5b → 6 → 7
+# Após cada request, copie o valor retornado para a variável correspondente.
+
+@base = http://localhost:8080
+@adminKey = dev_admin_key_minimo_32_caracteres_aqui_ok1
+
+# ── Preencher após step 2 ──────────────────────────────────────────────────
+@clientId = PREENCHER_APOS_STEP_2
+@clientSecret = PREENCHER_APOS_STEP_2
+
+# ── Preencher após step 3 ──────────────────────────────────────────────────
+@accessToken = PREENCHER_APOS_STEP_3
+
+# ── Preencher após step 4 ──────────────────────────────────────────────────
+@tenantId = PREENCHER_APOS_STEP_4
+
+# ── Preencher após step 6 ──────────────────────────────────────────────────
+@documentoId = PREENCHER_APOS_STEP_6
+
+###
+# Step 1 — Health check
+# Esperado: 200 OK  {"status":"Healthy"}
+GET {{base}}/health/live
+
+###
+# Step 2 — Criar ClienteApp (requer X-Admin-Key)
+# Copie clientId e clientSecret da resposta para as variáveis acima.
+# Esperado: 201 Created
+POST {{base}}/api/v1/clientes
+Content-Type: application/json
+X-Admin-Key: {{adminKey}}
+
+{
+  "clientName": "Loja Demo",
+  "webhookUrl": null
+}
+
+###
+# Step 3 — Autenticar (obter JWT)
+# Use clientId e clientSecret do step 2.
+# Copie access_token para a variável @accessToken acima.
+# Esperado: 200 OK  {"access_token":"...","token_type":"Bearer","expires_in":3600}
+POST {{base}}/auth/token
+Content-Type: application/json
+
+{
+  "clientId": "{{clientId}}",
+  "clientSecret": "{{clientSecret}}"
+}
+
+###
+# Step 4 — Criar Tenant (empresa emissora)
+# UfCodigo 43 = Rio Grande do Sul
+# RegimeTributario: 1=SimplesNacional, 2=SimplesNacionalExcesso, 3=RegimeNormal
+# Ambiente: 1=Producao, 2=Homologacao
+# Copie o id retornado para @tenantId acima.
+# Esperado: 201 Created
+POST {{base}}/api/v1/tenants
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "cnpj": "11222333000181",
+  "razaoSocial": "Loja Demo LTDA",
+  "nomeFantasia": "Loja Demo",
+  "regimeTributario": 1,
+  "ambiente": 2,
+  "ufCodigo": 43,
+  "serie": "001",
+  "serieNfe": "001",
+  "inscricaoEstadual": "1234567890",
+  "endereco": {
+    "logradouro": "Rua das Flores",
+    "numero": "100",
+    "complemento": null,
+    "bairro": "Centro",
+    "municipio": "Porto Alegre",
+    "codigoMunicipio": 4314902,
+    "uf": "RS",
+    "cep": "90010001"
+  }
+}
+
+###
+# Step 5 — Verificar status do certificado
+# Esperado: 200 OK  {"possuiCertificado":false,...}
+GET {{base}}/api/v1/tenants/{{tenantId}}/certificado/status
+Authorization: Bearer {{accessToken}}
+
+###
+# Step 5b — Configurar CSC do tenant (obrigatório para NFC-e)
+# cscId e cscToken são valores fictícios para modo fake.
+# Esperado: 200 OK
+PUT {{base}}/api/v1/tenants/{{tenantId}}/csc
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "cscId": "000001",
+  "cscToken": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+}
+
+###
+# Step 6 — Emitir NFC-e
+# X-Idempotency-Key: use um UUID aleatório (mude a cada nova emissão).
+# Copie o documentoId da resposta para @documentoId acima.
+# Esperado: 202 Accepted  {"documentoId":"...","status":"Enfileirado"}
+POST {{base}}/api/v1/documentos/nfce
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Idempotency-Key: 550e8400-e29b-41d4-a716-446655440001
+
+{
+  "itens": [
+    {
+      "codigoProduto": "001",
+      "descricao": "Produto Teste",
+      "ncm": "62034200",
+      "cest": null,
+      "cfopSaida": "5102",
+      "unidadeComercial": "UN",
+      "quantidade": 1.0,
+      "valorUnitario": 10.00,
+      "valorDesconto": 0.00,
+      "origemMercadoria": 0,
+      "tributo": {
+        "tipoIcms": 1,
+        "csosnOuCst": 400,
+        "aliquotaIcms": 0.00,
+        "baseCalculoIcms": 0.00,
+        "valorIcms": 0.00,
+        "cstPis": 7,
+        "baseCalculoPis": 0.00,
+        "aliquotaPis": 0.00,
+        "valorPis": 0.00,
+        "cstCofins": 7,
+        "baseCalculoCofins": 0.00,
+        "aliquotaCofins": 0.00,
+        "valorCofins": 0.00
+      }
+    }
+  ],
+  "pagamentos": [
+    { "tipoPagamento": 1, "valor": 10.00 }
+  ],
+  "consumidor": null,
+  "indPresenca": 1
+}
+
+###
+# Step 7 — Consultar status do documento
+# Aguarde ~2-5 segundos após o step 6 para o Hangfire processar.
+# Esperado: 200 OK  {"status":"Autorizado","nProt":"135260000000001",...}
+GET {{base}}/api/v1/documentos/{{documentoId}}/status
+Authorization: Bearer {{accessToken}}
