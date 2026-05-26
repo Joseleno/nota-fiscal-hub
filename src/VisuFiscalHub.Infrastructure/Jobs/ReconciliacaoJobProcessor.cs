@@ -80,7 +80,7 @@ public sealed class ReconciliacaoJobProcessor
         {
             _logger.LogInformation("Documento {DocumentoId} ainda Enfileirado — reenfileirando para processamento.",
                 documento.Id.Value);
-            await _documentJobQueue.EnqueueProcessingAsync(documento.Id, ct);
+            await _documentJobQueue.EnqueueProcessingAsync(documento.Id, documento.Tipo, ct);
             return;
         }
 
@@ -104,7 +104,7 @@ public sealed class ReconciliacaoJobProcessor
             _dbContext.DeliveryAttempts.Add(attemptFalha);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            await _documentJobQueue.EnqueueProcessingAsync(documento.Id, ct);
+            await _documentJobQueue.EnqueueProcessingAsync(documento.Id, documento.Tipo, ct);
             return;
         }
 

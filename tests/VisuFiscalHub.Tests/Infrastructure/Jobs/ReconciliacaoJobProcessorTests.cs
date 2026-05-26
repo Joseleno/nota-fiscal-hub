@@ -119,7 +119,7 @@ public class ReconciliacaoJobProcessorTests
         await CreateProcessor().ExecuteAsync(CancellationToken.None);
 
         await _documentJobQueue.Received(1)
-            .EnqueueProcessingAsync(documento.Id, Arg.Any<CancellationToken>());
+            .EnqueueProcessingAsync(documento.Id, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>());
         // Salva o DeliveryAttempt de falha antes de reenfileirar.
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }

@@ -90,7 +90,7 @@ public class IssueDocumentCommandHandlerTests
         unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
                   .Returns(Task.FromResult(1));
 
-        jobQueue.EnqueueProcessingAsync(Arg.Any<DocumentoFiscalId>(), Arg.Any<CancellationToken>())
+        jobQueue.EnqueueProcessingAsync(Arg.Any<DocumentoFiscalId>(), Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
                 .Returns(Task.CompletedTask);
 
         var handler = new IssueDocumentCommandHandler(

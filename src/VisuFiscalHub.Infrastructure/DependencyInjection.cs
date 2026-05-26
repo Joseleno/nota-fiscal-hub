@@ -9,6 +9,7 @@ using VisuFiscalHub.Application.Common.Interfaces;
 using VisuFiscalHub.Domain.Interfaces;
 using VisuFiscalHub.Infrastructure.Fiscal;
 using VisuFiscalHub.Infrastructure.Fiscal.Certificates;
+using VisuFiscalHub.Infrastructure.Fiscal.Prefeitura;
 using VisuFiscalHub.Infrastructure.Fiscal.Sefaz;
 using VisuFiscalHub.Infrastructure.Fiscal.XmlBuilder;
 using VisuFiscalHub.Infrastructure.Jobs;
@@ -129,6 +130,12 @@ public static class DependencyInjection
         // User-Agent hardcoded em SefazHttpClient.UserAgent (constante sincronizada).
         services.AddScoped<SefazHttpClient>();
         services.AddScoped<ISefazClient, SefazClient>();
+
+        // Fase 15 — NFS-e ABRASF
+        services.AddScoped<INfseXmlBuilder, NfseXmlBuilder>();
+        services.AddScoped<PrefeituraHttpClient>();
+        services.AddScoped<IPrefeituraClient, PrefeituraClient>();
+        services.AddScoped<PrefeituraProcessingJob>();
 
         return services;
     }

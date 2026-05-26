@@ -209,7 +209,7 @@ public sealed class IssueDocumentCommandHandler
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // 10. Enfileirar job APÓS commit — se falhar, ReconciliacaoJobProcessor reprocessa Enfileirado antigo
-        await _jobQueue.EnqueueProcessingAsync(documento.Id, cancellationToken);
+        await _jobQueue.EnqueueProcessingAsync(documento.Id, documento.Tipo, cancellationToken);
 
         return Result.Success(MapToResponse(documento));
     }
