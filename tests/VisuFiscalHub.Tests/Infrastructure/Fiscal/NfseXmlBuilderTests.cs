@@ -69,6 +69,29 @@ public sealed class NfseXmlBuilderTests
         result.IsFailure.ShouldBeTrue("O domínio deve rejeitar NFSe sem Tomador.");
     }
 
+    /// <summary>
+    /// O domínio protege a criação de DocumentoFiscal NFSe sem ServicoNfse (ServicoNfseObrigatorio error).
+    /// Este teste verifica que a proteção existe no domínio — o builder nunca receberá um NFSe sem Servico.
+    /// </summary>
+    [Fact]
+    public void ConstruirRps_SemServicoNfse_DominioRejeita()
+    {
+        var timeProvider = TimeProvider.System;
+        var tenant = NfseTestHelpers.CriarTenantNfse();
+        var tomador = NfseTestHelpers.TomadorValido();
+        var item = NfseTestHelpers.ItemServicoMinimo();
+
+        var result = DocumentoFiscal.Criar(
+            id: new DocumentoFiscalId(Guid.NewGuid()),
+            tenantId: tenant.Id, clienteAppId: tenant.ClienteAppId,
+            idempotencyKey: Guid.NewGuid().ToString(),
+            tipo: TipoDocumento.NFSe, chaveAcesso: null, numero: 1L, serie: "001",
+            indPresenca: 0, items: [item], pagamentos: [],
+            timeProvider: timeProvider, tomador: tomador, servicoNfse: null);
+
+        result.IsFailure.ShouldBeTrue("O domínio deve rejeitar NFSe sem ServicoNfse.");
+    }
+
     [Fact]
     public void ConstruirRps_InscricaoMunicipalAusente_RetornaFalha()
     {
