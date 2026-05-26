@@ -33,4 +33,36 @@ public class ConfiguracaoFiscalTests
             serieNfe: "ABCD");
         result.IsFailure.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Criar_ComInscricaoMunicipal_Sucesso()
+    {
+        var result = ConfiguracaoFiscal.Criar(
+            crt: RegimeTributario.SimplesNacional,
+            serie: "001",
+            ambiente: AmbienteSefaz.Homologacao,
+            ufCodigo: 35,
+            inscricaoEstadual: null,
+            serieNfe: null,
+            inscricaoMunicipal: "1234567");
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.InscricaoMunicipal.ShouldBe("1234567");
+    }
+
+    [Fact]
+    public void Criar_SemInscricaoMunicipal_InscricaoMunicipalNula()
+    {
+        var result = ConfiguracaoFiscal.Criar(
+            crt: RegimeTributario.SimplesNacional,
+            serie: "001",
+            ambiente: AmbienteSefaz.Homologacao,
+            ufCodigo: 35,
+            inscricaoEstadual: null,
+            serieNfe: null,
+            inscricaoMunicipal: null);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.InscricaoMunicipal.ShouldBeNull();
+    }
 }
