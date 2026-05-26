@@ -81,7 +81,8 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
                 valor => valor == null ? null : ChaveAcessoFromStorage(valor)));
 
         builder.HasIndex(d => d.ChaveAcesso)
-            .HasDatabaseName("ix_documentos_fiscais_chave_acesso");
+            .HasDatabaseName("ix_documentos_fiscais_chave_acesso")
+            .HasFilter("chave_acesso IS NOT NULL");
 
         builder.Property(d => d.Numero)
             .HasColumnName("numero")
