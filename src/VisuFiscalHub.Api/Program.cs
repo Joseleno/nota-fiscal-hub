@@ -105,7 +105,7 @@ try
         .Select(pem =>
         {
             var rsa = RSA.Create();
-            rsa.ImportFromPem(pem);
+            rsa.ImportFromPem(pem.Replace("\\n", "\n"));
             rsaInstances.Add(rsa);
             return (SecurityKey)new RsaSecurityKey(rsa);
         })
