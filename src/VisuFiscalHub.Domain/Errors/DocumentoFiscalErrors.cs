@@ -77,4 +77,19 @@ public static class DocumentoFiscalErrors
 
     public static readonly Error NatOpObrigatoriaNfe =
         new("DocumentoFiscal.NatOpObrigatoriaNfe", "Natureza da operação é obrigatória para NF-e Modelo 55.");
+
+    public static readonly Error TipoNaoSuportado =
+        new("DocumentoFiscal.TipoNaoSuportado", "Tipo de documento não suportado nesta operação.");
+
+    public static readonly Error TomadorObrigatorio =
+        new("DocumentoFiscal.TomadorObrigatorio", "O tomador é obrigatório para NFS-e.");
+
+    public static readonly Error ServicoNfseObrigatorio =
+        new("DocumentoFiscal.ServicoNfseObrigatorio", "Os dados do serviço são obrigatórios para NFS-e.");
+
+    public static readonly Error TomadorInvalido =
+        new("DocumentoFiscal.TomadorInvalido", "Os dados do tomador da NFS-e são inválidos.");
+
+    public static readonly Error ServicoNfseInvalido =
+        new("DocumentoFiscal.ServicoNfseInvalido", "Os dados do serviço NFS-e são inválidos.");
 }
