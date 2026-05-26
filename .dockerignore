@@ -1,11 +1,11 @@
-﻿# Build artifacts
+# Build artifacts
 **/bin/
 **/obj/
 
 # Test projects
 tests/
 
-# DocumentaÃ§Ã£o e configs de IDE
+# Documentação e configs de IDE
 docs/
 .claude/
 .vs/
@@ -19,6 +19,6 @@ docs/
 .git/
 .gitignore
 
-# Docker e infra (nÃ£o fazem parte do build da aplicaÃ§Ã£o)
+# Docker e infra (não fazem parte do build da aplicação)
 infra/
 scripts/
