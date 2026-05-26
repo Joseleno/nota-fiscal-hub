@@ -4,13 +4,12 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY VisuFiscalHub.slnx ./
 COPY src/VisuFiscalHub.Domain/VisuFiscalHub.Domain.csproj ./src/VisuFiscalHub.Domain/
 COPY src/VisuFiscalHub.Application/VisuFiscalHub.Application.csproj ./src/VisuFiscalHub.Application/
 COPY src/VisuFiscalHub.Infrastructure/VisuFiscalHub.Infrastructure.csproj ./src/VisuFiscalHub.Infrastructure/
 COPY src/VisuFiscalHub.Api/VisuFiscalHub.Api.csproj ./src/VisuFiscalHub.Api/
 
-RUN dotnet restore VisuFiscalHub.slnx
+RUN dotnet restore ./src/VisuFiscalHub.Api/VisuFiscalHub.Api.csproj
 
 COPY src/ ./src/
 
@@ -32,7 +31,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-RUN adduser --disabled-password --gecos "" --no-create-home appuser
+RUN useradd --no-create-home --shell /bin/false appuser
 COPY --chown=appuser:appuser --from=build /app/publish .
 USER appuser
 
