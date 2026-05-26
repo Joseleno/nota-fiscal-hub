@@ -105,7 +105,7 @@ try
         .Select(pem =>
         {
             var rsa = RSA.Create();
-            rsa.ImportFromPem(pem.Replace("\\n", "\n"));
+            rsa.ImportFromPem(VisuFiscalHub.Infrastructure.Services.PemNormalizer.Normalize(pem));
             rsaInstances.Add(rsa);
             return (SecurityKey)new RsaSecurityKey(rsa);
         })

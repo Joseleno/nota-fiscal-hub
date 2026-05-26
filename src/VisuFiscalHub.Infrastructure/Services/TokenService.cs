@@ -24,7 +24,7 @@ internal sealed class TokenService : ITokenService
         _timeProvider = timeProvider;
 
         using var rsa = RSA.Create();
-        rsa.ImportFromPem(_settings.PrivateKeyPem.Replace("\\n", "\n"));
+        rsa.ImportFromPem(PemNormalizer.Normalize(_settings.PrivateKeyPem));
         _keyParams = rsa.ExportParameters(includePrivateParameters: true);
     }
 
