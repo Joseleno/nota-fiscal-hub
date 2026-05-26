@@ -111,23 +111,68 @@ public sealed class IssueDocumentCommandHandler
         var cNFBytes = RandomNumberGenerator.GetBytes(4);
         var cNF = (BitConverter.ToUInt32(cNFBytes, 0) % 100_000_000).ToString("D8");
 
-        // 6. Montar ChaveAcesso
+        // 6. Montar ChaveAcesso (NFSe não possui chave de acesso SEFAZ)
         var now = _timeProvider.GetUtcNow();
-        var aamm = now.ToString("yyMM");
-        var chaveResult = ChaveAcesso.Gerar(
-            tenant.ConfiguracaoFiscal.UfCodigo,
-            aamm,
-            tenant.Cnpj.Valor,
-            (int)command.Tipo,
-            serie,
-            numeroResult.Value.ToString(),
-            TipoEmissao.Normal,
-            cNF);
+        ChaveAcesso? chaveAcesso = null;
+        if (command.Tipo != TipoDocumento.NFSe)
+        {
+            var aamm = now.ToString("yyMM");
+            var chaveResult = ChaveAcesso.Gerar(
+                tenant.ConfiguracaoFiscal.UfCodigo,
+                aamm,
+                tenant.Cnpj.Valor,
+                (int)command.Tipo,
+                serie,
+                numeroResult.Value.ToString(),
+                TipoEmissao.Normal,
+                cNF);
 
-        if (chaveResult.IsFailure)
-            return Result.Failure<IssueDocumentResponse>(chaveResult.Error);
+            if (chaveResult.IsFailure)
+                return Result.Failure<IssueDocumentResponse>(chaveResult.Error);
 
-        // 7. Criar DocumentoFiscal
+            chaveAcesso = chaveResult.Value;
+        }
+
+        // 7. Mapear Tomador e ServicoNfse (NFSe only)
+        Domain.ValueObjects.Tomador? tomador = null;
+        if (command.Tomador is { } tomadorDto)
+        {
+            var tomadorResult = Domain.ValueObjects.Tomador.Criar(
+                tomadorDto.CnpjOuCpf,
+                tomadorDto.RazaoSocial,
+                tomadorDto.Logradouro,
+                tomadorDto.Numero,
+                tomadorDto.Complemento,
+                tomadorDto.Bairro,
+                tomadorDto.Municipio,
+                tomadorDto.CodigoMunicipio,
+                tomadorDto.Uf,
+                tomadorDto.Cep,
+                tomadorDto.Email,
+                tomadorDto.InscricaoMunicipal);
+            if (tomadorResult.IsFailure)
+                return Result.Failure<IssueDocumentResponse>(tomadorResult.Error);
+            tomador = tomadorResult.Value;
+        }
+
+        Domain.ValueObjects.ServicoNfse? servicoNfse = null;
+        if (command.ServicoNfse is { } servicoDto)
+        {
+            var servicoResult = Domain.ValueObjects.ServicoNfse.Criar(
+                servicoDto.CodigoServico,
+                servicoDto.Discriminacao,
+                servicoDto.CodigoTributacaoMunicipio,
+                servicoDto.AliquotaIss,
+                servicoDto.BaseCalculoIss,
+                servicoDto.ValorIss,
+                servicoDto.ValorDeducoes,
+                servicoDto.IssRetido);
+            if (servicoResult.IsFailure)
+                return Result.Failure<IssueDocumentResponse>(servicoResult.Error);
+            servicoNfse = servicoResult.Value;
+        }
+
+        // 8. Criar DocumentoFiscal
 
         var documentoResult = DocumentoFiscal.Criar(
             new DocumentoFiscalId(Guid.CreateVersion7()),
@@ -135,7 +180,7 @@ public sealed class IssueDocumentCommandHandler
             command.ClienteAppId,
             command.IdempotencyKey,
             command.Tipo,
-            chaveResult.Value,
+            chaveAcesso,
             numeroResult.Value,
             serie,
             command.IndPresenca,
@@ -146,14 +191,16 @@ public sealed class IssueDocumentCommandHandler
             command.Consumidor?.Nome,
             nfeDestinatario,
             command.NatOp,
-            command.ModFrete);
+            command.ModFrete,
+            tomador,
+            servicoNfse);
 
         if (documentoResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(documentoResult.Error);
 
         var documento = documentoResult.Value;
 
-        // 8. Persistir Criado + transicionar para Enfileirado na mesma transação
+        // 9. Persistir Criado + transicionar para Enfileirado na mesma transação
         var enfileirarResult = documento.Enfileirar();
         if (enfileirarResult.IsFailure)
             return Result.Failure<IssueDocumentResponse>(enfileirarResult.Error);
@@ -161,7 +208,7 @@ public sealed class IssueDocumentCommandHandler
         await _documentoRepo.AddAsync(documento, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // 9. Enfileirar job APÓS commit — se falhar, ReconciliacaoJobProcessor reprocessa Enfileirado antigo
+        // 10. Enfileirar job APÓS commit — se falhar, ReconciliacaoJobProcessor reprocessa Enfileirado antigo
         await _jobQueue.EnqueueProcessingAsync(documento.Id, cancellationToken);
 
         return Result.Success(MapToResponse(documento));

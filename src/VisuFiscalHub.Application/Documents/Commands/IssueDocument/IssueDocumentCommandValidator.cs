@@ -83,5 +83,12 @@ internal sealed class IssueDocumentCommandValidator : AbstractValidator<IssueDoc
             RuleFor(x => x.NfeDestinatario)
                 .Null().WithMessage("Destinatário NF-e não é permitido em NFC-e Modelo 65.");
         });
+
+        When(x => x.Tipo == TipoDocumento.NFSe, () =>
+        {
+            RuleFor(x => x.Tomador).NotNull().WithMessage("Tomador é obrigatório para NFS-e.");
+            RuleFor(x => x.ServicoNfse).NotNull().WithMessage("ServicoNfse é obrigatório para NFS-e.");
+            RuleFor(x => x.NfeDestinatario).Null().WithMessage("NfeDestinatario não é permitido para NFS-e.");
+        });
     }
 }
