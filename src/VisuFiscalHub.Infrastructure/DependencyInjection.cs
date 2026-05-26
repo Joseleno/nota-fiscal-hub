@@ -17,6 +17,7 @@ using VisuFiscalHub.Infrastructure.Persistence;
 using VisuFiscalHub.Infrastructure.Persistence.Repositories;
 using VisuFiscalHub.Infrastructure.Services;
 using VisuFiscalHub.Infrastructure.Services.Stubs;
+using VisuFiscalHub.Infrastructure.Fiscal.Stubs;
 
 namespace VisuFiscalHub.Infrastructure;
 
@@ -126,15 +127,30 @@ public static class DependencyInjection
         services.AddScoped<ICancelamentoJobQueue, HangfireCancelamentoJobQueue>();
 
         // Fase 7 — Integração SEFAZ
-        // SefazHttpClient cria HttpClient por request para mTLS por-tenant — não usa factory.
-        // User-Agent hardcoded em SefazHttpClient.UserAgent (constante sincronizada).
-        services.AddScoped<SefazHttpClient>();
-        services.AddScoped<ISefazClient, SefazClient>();
+        // Sefaz:UseFakeClient=true ativa stubs locais (sem certificado, sem acesso à SEFAZ).
+        bool useFakeClient = configuration.GetValue<bool>("Sefaz:UseFakeClient");
+        if (useFakeClient)
+        {
+            services.AddScoped<ISefazClient, FakeSefazClient>();
+        }
+        else
+        {
+            // SefazHttpClient cria HttpClient por request para mTLS por-tenant — não usa factory.
+            services.AddScoped<SefazHttpClient>();
+            services.AddScoped<ISefazClient, SefazClient>();
+        }
 
         // Fase 15 — NFS-e ABRASF
         services.AddScoped<INfseXmlBuilder, NfseXmlBuilder>();
-        services.AddScoped<PrefeituraHttpClient>();
-        services.AddScoped<IPrefeituraClient, PrefeituraClient>();
+        if (useFakeClient)
+        {
+            services.AddScoped<IPrefeituraClient, FakePrefeituraClient>();
+        }
+        else
+        {
+            services.AddScoped<PrefeituraHttpClient>();
+            services.AddScoped<IPrefeituraClient, PrefeituraClient>();
+        }
         services.AddScoped<PrefeituraProcessingJob>();
 
         return services;
