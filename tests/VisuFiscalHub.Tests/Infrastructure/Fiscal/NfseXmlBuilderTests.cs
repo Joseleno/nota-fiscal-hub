@@ -38,6 +38,20 @@ public sealed class NfseXmlBuilderTests
     }
 
     [Fact]
+    public void ConstruirRps_DocumentoNfseValido_LoteRpsCpfCnpjEhElementoComplexo()
+    {
+        var (doc, tenant) = CriarDocumentoNfseValido();
+        var result = _builder.ConstruirRps(doc, tenant);
+        result.IsSuccess.ShouldBeTrue();
+        var xml = result.Value;
+        var ns = new XmlNamespaceManager(xml.NameTable);
+        ns.AddNamespace("nfse", "http://www.abrasf.org.br/nfse.xsd");
+        // LoteRps/CpfCnpj deve ser elemento container com filho Cnpj, não texto plano
+        var cnpjNode = xml.SelectSingleNode("//nfse:LoteRps/nfse:CpfCnpj/nfse:Cnpj", ns);
+        cnpjNode.ShouldNotBeNull("LoteRps/CpfCnpj deve conter elemento filho Cnpj (tipo complexo ABRASF)");
+    }
+
+    [Fact]
     public void ConstruirRps_DocumentoNfCe_RetornaFalha()
     {
         var (doc, tenant) = CriarDocumentoNfCeValido();

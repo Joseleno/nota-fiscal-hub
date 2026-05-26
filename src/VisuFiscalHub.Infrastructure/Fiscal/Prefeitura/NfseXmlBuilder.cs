@@ -19,6 +19,8 @@ internal sealed class NfseXmlBuilder : INfseXmlBuilder
             return Result.Failure<XmlDocument>(new Error("NfseXml.TipoInvalido",
                 $"NfseXmlBuilder recebeu documento do tipo {documento.Tipo} — apenas NFSe é suportado."));
 
+        // Guards defensivos: DocumentoFiscal.Criar já rejeita NFSe sem Tomador/ServicoNfse,
+        // mas estes checks protegem instâncias carregadas do banco via FromStorage ou caminhos futuros.
         if (documento.Tomador is null)
             return Result.Failure<XmlDocument>(new Error("NfseXml.TomadorAusente",
                 "Tomador é obrigatório para emissão de NFS-e."));
@@ -40,7 +42,9 @@ internal sealed class NfseXmlBuilder : INfseXmlBuilder
         root.AppendChild(loteRps);
 
         AppendElement(doc, loteRps, "NumeroLote", documento.Id.Value.ToString("N")[..15]);
-        AppendElement(doc, loteRps, "CpfCnpj", tenant.Cnpj.Valor);
+        var loteRpsCpfCnpj = doc.CreateElement("CpfCnpj", NfseNs);
+        loteRps.AppendChild(loteRpsCpfCnpj);
+        AppendElement(doc, loteRpsCpfCnpj, "Cnpj", tenant.Cnpj.Valor);
         AppendElement(doc, loteRps, "InscricaoMunicipal", tenant.ConfiguracaoFiscal.InscricaoMunicipal!);
         AppendElement(doc, loteRps, "QuantidadeRps", "1");
 
