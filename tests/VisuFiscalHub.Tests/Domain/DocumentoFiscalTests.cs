@@ -345,4 +345,30 @@ public class DocumentoFiscalTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
     }
+
+    [Fact]
+    public void IniciarCancelamento_NFe_Usa24h_NfCe_Usa30min()
+    {
+        // NF-e: dentro do prazo de 24h deve cancelar
+        var docNfe = DocumentoFiscalBuilder.AutorizadoNfe(FixedNow.AddHours(-23));
+        var resultNfeDentro = docNfe.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        resultNfeDentro.IsSuccess.ShouldBeTrue();
+
+        // NF-e: fora do prazo de 24h deve rejeitar
+        var docNfe2 = DocumentoFiscalBuilder.AutorizadoNfe(FixedNow.AddHours(-25));
+        var resultNfeFora = docNfe2.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        resultNfeFora.IsFailure.ShouldBeTrue();
+        resultNfeFora.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+
+        // NFC-e: dentro do prazo de 30min deve cancelar
+        var docNfCe = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-29));
+        var resultNfCeDentro = docNfCe.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        resultNfCeDentro.IsSuccess.ShouldBeTrue();
+
+        // NFC-e: fora do prazo de 30min deve rejeitar
+        var docNfCe2 = DocumentoFiscalBuilder.Autorizado(FixedNow.AddMinutes(-31));
+        var resultNfCeFora = docNfCe2.IniciarCancelamento(new FixedTimeProvider(FixedNow));
+        resultNfCeFora.IsFailure.ShouldBeTrue();
+        resultNfCeFora.Error.Code.ShouldBe("DocumentoFiscal.PrazoDeCancelamentoExpirado");
+    }
 }

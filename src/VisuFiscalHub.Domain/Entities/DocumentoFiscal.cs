@@ -245,9 +245,13 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             return Result.Failure(DocumentoFiscalErrors.TransicaoInvalida);
 
         var utcNow = timeProvider.GetUtcNow();
-        var prazo = Tipo == TipoDocumento.NFe
-            ? AuthorizedAt.Value.AddHours(24)
-            : AuthorizedAt.Value.AddMinutes(30);
+        var prazo = Tipo switch
+        {
+            TipoDocumento.NFe  => AuthorizedAt.Value.AddHours(24),
+            TipoDocumento.NfCe => AuthorizedAt.Value.AddMinutes(30),
+            _                  => throw new InvalidOperationException(
+                $"Prazo de cancelamento não definido para TipoDocumento {Tipo}.")
+        };
 
         if (utcNow >= prazo)
             return Result.Failure(DocumentoFiscalErrors.PrazoDeCancelamentoExpirado);
