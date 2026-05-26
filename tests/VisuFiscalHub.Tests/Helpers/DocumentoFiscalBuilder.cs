@@ -102,7 +102,7 @@ internal static class DocumentoFiscalBuilder
     internal static DocumentoFiscal Autorizado(DateTimeOffset authorizedAt, long numero = 1)
     {
         var doc = Processando(numero);
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
+        var qrCode = QrCode.Gerar(doc.ChaveAcesso!, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
         doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, new FixedTimeProvider(authorizedAt))
            .IsSuccess.ShouldBeTrue("Autorizar() falhou no builder — verifique as invariantes.");
         doc.ClearDomainEvents();
@@ -270,7 +270,7 @@ internal static class DocumentoFiscalBuilder
         var doc  = CriarNfe(dest).Value;
         doc.Enfileirar().IsSuccess.ShouldBeTrue();
         doc.IniciarProcessamento().IsSuccess.ShouldBeTrue();
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
+        var qrCode = QrCode.Gerar(doc.ChaveAcesso!, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
         doc.Autorizar("PROT001", "<xml/>", qrCode, authorizedAt, new FixedTimeProvider(authorizedAt))
            .IsSuccess.ShouldBeTrue("Autorizar() falhou no builder NF-e.");
         doc.ClearDomainEvents();

@@ -34,16 +34,6 @@ public class FiscalDocumentXmlBuilderNfseGuardTests
 
     private static DocumentoFiscal CreateDocumentoNfse()
     {
-        var chaveAcesso = ChaveAcesso.Gerar(
-            cUF: 35,
-            aamm: "2601",
-            cnpj: "11222333000181",
-            mod: 65,
-            serie: "001",
-            nNF: "000000001",
-            tpEmis: TipoEmissao.Normal,
-            cNF: "12345678").Value;
-
         var tributo = Tributo.Criar(
             tipoIcms: TipoIcms.CSOSN, csosnOuCst: 400,
             aliquotaIcms: 0m, baseCalculoIcms: 0m, valorIcms: 0m,
@@ -57,22 +47,40 @@ public class FiscalDocumentXmlBuilderNfseGuardTests
         var item = new ItemDocumento(1, produto, tributo);
         var pagamento = Pagamento.Criar(TipoPagamento.Dinheiro, 10m).Value;
 
-        // NFSe: usamos tipo NFSe — o domínio aceita (indPresenca=1 está em IndPresencaNfce)
-        // ChaveAcesso usa mod=65 apenas para construção válida da chave (o guard no XmlBuilder
-        // dispara antes de inspecionar o conteúdo da chave).
+        var tomador = Tomador.Criar(
+            cnpjOuCpf: "11222333000181",
+            razaoSocial: "Empresa Tomadora Ltda",
+            logradouro: "Rua Teste", numero: "100", complemento: null,
+            bairro: "Centro", municipio: "São Paulo", codigoMunicipio: "3550308",
+            uf: "SP", cep: "01310100", email: null, inscricaoMunicipal: null).Value;
+
+        var servicoNfse = ServicoNfse.Criar(
+            codigoServico: "1.01",
+            discriminacao: "Desenvolvimento de software",
+            codigoTributacaoMunicipio: null,
+            aliquotaIss: 2m,
+            baseCalculoIss: 1000m,
+            valorIss: 20m,
+            valorDeducoes: null,
+            issRetido: false).Value;
+
+        // NFSe: usamos tipo NFSe com tomador e serviço obrigatórios.
+        // ChaveAcesso é null para NFSe; o guard no XmlBuilder dispara pelo tipo.
         var doc = DocumentoFiscal.Criar(
             id: DocumentoFiscalId.New(),
             tenantId: new TenantId(Guid.NewGuid()),
             clienteAppId: ClienteAppId.New(),
             idempotencyKey: "idem-nfse-guard-test",
             tipo: TipoDocumento.NFSe,
-            chaveAcesso: chaveAcesso,
+            chaveAcesso: null,
             numero: 1,
             serie: "001",
             indPresenca: 1,
             items: [item],
             pagamentos: [pagamento],
-            timeProvider: TimeProvider.System);
+            timeProvider: TimeProvider.System,
+            tomador: tomador,
+            servicoNfse: servicoNfse);
 
         doc.IsSuccess.ShouldBeTrue("Falha ao criar DocumentoFiscal com TipoDocumento.NFSe para o teste de guard.");
         return doc.Value;

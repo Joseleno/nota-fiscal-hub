@@ -23,7 +23,6 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         // null! é justificado: EF Core popula estas propriedades via reflexão após instanciar.
         IdempotencyKey = string.Empty;
         Serie = string.Empty;
-        ChaveAcesso = null!;
     }
 
     private DocumentoFiscal(
@@ -32,7 +31,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         ClienteAppId clienteAppId,
         string idempotencyKey,
         TipoDocumento tipo,
-        ChaveAcesso chaveAcesso,
+        ChaveAcesso? chaveAcesso,
         long numero,
         string serie,
         int indPresenca,
@@ -43,7 +42,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         DateTimeOffset createdAt,
         NfeDestinatario? nfeDestinatario,
         string? natOp,
-        int modFrete) : base(id)
+        int modFrete,
+        Tomador? tomador,
+        ServicoNfse? servicoNfse) : base(id)
     {
         TenantId = tenantId;
         ClienteAppId = clienteAppId;
@@ -62,6 +63,8 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         NfeDestinatario = nfeDestinatario;
         NatOp = natOp;
         ModFrete = modFrete;
+        Tomador = tomador;
+        ServicoNfse = servicoNfse;
     }
 
     public TenantId TenantId { get; private set; }
@@ -71,8 +74,10 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
 
     public string IdempotencyKey { get; private set; }
     public TipoDocumento Tipo { get; private set; }
-    public ChaveAcesso ChaveAcesso { get; private set; }
+    public ChaveAcesso? ChaveAcesso { get; private set; }
     public NfeDestinatario? NfeDestinatario { get; private set; }
+    public Tomador? Tomador { get; private set; }
+    public ServicoNfse? ServicoNfse { get; private set; }
     public string? NatOp { get; private set; }
     public int ModFrete { get; private set; } = 9;
     public long Numero { get; private set; }
@@ -98,7 +103,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         ClienteAppId clienteAppId,
         string idempotencyKey,
         TipoDocumento tipo,
-        ChaveAcesso chaveAcesso,
+        ChaveAcesso? chaveAcesso,
         long numero,
         string serie,
         int indPresenca,
@@ -109,7 +114,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         string? nomeConsumidor = null,
         NfeDestinatario? nfeDestinatario = null,
         string? natOp = null,
-        int modFrete = 9)
+        int modFrete = 9,
+        Tomador? tomador = null,
+        ServicoNfse? servicoNfse = null)
     {
         if (tenantId == default)
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TenantInvalido);
@@ -120,24 +127,40 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IdempotencyKeyInvalida);
 
-        var indPresencaValidos = tipo == TipoDocumento.NFe ? IndPresencaNfe : IndPresencaNfce;
-        if (!indPresencaValidos.Contains(indPresenca))
-            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IndPresencaInvalido);
-
-        if (tipo == TipoDocumento.NFe)
+        if (tipo == TipoDocumento.NFSe)
         {
-            if (nfeDestinatario is null)
-                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.DestinatarioObrigatorioParaNfe);
-            if (string.IsNullOrWhiteSpace(natOp))
-                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NatOpObrigatoriaNfe);
+            if (tomador is null)
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TomadorObrigatorio);
+            if (servicoNfse is null)
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.ServicoNfseObrigatorio);
         }
-        else if (nfeDestinatario is not null)
+        else
         {
-            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.DestinatarioNaoPermitidoEmNfce);
-        }
+            // NF-e e NFC-e não aceitam Tomador/ServicoNfse
+            if (tomador is not null)
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TipoNaoSuportado);
+            if (servicoNfse is not null)
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.TipoNaoSuportado);
 
-        if (cpfConsumidor is not null && string.IsNullOrWhiteSpace(nomeConsumidor))
-            return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NomeConsumidorObrigatorio);
+            var indPresencaValidos = tipo == TipoDocumento.NFe ? IndPresencaNfe : IndPresencaNfce;
+            if (!indPresencaValidos.Contains(indPresenca))
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.IndPresencaInvalido);
+
+            if (tipo == TipoDocumento.NFe)
+            {
+                if (nfeDestinatario is null)
+                    return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.DestinatarioObrigatorioParaNfe);
+                if (string.IsNullOrWhiteSpace(natOp))
+                    return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NatOpObrigatoriaNfe);
+            }
+            else if (nfeDestinatario is not null)
+            {
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.DestinatarioNaoPermitidoEmNfce);
+            }
+
+            if (cpfConsumidor is not null && string.IsNullOrWhiteSpace(nomeConsumidor))
+                return Result.Failure<DocumentoFiscal>(DocumentoFiscalErrors.NomeConsumidorObrigatorio);
+        }
 
         var itemList = items.ToList();
         if (itemList.Count == 0)
@@ -162,7 +185,9 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             timeProvider.GetUtcNow(),
             nfeDestinatario,
             natOp,
-            modFrete));
+            modFrete,
+            tomador,
+            servicoNfse));
     }
 
     public Result Enfileirar()
@@ -209,7 +234,7 @@ public sealed class DocumentoFiscal : Entity<DocumentoFiscalId>
             Id,
             TenantId,
             ClienteAppId,
-            ChaveAcesso.Valor,
+            ChaveAcesso?.Valor ?? string.Empty,
             protocolo,
             authorizedAt,
             Guid.CreateVersion7(),

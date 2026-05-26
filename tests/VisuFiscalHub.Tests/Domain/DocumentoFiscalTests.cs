@@ -1,8 +1,10 @@
 using Shouldly;
 using VisuFiscalHub.Domain.Common;
+using VisuFiscalHub.Domain.Entities;
 using VisuFiscalHub.Domain.Enums;
 using VisuFiscalHub.Domain.Errors;
 using VisuFiscalHub.Domain.Events;
+using VisuFiscalHub.Domain.Identifiers;
 using VisuFiscalHub.Domain.ValueObjects;
 using VisuFiscalHub.Tests.Helpers;
 
@@ -35,7 +37,7 @@ public class DocumentoFiscalTests
     public void Autorizar_QuandoProcessando_DeveTransicionarParaAutorizado()
     {
         var doc = DocumentoFiscalBuilder.Processando();
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
+        var qrCode = QrCode.Gerar(doc.ChaveAcesso!, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
         var result = doc.Autorizar("PROT001", "<xml/>", qrCode, FixedNow, FixedTime(FixedNow));
         result.IsSuccess.ShouldBeTrue();
         doc.Status.ShouldBe(StatusDocumento.Autorizado);
@@ -74,7 +76,7 @@ public class DocumentoFiscalTests
     public void Autorizar_QuandoJaAutorizado_DeveRetornarErro_NaoLancarExcecao()
     {
         var doc = DocumentoFiscalBuilder.EmStatus(StatusDocumento.Autorizado);
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
+        var qrCode = QrCode.Gerar(doc.ChaveAcesso!, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
         Result result = default!;
         Should.NotThrow(() => result = doc.Autorizar("PROT002", "<xml/>", qrCode, FixedNow, FixedTime(FixedNow)));
         result.IsFailure.ShouldBeTrue();
@@ -101,7 +103,7 @@ public class DocumentoFiscalTests
     public void Autorizar_DevePublicarDocumentoFiscalAutorizadoEvent()
     {
         var doc = DocumentoFiscalBuilder.Processando();
-        var qrCode = QrCode.Gerar(doc.ChaveAcesso, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
+        var qrCode = QrCode.Gerar(doc.ChaveAcesso!, AmbienteSefaz.Homologacao, "csc123", "https://exemplo.com").Value;
         doc.Autorizar("PROT001", "<xml/>", qrCode, FixedNow, FixedTime(FixedNow));
         doc.DomainEvents.OfType<DocumentoFiscalAutorizadoEvent>().ShouldHaveSingleItem();
     }
@@ -276,6 +278,157 @@ public class DocumentoFiscalTests
         result.Error.Code.ShouldBe("DocumentoFiscal.TransicaoInvalida");
         documento.Status.ShouldBe(StatusDocumento.Cancelando);
     }
+
+    // ── NFSe guards no Criar ────────────────────────────────────────────────
+
+    [Fact]
+    public void Criar_NFSe_SemTomador_RetornaFalha()
+    {
+        var result = DocumentoFiscal.Criar(
+            id: new DocumentoFiscalId(Guid.NewGuid()),
+            tenantId: new TenantId(Guid.NewGuid()),
+            clienteAppId: new ClienteAppId(Guid.NewGuid()),
+            idempotencyKey: Guid.NewGuid().ToString(),
+            tipo: TipoDocumento.NFSe,
+            chaveAcesso: null,
+            numero: 1,
+            serie: "001",
+            indPresenca: 1,
+            items: new[] { ItemDocumentoValido() },
+            pagamentos: new[] { PagamentoValido(10m) },
+            timeProvider: TimeProvider.System,
+            tomador: null,
+            servicoNfse: ServicoNfseValido());
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TomadorObrigatorio");
+    }
+
+    [Fact]
+    public void Criar_NFSe_SemServicoNfse_RetornaFalha()
+    {
+        var result = DocumentoFiscal.Criar(
+            id: new DocumentoFiscalId(Guid.NewGuid()),
+            tenantId: new TenantId(Guid.NewGuid()),
+            clienteAppId: new ClienteAppId(Guid.NewGuid()),
+            idempotencyKey: Guid.NewGuid().ToString(),
+            tipo: TipoDocumento.NFSe,
+            chaveAcesso: null,
+            numero: 1,
+            serie: "001",
+            indPresenca: 1,
+            items: new[] { ItemDocumentoValido() },
+            pagamentos: new[] { PagamentoValido(10m) },
+            timeProvider: TimeProvider.System,
+            tomador: TomadorValido(),
+            servicoNfse: null);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.ServicoNfseObrigatorio");
+    }
+
+    [Fact]
+    public void Criar_NFSe_ComTomadorEServico_Sucesso()
+    {
+        var result = DocumentoFiscal.Criar(
+            id: new DocumentoFiscalId(Guid.NewGuid()),
+            tenantId: new TenantId(Guid.NewGuid()),
+            clienteAppId: new ClienteAppId(Guid.NewGuid()),
+            idempotencyKey: Guid.NewGuid().ToString(),
+            tipo: TipoDocumento.NFSe,
+            chaveAcesso: null,
+            numero: 1,
+            serie: "001",
+            indPresenca: 1,
+            items: new[] { ItemDocumentoValido() },
+            pagamentos: new[] { PagamentoValido(10m) },
+            timeProvider: TimeProvider.System,
+            tomador: TomadorValido(),
+            servicoNfse: ServicoNfseValido());
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Tomador.ShouldNotBeNull();
+        result.Value.ServicoNfse.ShouldNotBeNull();
+        result.Value.ChaveAcesso.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Criar_NfCe_ComTomador_RetornaFalha()
+    {
+        var result = DocumentoFiscal.Criar(
+            id: new DocumentoFiscalId(Guid.NewGuid()),
+            tenantId: new TenantId(Guid.NewGuid()),
+            clienteAppId: new ClienteAppId(Guid.NewGuid()),
+            idempotencyKey: Guid.NewGuid().ToString(),
+            tipo: TipoDocumento.NfCe,
+            chaveAcesso: ChaveAcessoValida(),
+            numero: 1,
+            serie: "001",
+            indPresenca: 1,
+            items: new[] { ItemDocumentoValido() },
+            pagamentos: new[] { PagamentoValido(10m) },
+            timeProvider: TimeProvider.System,
+            tomador: TomadorValido(),
+            servicoNfse: null);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("DocumentoFiscal.TipoNaoSuportado");
+    }
+
+    // ── Helpers privados para testes NFSe ────────────────────────────────────
+
+    private static ChaveAcesso ChaveAcessoValida() => ChaveAcesso.Gerar(
+        cUF: 35,
+        aamm: "2601",
+        cnpj: "12345678000195",
+        mod: 65,
+        serie: "001",
+        nNF: "000000001",
+        tpEmis: TipoEmissao.Normal,
+        cNF: "12345678").Value;
+
+    private static ItemDocumento ItemDocumentoValido()
+    {
+        var tributo = Tributo.Criar(
+            tipoIcms: TipoIcms.CSOSN, csosnOuCst: 400,
+            aliquotaIcms: 0m, baseCalculoIcms: 0m, valorIcms: 0m,
+            cstPis: CstPisCofins.Cst07, baseCalculoPis: 0m, aliquotaPis: 0m, valorPis: 0m,
+            cstCofins: CstPisCofins.Cst07, baseCalculoCofins: 0m, aliquotaCofins: 0m, valorCofins: 0m).Value;
+
+        var produto = Produto.Criar(
+            codigoProduto: "PROD001",
+            descricao: "Produto Teste",
+            ncm: "12345678",
+            cest: null,
+            cfopSaida: "5102",
+            unidadeComercial: "UN",
+            quantidade: 1m,
+            valorUnitario: 10m,
+            valorDesconto: 0m,
+            origemMercadoria: OrigemMercadoria.Nacional).Value;
+
+        return new ItemDocumento(1, produto, tributo);
+    }
+
+    private static Pagamento PagamentoValido(decimal valor) =>
+        Pagamento.Criar(TipoPagamento.Dinheiro, valor).Value;
+
+    private static Tomador TomadorValido() => Tomador.Criar(
+        cnpjOuCpf: "11222333000181",
+        razaoSocial: "Empresa Tomadora Ltda",
+        logradouro: "Rua Teste", numero: "100", complemento: null,
+        bairro: "Centro", municipio: "São Paulo", codigoMunicipio: "3550308",
+        uf: "SP", cep: "01310100", email: null, inscricaoMunicipal: null).Value;
+
+    private static ServicoNfse ServicoNfseValido() => ServicoNfse.Criar(
+        codigoServico: "1.01",
+        discriminacao: "Desenvolvimento de software",
+        codigoTributacaoMunicipio: null,
+        aliquotaIss: 2m,
+        baseCalculoIss: 1000m,
+        valorIss: 20m,
+        valorDeducoes: null,
+        issRetido: false).Value;
 
     // ──────────────────────────────────────────────────────────────
     // NF-e specific rules

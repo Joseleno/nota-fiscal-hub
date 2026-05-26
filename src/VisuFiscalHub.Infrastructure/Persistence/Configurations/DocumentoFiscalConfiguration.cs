@@ -20,7 +20,7 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
 
     // ValueConverter não suporta lambdas com statement body, por isso o método auxiliar.
     // Dado corrompido: loga e usa bypass em vez de derrubar a query inteira.
-    private ChaveAcesso ChaveAcessoFromStorage(string valor)
+    private ChaveAcesso? ChaveAcessoFromStorage(string valor)
     {
         var result = ChaveAcesso.From(valor);
         if (result.IsFailure)
@@ -76,10 +76,9 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
         builder.Property(d => d.ChaveAcesso)
             .HasColumnName("chave_acesso")
             .HasMaxLength(44)
-            .IsRequired()
-            .HasConversion(new ValueConverter<ChaveAcesso, string>(
-                ca => ca.Valor,
-                valor => ChaveAcessoFromStorage(valor)));
+            .HasConversion(new ValueConverter<ChaveAcesso?, string?>(
+                ca => ca == null ? null : ca.Valor,
+                valor => valor == null ? null : ChaveAcessoFromStorage(valor)));
 
         builder.HasIndex(d => d.ChaveAcesso)
             .HasDatabaseName("ix_documentos_fiscais_chave_acesso");
@@ -158,6 +157,22 @@ public sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<Docu
                 new ValueConverter<NfeDestinatario?, string?>(
                     v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                     s => s == null ? null : JsonSerializer.Deserialize<NfeDestinatario>(s, (JsonSerializerOptions?)null)));
+
+        builder.Property(x => x.Tomador)
+            .HasColumnName("tomador")
+            .HasColumnType("jsonb")
+            .HasConversion(
+                new ValueConverter<Tomador?, string?>(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    s => s == null ? null : JsonSerializer.Deserialize<Tomador>(s, (JsonSerializerOptions?)null)));
+
+        builder.Property(x => x.ServicoNfse)
+            .HasColumnName("servico_nfse")
+            .HasColumnType("jsonb")
+            .HasConversion(
+                new ValueConverter<ServicoNfse?, string?>(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    s => s == null ? null : JsonSerializer.Deserialize<ServicoNfse>(s, (JsonSerializerOptions?)null)));
 
         // HasField obrigatório — a propriedade pública expõe IReadOnlyList<T>, incompatível com EF Core.
         // Declara o backing field antes do OwnsMany para que o EF Core use _items para leitura/escrita.

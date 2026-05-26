@@ -202,7 +202,7 @@ public class FiscalDocumentProcessingJobTests
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
 
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   true,
@@ -227,7 +227,7 @@ public class FiscalDocumentProcessingJobTests
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
 
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<SefazConsultaRetorno>(new Error("Sefaz.Timeout", "Timeout na consulta.")));
 
         await Should.ThrowAsync<InvalidOperationException>(
@@ -387,7 +387,7 @@ public class FiscalDocumentProcessingJobTests
 
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
                 NProt: "135260000099999", XmlProtocolo: "<nfeProc/>", ElapsedMs: 0L)));
@@ -408,7 +408,7 @@ public class FiscalDocumentProcessingJobTests
         var documento = DocumentoFiscalBuilder.Processando(id: id);
         _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
         ConfigurarSefazRetorno(id, documento.TenantId, autorizado: false, cStat, xMotivo: "Duplicidade de NF-e");
-        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+        _sefazClient.ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
                 NProt: "135260000099998", XmlProtocolo: "<nfeProc/>", ElapsedMs: 0L)));
@@ -417,7 +417,7 @@ public class FiscalDocumentProcessingJobTests
 
         documento.Status.ShouldBe(StatusDocumento.Autorizado);
         documento.QrCode.ShouldNotBeNull("fallback deve preencher QrCode com chave de acesso");
-        documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso.Valor);
+        documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso!.Valor);
     }
 
     // ── guard NFSe: não submete à SEFAZ, falha o documento e retorna ─────────────
@@ -426,15 +426,6 @@ public class FiscalDocumentProcessingJobTests
     public async Task ExecuteAsync_NFSe_NaoSubmeteParaSefazEFalhaDocumento()
     {
         var id = DocumentoFiscalId.New();
-        var chaveAcesso = ChaveAcesso.Gerar(
-            cUF:    35,
-            aamm:   "2601",
-            cnpj:   "12345678000195",
-            mod:    99,
-            serie:  "001",
-            nNF:    "000000001",
-            tpEmis: TipoEmissao.Normal,
-            cNF:    "12345678").Value;
         var tributo = Tributo.Criar(
             tipoIcms: TipoIcms.CSOSN, csosnOuCst: 400,
             aliquotaIcms: 0m, baseCalculoIcms: 0m, valorIcms: 0m,
@@ -446,6 +437,21 @@ public class FiscalDocumentProcessingJobTests
             valorDesconto: 0m, origemMercadoria: OrigemMercadoria.Nacional).Value;
         var item = new ItemDocumento(1, produto, tributo);
         var pagamento = Pagamento.Criar(TipoPagamento.Dinheiro, 10m).Value;
+        var tomador = Tomador.Criar(
+            cnpjOuCpf: "11222333000181",
+            razaoSocial: "Empresa Tomadora Ltda",
+            logradouro: "Rua Teste", numero: "100", complemento: null,
+            bairro: "Centro", municipio: "São Paulo", codigoMunicipio: "3550308",
+            uf: "SP", cep: "01310100", email: null, inscricaoMunicipal: null).Value;
+        var servicoNfse = ServicoNfse.Criar(
+            codigoServico: "1.01",
+            discriminacao: "Desenvolvimento de software",
+            codigoTributacaoMunicipio: null,
+            aliquotaIss: 2m,
+            baseCalculoIss: 1000m,
+            valorIss: 20m,
+            valorDeducoes: null,
+            issRetido: false).Value;
 
         var documento = DocumentoFiscal.Criar(
             id:             id,
@@ -453,13 +459,15 @@ public class FiscalDocumentProcessingJobTests
             clienteAppId:   ClienteAppId.New(),
             idempotencyKey: $"idem-nfse-{id.Value}",
             tipo:           TipoDocumento.NFSe,
-            chaveAcesso:    chaveAcesso,
+            chaveAcesso:    null,
             numero:         1,
             serie:          "001",
             indPresenca:    1,
             items:          [item],
             pagamentos:     [pagamento],
-            timeProvider:   TimeProvider.System).Value;
+            timeProvider:   TimeProvider.System,
+            tomador:        tomador,
+            servicoNfse:    servicoNfse).Value;
 
         documento.Enfileirar().IsSuccess.ShouldBeTrue();
 

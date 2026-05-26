@@ -112,7 +112,7 @@ public class ReconciliacaoJobProcessorTests
         ConfigurarDocumentosTravados(documento);
 
         _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<SefazConsultaRetorno>(
                 new Error("Sefaz.Timeout", "Timeout na consulta.")));
 
@@ -176,7 +176,7 @@ public class ReconciliacaoJobProcessorTests
 
         documento.Status.ShouldBe(StatusDocumento.Autorizado);
         documento.QrCode.ShouldNotBeNull("fallback deve preencher QrCode com chave de acesso");
-        documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso.Valor);
+        documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso!.Valor);
     }
 
     // ── SEFAZ autorizado mas NProt ausente → Falhou ───────────────────────────────
@@ -188,7 +188,7 @@ public class ReconciliacaoJobProcessorTests
         ConfigurarDocumentosTravados(documento);
 
         _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   true,
@@ -228,7 +228,7 @@ public class ReconciliacaoJobProcessorTests
         ConfigurarDocumentosTravados(documento);
 
         _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   false,
@@ -328,7 +328,7 @@ public class ReconciliacaoJobProcessorTests
         var doc = DocumentoFiscalBuilder.Processando();
         documentoRepo.GetProcessandoAntigoAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(new List<DocumentoFiscal> { doc });
-        sefazClient.ConsultarNfeAsync(doc.ChaveAcesso.Valor, doc.TenantId, doc.Tipo, Arg.Any<CancellationToken>())
+        sefazClient.ConsultarNfeAsync(doc.ChaveAcesso!.Valor, doc.TenantId, doc.Tipo, Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado: true, Autorizado: true, CStat: "100",
                 NProt: "135260000000001", XmlProtocolo: "<protNFe/>", ElapsedMs: 200L)));
@@ -352,7 +352,7 @@ public class ReconciliacaoJobProcessorTests
 
     private void ConfigurarConsultaAutorizado(DocumentoFiscal documento, string protocolo)
         => _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   true,
                 Autorizado:   true,
@@ -363,7 +363,7 @@ public class ReconciliacaoJobProcessorTests
 
     private void ConfigurarConsultaNaoEncontrado(DocumentoFiscal documento)
         => _sefazClient
-            .ConsultarNfeAsync(documento.ChaveAcesso.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
+            .ConsultarNfeAsync(documento.ChaveAcesso!.Valor, documento.TenantId, Arg.Any<TipoDocumento>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new SefazConsultaRetorno(
                 Encontrado:   false,
                 Autorizado:   false,

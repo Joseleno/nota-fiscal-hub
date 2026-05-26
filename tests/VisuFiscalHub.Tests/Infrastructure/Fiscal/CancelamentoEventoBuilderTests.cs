@@ -77,7 +77,7 @@ public class CancelamentoEventoBuilderTests
             FixedNow, "202605241000000");
 
         var id = xml.SelectSingleNode("//nfe:infEvento", NfNs(xml))!.Attributes!["Id"]!.Value;
-        id.ShouldBe($"ID110111{doc.ChaveAcesso.Valor}01");
+        id.ShouldBe($"ID110111{doc.ChaveAcesso!.Valor}01");
     }
 
     [Fact]
