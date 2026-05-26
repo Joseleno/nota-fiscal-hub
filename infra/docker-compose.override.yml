@@ -22,8 +22,6 @@ services:
       - "8081:80"
     volumes:
       - seq-data:/data
-    networks:
-      - hub-network
 
   postgres:
     ports:
@@ -31,7 +29,3 @@ services:
 
 volumes:
   seq-data:
-
-networks:
-  hub-network:
-    external: true
