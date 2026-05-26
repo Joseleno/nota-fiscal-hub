@@ -98,6 +98,19 @@ public sealed class FiscalDocumentProcessingJob
                 documentoId.Value, documento.Status);
         }
 
+        // Guard: NFSe não é suportada por este job (SEFAZ federal). Usar job de prefeitura (Fase 15).
+        if (documento.Tipo == TipoDocumento.NFSe)
+        {
+            _logger.LogError(
+                "DocumentoFiscal {DocumentoId} é NFSe — FiscalDocumentProcessingJob não suporta NFSe. " +
+                "Use o job correto de prefeitura (Fase 15).",
+                documentoId.Value);
+            documento.Falhar(_timeProvider);
+            await _documentoRepo.UpdateAsync(documento, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return;
+        }
+
         var retornoResult = await _sefazClient.SubmeterAutorizacaoAsync(documentoId, documento.TenantId, ct);
 
         if (retornoResult.IsFailure)

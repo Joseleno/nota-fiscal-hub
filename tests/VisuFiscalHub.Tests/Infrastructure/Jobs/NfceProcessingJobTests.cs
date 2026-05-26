@@ -420,6 +420,60 @@ public class FiscalDocumentProcessingJobTests
         documento.QrCode!.UrlCompleta.ShouldBe(documento.ChaveAcesso.Valor);
     }
 
+    // ── guard NFSe: não submete à SEFAZ, falha o documento e retorna ─────────────
+
+    [Fact]
+    public async Task ExecuteAsync_NFSe_NaoSubmeteParaSefazEFalhaDocumento()
+    {
+        var id = DocumentoFiscalId.New();
+        var chaveAcesso = ChaveAcesso.Gerar(
+            cUF:    35,
+            aamm:   "2601",
+            cnpj:   "12345678000195",
+            mod:    99,
+            serie:  "001",
+            nNF:    "000000001",
+            tpEmis: TipoEmissao.Normal,
+            cNF:    "12345678").Value;
+        var tributo = Tributo.Criar(
+            tipoIcms: TipoIcms.CSOSN, csosnOuCst: 400,
+            aliquotaIcms: 0m, baseCalculoIcms: 0m, valorIcms: 0m,
+            cstPis: CstPisCofins.Cst07, baseCalculoPis: 0m, aliquotaPis: 0m, valorPis: 0m,
+            cstCofins: CstPisCofins.Cst07, baseCalculoCofins: 0m, aliquotaCofins: 0m, valorCofins: 0m).Value;
+        var produto = Produto.Criar(
+            codigoProduto: "PROD001", descricao: "Produto Teste", ncm: "12345678", cest: null,
+            cfopSaida: "5102", unidadeComercial: "UN", quantidade: 1m, valorUnitario: 10m,
+            valorDesconto: 0m, origemMercadoria: OrigemMercadoria.Nacional).Value;
+        var item = new ItemDocumento(1, produto, tributo);
+        var pagamento = Pagamento.Criar(TipoPagamento.Dinheiro, 10m).Value;
+
+        var documento = DocumentoFiscal.Criar(
+            id:             id,
+            tenantId:       new TenantId(Guid.NewGuid()),
+            clienteAppId:   ClienteAppId.New(),
+            idempotencyKey: $"idem-nfse-{id.Value}",
+            tipo:           TipoDocumento.NFSe,
+            chaveAcesso:    chaveAcesso,
+            numero:         1,
+            serie:          "001",
+            indPresenca:    1,
+            items:          [item],
+            pagamentos:     [pagamento],
+            timeProvider:   TimeProvider.System).Value;
+
+        documento.Enfileirar().IsSuccess.ShouldBeTrue();
+
+        _documentoRepo.GetByIdForUpdateAsync(id, Arg.Any<CancellationToken>()).Returns(documento);
+
+        await CreateJob().ExecuteAsync(id, CancellationToken.None);
+
+        // Guard: não deve chamar SEFAZ
+        await _sefazClient.DidNotReceiveWithAnyArgs().SubmeterAutorizacaoAsync(default!, default, default);
+
+        // Guard: documento deve estar em Falhou
+        documento.Status.ShouldBe(StatusDocumento.Falhou);
+    }
+
     // ── DeliveryAttempt registrado em cada resultado SEFAZ ───────────────────────
 
     [Fact]
