@@ -44,7 +44,7 @@ public sealed class SequenceManager : ISequenceManager
         {
 #pragma warning disable EF1002
             var numero = await _context.Database
-                .SqlQueryRaw<long>($"SELECT nextval('{sequenceName}')")
+                .SqlQueryRaw<long>($"SELECT nextval('{sequenceName}') AS \"Value\"")
                 .FirstAsync(ct);
 #pragma warning restore EF1002
 
