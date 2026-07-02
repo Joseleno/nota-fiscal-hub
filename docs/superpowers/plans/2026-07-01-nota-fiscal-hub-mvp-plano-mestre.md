@@ -28,14 +28,14 @@
 
 O repositório já contém implementação prévia (fases 1–16 documentadas em `docs/specs/` e `docs/superpowers/plans/`: domain, infra de banco, integração SEFAZ, certificados/outbox, NFSe ABRASF, cancelamento, docker, testes). Antes de detalhar a Fase 0:
 
-- [ ] Analisar arquitetura, escalabilidade e qualidade do código existente **contra o design aprovado**.
-- [ ] Produzir matriz por módulo do design: **APROVEITAR** (já conforme) / **ADAPTAR** (conforme com ajustes) / **REESCREVER** (não conforme às fronteiras) — com justificativa.
-- [ ] Decidir estratégia: evoluir o repo atual in-place vs. re-estruturar solution — decisão registrada em `docs/decisions.md`.
-- [ ] Ajustar este plano-mestre com o resultado (fases podem encolher muito se houver reaproveitamento).
-- [ ] Iniciar em paralelo os pré-requisitos externos SEFAZ-SE: certificado A1 de teste, CSC/idCSC de homologação, credenciamento do emissor, pacotes de schemas XSD para golden files (equivalentes de produção = pré-requisito nomeado da Fase 7).
-- [ ] Registrar em `docs/decisions.md` as decisões pendentes: destino da solution atual, stack do Portal/Backoffice, catálogo de planos (dimensões/ciclo), e ratificar as decisões da revisão de documentos de 2026-07-01 (D-2026-07-01-01..10).
+- [x] Analisar arquitetura, escalabilidade e qualidade do código existente **contra o design aprovado**. — 5 pareceres (aderência, fiscal, escalabilidade, segurança, qualidade); último em `docs/superpowers/reviews/2026-07-02-g0-qualidade.md`.
+- [x] Produzir matriz por módulo do design: **APROVEITAR** / **ADAPTAR** / **REESCREVER** — com justificativa. — `docs/superpowers/reviews/2026-07-02-gate0-matriz-final.md`.
+- [x] Decidir estratégia: evoluir in-place vs. re-estruturar solution — **SOLUTION NOVA** (D-2026-07-02-01 em `docs/decisions.md` §0.1).
+- [ ] Ajustar este plano-mestre com o resultado (fases podem encolher muito se houver reaproveitamento). — *parcialmente refletido nos ajustes de fase abaixo; detalhamento fino na tarefa A5.*
+- [ ] Iniciar em paralelo os pré-requisitos externos SEFAZ-SE: certificado A1 de teste, CSC/idCSC de homologação, credenciamento do emissor, pacotes de schemas XSD para golden files (equivalentes de produção = pré-requisito nomeado da Fase 7). — *tarefa A4.*
+- [x] Registrar em `docs/decisions.md` as decisões pendentes e ratificar as D-2026-07-01-01..10. — **D-2026-07-01-* ratificadas integralmente** e destino da solution decidido (D-2026-07-02-01); Portal/planos/QR-v3-online/e-mail adiados às fases indicadas.
 
-**Critério de saída:** matriz aprovada pelo dono do produto e decisões acima registradas.
+**Critério de saída:** ✅ **ATINGIDO em 2026-07-02** — matriz aprovada pelo dono do produto e decisões registradas em `docs/decisions.md` §0.1. **Gate 0 FECHADO.**
 
 ---
 
