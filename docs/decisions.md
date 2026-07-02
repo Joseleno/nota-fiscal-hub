@@ -54,6 +54,14 @@ Gate 0 concluído: 5 pareceres (aderência, fiscal, escalabilidade, segurança, 
 - **Revogações:** nenhuma. Portanto **nenhuma pendência de propagação** para design/plano-mestre por conta de reversão de decisão.
 - **Critério de saída do Gate 0 (decisões):** ✅ atingido — matriz aprovada e decisões registradas com governança rastreável. Gate 0 FECHADO.
 
+### 0.3 Tarefa A5 — plano-mestre ajustado e plano da Fase 0 aprovados (2026-07-02)
+
+Tarefa A5 concluída (passos 1-4, 6, 7 da spec; passo 5 — sync ClickUp — fora de escopo por decisão do dono, ver handoff 2026-07-02). Escopo:
+
+| ID | Decisão | Racional | Status | Data | Decisor |
+|---|---|---|---|---|---|
+| D-2026-07-02-04 | **Plano-mestre ajustado com a matriz A2 aprovado; plano bite-sized da Fase 0 aprovado.** `docs/superpowers/plans/2026-07-01-nota-fiscal-hub-mvp-plano-mestre.md` (Gate 0 marcado fechado; Fases 0-4 e "Fora deste plano" ganham blockquote de rastreabilidade citando a linha da matriz que motivou cada ajuste; D-2026-07-01-08 refletida nas Fases 1/2). `docs/superpowers/plans/2026-07-02-fase-00-fundacao-kernel.md` criado — 9 tarefas sequenciadas (B1→B9) cobrindo estrutura da solution, tenant context, outbox/inbox, idempotência, auditoria, NetArchTest, observabilidade, AWS não-produção e CI. Ambos revisados adversarialmente em 2 passadas com Opus 4.8 antes da aprovação (achados críticos e menores corrigidos; dívidas remanescentes registradas nos próprios documentos). | Formaliza a saída do Gate 0 como plano executável, conforme exigido pela spec `docs/superpowers/specs/tarefas/A5-ajuste-plano-pos-gate.md`. | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+
 ---
 
 ## Sumário

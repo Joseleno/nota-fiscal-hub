@@ -24,28 +24,30 @@
 
 ---
 
-## Gate 0 — Análise do código existente (ANTES de detalhar qualquer fase)
+## Gate 0 — Análise do código existente (ANTES de detalhar qualquer fase) — ✅ FECHADO
 
 O repositório já contém implementação prévia (fases 1–16 documentadas em `docs/specs/` e `docs/superpowers/plans/`: domain, infra de banco, integração SEFAZ, certificados/outbox, NFSe ABRASF, cancelamento, docker, testes). Antes de detalhar a Fase 0:
 
 - [x] Analisar arquitetura, escalabilidade e qualidade do código existente **contra o design aprovado**. — 5 pareceres (aderência, fiscal, escalabilidade, segurança, qualidade); último em `docs/superpowers/reviews/2026-07-02-g0-qualidade.md`.
 - [x] Produzir matriz por módulo do design: **APROVEITAR** / **ADAPTAR** / **REESCREVER** — com justificativa. — `docs/superpowers/reviews/2026-07-02-gate0-matriz-final.md`.
 - [x] Decidir estratégia: evoluir in-place vs. re-estruturar solution — **SOLUTION NOVA** (D-2026-07-02-01 em `docs/decisions.md` §0.1).
-- [ ] Ajustar este plano-mestre com o resultado (fases podem encolher muito se houver reaproveitamento). — *parcialmente refletido nos ajustes de fase abaixo; detalhamento fino na tarefa A5.*
-- [ ] Iniciar em paralelo os pré-requisitos externos SEFAZ-SE: certificado A1 de teste, CSC/idCSC de homologação, credenciamento do emissor, pacotes de schemas XSD para golden files (equivalentes de produção = pré-requisito nomeado da Fase 7). — *tarefa A4.*
+- [x] Ajustar este plano-mestre com o resultado (fases podem encolher muito se houver reaproveitamento). — feito nesta revisão (tarefa A5): cada fase abaixo cita a(s) linha(s) da matriz que a motivou.
+- [x] Iniciar em paralelo os pré-requisitos externos SEFAZ-SE: certificado A1 de teste, CSC/idCSC de homologação, credenciamento do emissor, pacotes de schemas XSD para golden files (equivalentes de produção = pré-requisito nomeado da Fase 7). — *tarefa A4, corre em paralelo à execução da Fase 0.*
 - [x] Registrar em `docs/decisions.md` as decisões pendentes e ratificar as D-2026-07-01-01..10. — **D-2026-07-01-* ratificadas integralmente** e destino da solution decidido (D-2026-07-02-01); Portal/planos/QR-v3-online/e-mail adiados às fases indicadas.
 
-**Critério de saída:** ✅ **ATINGIDO em 2026-07-02** — matriz aprovada pelo dono do produto e decisões registradas em `docs/decisions.md` §0.1. **Gate 0 FECHADO.**
+**Critério de saída:** ✅ **ATINGIDO em 2026-07-02** — matriz aprovada pelo dono do produto (`docs/superpowers/reviews/2026-07-02-gate0-matriz-final.md`) e decisões registradas em `docs/decisions.md` §0.1/§0.2. **Gate 0 FECHADO.** Legado `VisuFiscalHub.*` movido para `old/` (referência/origem de porte, não base evolutiva); solution nova `NotaFiscalHub.*` nasce na Fase 0.
 
 ---
 
 ## Fase 0 — Fundação e kernel transversal
 
+> **Matriz A2 (rastreabilidade):** linha 8 Kernel = **REESCREVER** (sem filtro global de tenant, sem auditoria, sem NetArchTest — violações não-localizadas); linha 9 Outbox/Inbox = **ADAPTAR** (mecânica `OutboxRelayJob`/`FOR UPDATE SKIP LOCKED` madura, mas falta Inbox/dedupe — achado Q1 aponta 5 eventos de integração sem handler no legado, dos quais 3 têm ação nomeada de porte: `DocumentoFiscalRejeitado/Cancelado/Falhou`, D-2026-07-02-03); linha 10 Deployables = **REESCREVER** (1 processo único hoje; design exige API+Worker); linha 11 Suíte = **APROVEITAR** parcial (arquitetura ainda ausente — nasce aqui). Plano bite-sized aprovado pelo dono em 2026-07-02: `docs/superpowers/plans/2026-07-02-fase-00-fundacao-kernel.md`.
+
 **Entregável testável:** solution compila com estrutura de módulos, CI verde com testes de arquitetura travando fronteiras, e a biblioteca outbox/inbox provada com duplicata e reordenação.
 
-- Estrutura da solution: `Api/`, `Worker/`, `Modules/<Modulo>/{Domain,Application,Infrastructure,Contracts}`, `BuildingBlocks/` (kernel).
+- Estrutura da solution: `Api/`, `Worker/`, `Modules/<Modulo>/{Domain,Application,Infrastructure,Contracts}`, `BuildingBlocks/` (kernel). Legado `VisuFiscalHub.*` permanece intocado em `old/` (D-2026-07-02-01) — a solution nova nasce ao lado, sem herdar sua estrutura.
 - Tenant context: `ITenantContext`, resolução na borda (middleware), filtro global por `conta_id` em DbContext base, `BeginTenantScope` para o Worker; teste de arquitetura: entidade tenant-scoped sem `conta_id` falha o build.
-- Biblioteca Outbox/Inbox por módulo: publicação transacional, dispatcher in-process por módulo, dedupe por `messageId`; testes com entrega duplicada e fora de ordem.
+- Biblioteca Outbox/Inbox por módulo: publicação transacional, dispatcher in-process por módulo, dedupe por `messageId`; testes com entrega duplicada e fora de ordem. Inclui o registro dos handlers para os 3 eventos hoje descartados em silêncio no legado (achado Q1/g0-qualidade: `DocumentoFiscalRejeitado/Cancelado/Falhou` viravam `SemHandler`/MSG0005 sem notificar o integrador) — nenhum evento sem handler é permitido sair como `Processada`.
 - Middleware de `Idempotency-Key` (armazenamento por conta+key+hash do payload; replay devolve resposta original; conflito → 409).
 - Auditoria append-only alimentada por eventos de integração.
 - Suite NetArchTest: referências permitidas entre módulos (§2.5 do spec, incl. a exceção host/kernel → Contas & Planos), DTOs nos contratos, proibição de entidade cruzando fronteira.
@@ -55,6 +57,8 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 
 ## Fase 1 — Contas & Planos
 
+> **Matriz A2 (rastreabilidade):** linha 1 Contas & Planos = **REESCREVER** (só existe `ClienteApp` ≈ fração de Conta; sem planos/metering/cota/MFA — não há o que aproveitar/adaptar); linha 2 Empresas & Certificados (estrutura) = **ADAPTAR** — a quebra do agregado `Tenant` invertido (Empresa vs. Conta) é referenciada aqui porque a Fase 1 é quem introduz a Conta que a Fase 2 vai separar do Empresa.
+
 **Entregável testável:** conta criada via backoffice API, API key emitida/rotacionada/revogada com escopo de empresas, autenticação funcionando na API, plano atribuído e consumo agregado por evento.
 
 - Entidades: Conta, UsuarioPortal (identidade separada), ApiKey (hash, prefixo live/test, allowlist de empresas), Plano, AssinaturaConta, ConsumoPeriodo, WebhookConfig (config apenas; entrega na Fase 4).
@@ -63,8 +67,11 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 - Flags replicáveis: eventos `CotaExcedida` (cruzou limite do plano) e `ContaSuspensa` (ação administrativa do backoffice) publicados; semântica de resposta da API em §3.4 do spec.
 - API administrativa interina para conta/plano: autenticação de operador provisória declarada (AdminKey de escopo restrito — nunca o pipeline de API key), registrada como dívida com quitação na Fase 6.
 - Seed/bootstrap: catálogo de planos, operador inicial, conta piloto (VISU).
+- Encerramento de conta (política mínima, D-2026-07-01-08): transição para somente-leitura por 5 anos (guarda legal); exportação em massa fica fora do MVP. A destruição auditada de A1/CSC é acionada por este evento mas executada pela Fase 2 (dono do material sensível).
 
 ## Fase 2 — Empresas & Certificados
+
+> **Matriz A2 (rastreabilidade):** linha 2 estrutura/agregados = **ADAPTAR com quebra de agregado** (mapeamento fiscal do `Tenant` legado — CNPJ, `ConfiguracaoFiscal`, endereço, `CIdToken` — é correto e testado; ajuste é desmembrar Empresa de Conta/Certificado/CSC/Série, não remodelar do zero); linha 3 custódia A1/CSC = **REESCREVER** (chave AES estática única sem KMS/DEK, chave privada trafegando como `X509Certificate2` entre camadas — viola a Global Constraint "chave privada nunca sai de Empresas & Certificados" de forma não-localizada; o AES-GCM do `CertificateEncryptionService` é reaproveitável como primitiva interna, a arquitetura de custódia não).
 
 **Entregável testável:** empresa cadastrada com `tpAmb`, upload de A1 validado (senha, titularidade CNPJ, validade), XML de teste assinado via `AssinarXml` sem a chave sair do módulo, alerta de expiração emitido.
 
@@ -73,8 +80,11 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 - Ciclo de validade: job do Worker publica `CertificadoProximoDoVencimento` (30/15/7/1 dias) e `CertificadoExpirado`.
 - Eventos `EmpresaCriada`/`EmpresaAtualizada`/`EmpresaDesativada` (alimentam read model da Emissão na Fase 3).
 - Endpoints: `POST /v1/empresas`, `POST /v1/empresas/{id}/certificado`, `PUT /v1/empresas/{id}/series/{modelo}`, `POST /v1/empresas/{id}/csc` (contrato §3.2 do spec).
+- Destruição auditada de A1/CSC no encerramento de conta (D-2026-07-01-08, consumida via evento da Fase 1): apaga o material sensível e registra o evento na trilha de auditoria (kernel, Fase 0) — nunca soft-delete silencioso.
 
 ## Fase 3 — Emissão + Motor NFC-e (o coração; maior fase)
+
+> **Matriz A2 (rastreabilidade):** linha 4 Emissão-núcleo = **REESCREVER** (fluxo 100% assíncrono hoje — sempre 202 — vs. síncrono 201/202/422 do design; contingência inexistente, `tpEmis` hardcoded; numeração sem escopo `tpAmb`/modelo; convergência dos 4 pareceres — violação estrutural não-localizada); linha 5 Emissão-casca = **ADAPTAR** (idempotência embutida + CQRS de comandos/queries funcionam e são testados; ajuste é elevar a idempotência a middleware do kernel e expor 201/202/422 síncronos); linha 6 Motor = **ADAPTAR condicionado** (D-2026-07-02-02: porte cirúrgico de `Infrastructure/Fiscal/{Sefaz,XmlBuilder}` + `QrCodeGenerator`, núcleo correto — chave+DV módulo 11, taxonomia `cStat`, `SefazEndpointResolver` — mas só considerado concluído com os 3 bugs fiscais + `cIdToken` no QR corrigidos **e** golden files validados contra XSD, achado Q2/g0-qualidade); linha 11 Suíte = **APROVEITAR** (testes de Domain + Motor portam junto do código que cobrem) **/ REESCREVER** (golden files sem XSD e integração em EF InMemory — achados Q2/Q3 — não portam; nascem de novo nesta fase sobre Testcontainers/PostgreSQL).
 
 **Entregável testável:** NFC-e autorizada ponta a ponta no ambiente de **homologação da SEFAZ-SE**, incluindo contingência simulada e cancelamento dentro do prazo.
 
@@ -89,6 +99,8 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 - Endpoints `POST /v1/nfce`, `GET /v1/nfce/{id}`, `POST /v1/nfce/{id}/cancelamento` e `POST /v1/inutilizacoes` (contrato §3 do spec) para fechar o ciclo.
 
 ## Fase 4 — Documentos, read model de consulta e webhooks
+
+> **Matriz A2 (rastreabilidade):** linha 7 Documentos = **REESCREVER** (componente ausente no legado: XML embutido no agregado `DocumentoFiscal`, sem S3, sem read model, sem retenção — critério REESCREVER-(a), nada a portar).
 
 **Entregável testável:** fluxo completo — nota autorizada → XML/DANFE no S3 → listagem em 1 query → webhook assinado entregue com retry.
 
@@ -129,5 +141,7 @@ Gate 0 → Fase 0 → Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fas
 Fases 1–2 podem se sobrepor parcialmente (contratos da Fase 0 estabilizados). A Fase 3 é o caminho crítico e não começa sem a Fase 2 entregue (assinatura).
 
 ## Fora deste plano (fases futuras do produto)
+
+> **Matriz A2 (rastreabilidade):** linha 12 NFSe ABRASF = **NÃO PORTAR agora** (scaffold sem assinatura no legado; nasce como módulo próprio na fase 2 pós-MVP do produto, fora do MVP fiscal deste plano-mestre — decisão convergente aderência+fiscal).
 
 NFSe (Motor NFSe + RPS), NFe, DF-e, importação de XML, Cadastros Fiscais, exportação contábil, billing automático — cada uma nascerá como novo plano-mestre curto + planos de fase, sobre as fronteiras já reservadas no design.
