@@ -10,36 +10,49 @@
 
 > As seções 1–8 abaixo documentam o **VisuFiscalHub legado** (implementação prévia ao design de produto de 2026-07-01) e permanecem como referência histórica. Onde conflitarem com o design aprovado (`docs/superpowers/specs/2026-07-01-nota-fiscal-hub-produto-design.md`), **o design prevalece**.
 
-Decisões embutidas na revisão profunda de documentos de 2026-07-01 (relatório: `docs/superpowers/reviews/2026-07-01-revisao-design-plano-mestre.md`), aplicadas ao design e ao plano-mestre e **sujeitas à ratificação do dono do produto** na saída do Gate 0:
+Decisões embutidas na revisão profunda de documentos de 2026-07-01 (relatório: `docs/superpowers/reviews/2026-07-01-revisao-design-plano-mestre.md`), aplicadas ao design e ao plano-mestre. **Ratificadas pelo dono do produto na sessão de saída do Gate 0** (ver §0.2).
 
-| ID | Decisão | Racional |
-|---|---|---|
-| D-2026-07-01-01 | QR Code conforme NT 2025.001: **v3 obrigatório em contingência**, v2 (`cIdToken`+CSC) no online; cômputo via `GerarQrCode` no módulo de custódia | v3 é obrigatório para contingência desde 2025; CSC não sai da custódia (regra de fronteira 6) |
-| D-2026-07-01-02 | Contingência **regera o documento** (novo XML `tpEmis=9` + `dhCont`/`xJust`, nova chave, reassinatura); no "enviou sem resposta", consultar a chave original antes de transmitir — se autorizada, cancelá-la (a via entregue ao consumidor prevalece); transmissão ≤ 24h com alerta | `tpEmis` compõe a chave; evita documento duplicado (risco nº 1 do §6) e infração de prazo legal |
-| D-2026-07-01-03 | Máquina de estados ganha `RejeitadaAposContingencia` (incidente com fila de tratamento + webhook `nota.contingencia_rejeitada`); `Cancelada` só a partir de `Autorizada` | Contingência rejeitada é cenário real com DANFE já entregue; cancelamento exige `nProt` |
-| D-2026-07-01-04 | Numeração: `ContadorNumeracao` transacional **mantido** (proposta de sequence do g0-escalabilidade descartada), com transação curta (commit antes de transmitir) + pool de números liberados por rejeição; buraco residual → inutilização até o dia 10 | Lock nunca atravessa I/O; "Rejeitada libera" vira mecanismo implementável sem duplicidade |
-| D-2026-07-01-05 | 202 de contingência devolve **dados estruturados de impressão** (payload + QR v3 + dizeres; PDV imprime 2 vias) — sem PDF síncrono; links do 201 são endpoints do hub (`/xml` serve da Emissão; `/danfe` `202 Retry-After` até o S3) | Documentos permanece fora do caminho crítico; elimina a janela de 404 |
-| D-2026-07-01-06 | Cota excedida no MVP **sempre emite com `avisos`** (429 é pós-MVP); `ContaSuspensa` = `403 conta_suspensa`, bloqueia escrita, mantém leitura/download | Alinha o contrato §3.4 ao soft enforcement fixado em §1.1.7/§2.4 |
-| D-2026-07-01-07 | Topologia: **um ambiente produtivo do hub**; "homologação" do pipeline = empresas `tpAmb=2` (sem staging separado no MVP) | Custo/simplicidade; `tpAmb` já é de primeira classe |
-| D-2026-07-01-08 | Encerramento de conta (política mínima): somente-leitura por 5 anos (guarda legal), destruição auditada de A1/CSC, exportação em massa fora do MVP | Guarda legal + custódia de material sensível de ex-cliente |
-| D-2026-07-01-09 | `tpAmb` é o **ambiente corrente** (escalar) da empresa; CSC/séries/contadores mantidos por ambiente para a virada homologação→produção | Resolve a ambiguidade do modelo (§3.7/§4.1) |
-| D-2026-07-01-10 | Schema `leitura`/`NotaConsulta` pertence à **Emissão**; entrega de webhooks é responsabilidade de **Contas & Planos**, executada no Worker via inbox | Todo schema precisa de módulo dono (regra §2.3.1) |
+Status possíveis: `Ratificada` / `Ratificada-com-ajuste` / `Revogada` / `Proposta`.
 
-**Decisões em aberto** (registrar aqui antes das fases indicadas): e-mail transacional no MVP (Fase 6/7 — a persona "farmácia sem TI" não consome webhook); stack do Portal/Backoffice (antes de detalhar a Fase 6); adoção do QR v3 também no online (Fase 3); catálogo de planos — dimensões de limite e ciclo (antes da Fase 1). ~~destino da solution legada~~ **decidido em D-2026-07-02-01 (abaixo)**.
+| ID | Decisão | Racional | Status | Data | Decisor |
+|---|---|---|---|---|---|
+| D-2026-07-01-01 | QR Code conforme NT 2025.001: **v3 obrigatório em contingência**, v2 (`cIdToken`+CSC) no online; cômputo via `GerarQrCode` no módulo de custódia | v3 é obrigatório para contingência desde 2025; CSC não sai da custódia (regra de fronteira 6) | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-02 | Contingência **regera o documento** (novo XML `tpEmis=9` + `dhCont`/`xJust`, nova chave, reassinatura); no "enviou sem resposta", consultar a chave original antes de transmitir — se autorizada, cancelá-la (a via entregue ao consumidor prevalece); transmissão ≤ 24h com alerta | `tpEmis` compõe a chave; evita documento duplicado (risco nº 1 do §6) e infração de prazo legal | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-03 | Máquina de estados ganha `RejeitadaAposContingencia` (incidente com fila de tratamento + webhook `nota.contingencia_rejeitada`); `Cancelada` só a partir de `Autorizada` | Contingência rejeitada é cenário real com DANFE já entregue; cancelamento exige `nProt` | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-04 | Numeração: `ContadorNumeracao` transacional **mantido** (proposta de sequence do g0-escalabilidade descartada), com transação curta (commit antes de transmitir) + pool de números liberados por rejeição; buraco residual → inutilização até o dia 10 | Lock nunca atravessa I/O; "Rejeitada libera" vira mecanismo implementável sem duplicidade | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-05 | 202 de contingência devolve **dados estruturados de impressão** (payload + QR v3 + dizeres; PDV imprime 2 vias) — sem PDF síncrono; links do 201 são endpoints do hub (`/xml` serve da Emissão; `/danfe` `202 Retry-After` até o S3) | Documentos permanece fora do caminho crítico; elimina a janela de 404 | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-06 | Cota excedida no MVP **sempre emite com `avisos`** (429 é pós-MVP); `ContaSuspensa` = `403 conta_suspensa`, bloqueia escrita, mantém leitura/download | Alinha o contrato §3.4 ao soft enforcement fixado em §1.1.7/§2.4 | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-07 | Topologia: **um ambiente produtivo do hub**; "homologação" do pipeline = empresas `tpAmb=2` (sem staging separado no MVP) | Custo/simplicidade; `tpAmb` já é de primeira classe | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-08 | Encerramento de conta (política mínima): somente-leitura por 5 anos (guarda legal), destruição auditada de A1/CSC, exportação em massa fora do MVP | Guarda legal + custódia de material sensível de ex-cliente | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-09 | `tpAmb` é o **ambiente corrente** (escalar) da empresa; CSC/séries/contadores mantidos por ambiente para a virada homologação→produção | Resolve a ambiguidade do modelo (§3.7/§4.1) | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-01-10 | Schema `leitura`/`NotaConsulta` pertence à **Emissão**; entrega de webhooks é responsabilidade de **Contas & Planos**, executada no Worker via inbox | Todo schema precisa de módulo dono (regra §2.3.1) | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
 
-### 0.1 Saída do Gate 0 (2026-07-02)
+**Decisões em aberto — governança** (nenhuma pendente sem dono e prazo):
 
-Gate 0 concluído: 5 pareceres (aderência, fiscal, escalabilidade, segurança, qualidade) consolidados na matriz final `docs/superpowers/reviews/2026-07-02-gate0-matriz-final.md`, **aprovada pelo dono do produto em 2026-07-02**. Nesta saída:
+| ID | Decisão | Dono | Prazo/Fase-limite | Status |
+|---|---|---|---|---|
+| P1 | Destino da solution legada | Joseleno D. M. dos Santos (dono) | Saída do Gate 0 | **Decidida** → solution nova (D-2026-07-02-01) |
+| P2 | Stack do Portal/Backoffice | Joseleno D. M. dos Santos (dono) | Antes de detalhar a Fase 6 | Pendente |
+| P3 | Catálogo de planos — dimensões de limite e ciclo | Joseleno D. M. dos Santos (dono) | Antes da Fase 1 | Pendente |
+| P4 | E-mail transacional no MVP (persona "farmácia sem TI") | Joseleno D. M. dos Santos (dono) | Fase 6/7 | Pendente |
+| P5 | Adoção do QR v3 também no online | Joseleno D. M. dos Santos (dono) | Fase 3 | Pendente |
 
-- **As 10 decisões D-2026-07-01-01..10 foram RATIFICADAS integralmente pelo dono** (2026-07-02) — passam de "aplicadas, pendentes de ratificação" para **vigentes**.
+### 0.1 Saída do Gate 0 — decisões novas (2026-07-02)
 
-| ID | Decisão | Racional |
-|---|---|---|
-| D-2026-07-02-01 | **Destino da solution legada: SOLUTION NOVA.** Criar solution modular na Fase 0 (5 módulos + kernel `BuildingBlocks/`, 2 deployables API/Worker, NetArchTest no CI); **portar cirurgicamente** o Motor (`Infrastructure/Fiscal/{Sefaz,XmlBuilder}` + `QrCodeGenerator`, ~2.654 linhas) + testes de domínio; padrões do legado (VOs, `Result<T>`, eventos, CQRS, Clean Architecture entre camadas) viram convenção. O legado `VisuFiscalHub.*` fica como referência/origem de porte, **não** base evolutiva. | 6 das 12 linhas da matriz são REESCREVER por ausência ou violação estrutural não-localizada (sem filtro global de tenant, chave privada entre camadas, fluxo 100% assíncrono, god entity `DocumentoFiscal`, agregado `Tenant` invertido, 1 deployable). A forma-alvo do design (monólito modular) é incompatível com a forma atual (4 camadas, 1 deployable, DbContext único); evoluir in-place remontaria a topologia carregando a dívida estrutural sem NetArchTest como rede durante a migração. Convergência dos 5 pareceres. |
-| D-2026-07-02-02 | **Motor NFCe/NFe = ADAPTAR condicionado.** O parecer ADAPTAR do Motor está condicionado a, na Fase 3, criar **golden files validados contra XSD oficial da SEFAZ** antes de considerar o porte concluído, e corrigir os 3 bugs fiscais + `cIdToken`. | g0-qualidade (A1) mostrou que a suíte não valida XML contra XSD (achado Q2), e é por isso que os 3 bugs críticos passaram verdes — sem golden files o "porte + testes" perde a rede de segurança. |
-| D-2026-07-02-03 | **Contrato de webhook: registrar handlers para `DocumentoFiscalRejeitado/Cancelado/Falhou`** ao portar o outbox (Fase 0/kernel). | g0-qualidade (A1) achado Q1: hoje esses 3 eventos são levantados, viram outbox e são **descartados sem efeito** (MSG0005) — o integrador só é notificado do caminho feliz (Autorizado). |
+Gate 0 concluído: 5 pareceres (aderência, fiscal, escalabilidade, segurança, qualidade) consolidados na matriz final `docs/superpowers/reviews/2026-07-02-gate0-matriz-final.md`, **aprovada pelo dono do produto em 2026-07-02**. Decisões novas registradas nesta saída:
 
-**Decisões em aberto que permanecem** (não exigidas na saída do gate; decidir nas fases indicadas): stack do Portal/Backoffice (Fase 6), catálogo de planos (Fase 1), QR v3 online (Fase 3), e-mail transacional (Fase 6/7).
+| ID | Decisão | Racional | Status | Data | Decisor |
+|---|---|---|---|---|---|
+| D-2026-07-02-01 | **Estratégia — destino da solution legada: SOLUTION NOVA.** Criar solution modular na Fase 0 (5 módulos + kernel `BuildingBlocks/`, 2 deployables API/Worker, NetArchTest no CI); **portar cirurgicamente** o Motor (`Infrastructure/Fiscal/{Sefaz,XmlBuilder}` + `QrCodeGenerator`, ~2.654 linhas) + testes de domínio; padrões do legado (VOs, `Result<T>`, eventos, CQRS, Clean Architecture entre camadas) viram convenção. O legado `VisuFiscalHub.*` fica em `old/` como referência/origem de porte, **não** base evolutiva. **Racional ancorado na matriz A2** (`docs/superpowers/reviews/2026-07-02-gate0-matriz-final.md`). | 6 das 12 linhas da matriz são REESCREVER por ausência ou violação estrutural não-localizada (sem filtro global de tenant, chave privada entre camadas, fluxo 100% assíncrono, god entity `DocumentoFiscal`, agregado `Tenant` invertido, 1 deployable). A forma-alvo do design (monólito modular) é incompatível com a forma atual (4 camadas, 1 deployable, DbContext único); evoluir in-place remontaria a topologia carregando a dívida estrutural sem NetArchTest como rede durante a migração. Convergência dos 5 pareceres. | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-02-02 | **Motor NFCe/NFe = ADAPTAR condicionado.** O parecer ADAPTAR do Motor está condicionado a, na Fase 3, criar **golden files validados contra XSD oficial da SEFAZ** antes de considerar o porte concluído, e corrigir os 3 bugs fiscais + `cIdToken`. | g0-qualidade (A1) mostrou que a suíte não valida XML contra XSD (achado Q2), e é por isso que os 3 bugs críticos passaram verdes — sem golden files o "porte + testes" perde a rede de segurança. | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+| D-2026-07-02-03 | **Contrato de webhook: registrar handlers para `DocumentoFiscalRejeitado/Cancelado/Falhou`** ao portar o outbox (Fase 0/kernel). | g0-qualidade (A1) achado Q1: hoje esses 3 eventos são levantados, viram outbox e são **descartados sem efeito** (MSG0005) — o integrador só é notificado do caminho feliz (Autorizado). | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+
+### 0.2 Sessão de ratificação (evidência de governança)
+
+- **Data:** 2026-07-02 · **Decisor:** Joseleno Dias Moreira dos Santos (dono do produto) · **Registro por:** agente (assistente), sem síntese de veredicto.
+- **Escopo da sessão:** ratificação item a item das D-2026-07-01-01..10 (todas **Ratificadas**, zero em `Proposta`), decisão de estratégia (**solution nova** — D-2026-07-02-01) e governança das decisões em aberto P1–P5 (P1 decidida; P2–P5 mantidas Pendentes com dono e fase-limite).
+- **Revogações:** nenhuma. Portanto **nenhuma pendência de propagação** para design/plano-mestre por conta de reversão de decisão.
+- **Critério de saída do Gate 0 (decisões):** ✅ atingido — matriz aprovada e decisões registradas com governança rastreável. Gate 0 FECHADO.
 
 ---
 
