@@ -1,5 +1,7 @@
 # Handoff — Gate 0 em andamento (sessão interrompida por instabilidade 529 da API)
 
+> **SUPERADO:** retomar por `docs/superpowers/handoffs/2026-07-01-revisao-docs-e-gate0-handoff.md` (sessão mais recente — a data deste arquivo está adiantada). Este arquivo permanece como fonte dos 4 relatórios do Gate 0 (seções 3–5).
+
 **Data:** 2026-07-02
 **Como retomar:** `/resume gate 0` — ler este arquivo primeiro; ele contém o estado completo e os relatórios recebidos.
 
@@ -85,3 +87,11 @@
 - Time de agentes da sessão: g0-aderencia, g0-fiscal, g0-escalabilidade, g0-seguranca (entregues); g0-qualidade e g0-qualidade-2 (falharam com 529 — relançar com o prompt do item 4 da seção "FALTA").
 - O prompt completo dos agentes do Gate 0 está registrado no histórico da sessão anterior; o essencial está reproduzido na seção 4 (FALTA).
 - Dossiê da revisão de design (Seção 1) em: scratchpad da sessão anterior (descartável; o resultado já está incorporado no spec).
+
+## 8. Atualização 2026-07-01 — Revisão profunda dos documentos (CONCLUÍDA) e correções aplicadas
+
+1. **Revisão profunda de design + plano-mestre executada** (pedido do dono do produto, anterior à conclusão do Gate 0): 5 lentes + verificação adversarial; 48 achados brutos → ~24 únicos; **0 refutados**. Relatório completo: `docs/superpowers/reviews/2026-07-01-revisao-design-plano-mestre.md`.
+2. **Correções aplicadas nos dois documentos.** Críticos tratados: QR Code v3/NT 2025.001 (obrigatório em contingência — confirmado na web), contingência com regeração de XML (`tpEmis=9`/`dhCont`/`xJust`/nova chave) + reconciliação da chave original + prazo 24h, numeração com transação curta + pool de rejeitadas, máquina de estados com `RejeitadaAposContingencia`. Altos/médios/baixos conforme relatório.
+3. **Decisões embutidas registradas em `docs/decisions.md` §0** (D-2026-07-01-01..10) — **pendentes de ratificação do dono do produto** na saída do Gate 0. Decisões em aberto listadas lá (e-mail transacional, stack do frontend, QR v3 online, catálogo de planos, destino da solution legada).
+4. **Suíte de testes destravada:** compilação corrigida (`GlobalExceptionHandlerTests` — construtor com `IHostEnvironment`), **761/761 testes verdes em 16s** (dado para o relatório g0-qualidade). NU1903 confirmados no build (`Microsoft.OpenApi 2.0.0`, `System.Security.Cryptography.Xml 10.0.0`).
+5. **Próximo passo:** concluir g0-qualidade (varredura de silent failures, cobertura vs §4.4 do spec — agora com os critérios revisados —, nota por camada) e consolidar a matriz final do Gate 0 para decisão formal. Regra de processo registrada: em fase de validação, só-leitura — bloqueios são apresentados ao dono, não corrigidos por conta própria.

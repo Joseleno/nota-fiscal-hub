@@ -19,6 +19,8 @@
 - Eventos de integração carregam identificadores, nunca XML/PDF/PII.
 - Erros da API em RFC 7807; logs estruturados sem PII.
 - TDD em todas as fases; NetArchTest no CI desde a Fase 0.
+- Contingência: novo XML `tpEmis=9` (`dhCont`/`xJust`), chave própria, QR Code v3 (NT 2025.001); transmissão em ≤ 24h com alerta de primeira classe.
+- Transporte SEFAZ: `indSinc=1`, lote unitário; a decisão é o `cStat` do `protNFe` (nunca o do lote).
 
 ---
 
@@ -30,8 +32,10 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 - [ ] Produzir matriz por módulo do design: **APROVEITAR** (já conforme) / **ADAPTAR** (conforme com ajustes) / **REESCREVER** (não conforme às fronteiras) — com justificativa.
 - [ ] Decidir estratégia: evoluir o repo atual in-place vs. re-estruturar solution — decisão registrada em `docs/decisions.md`.
 - [ ] Ajustar este plano-mestre com o resultado (fases podem encolher muito se houver reaproveitamento).
+- [ ] Iniciar em paralelo os pré-requisitos externos SEFAZ-SE: certificado A1 de teste, CSC/idCSC de homologação, credenciamento do emissor, pacotes de schemas XSD para golden files (equivalentes de produção = pré-requisito nomeado da Fase 7).
+- [ ] Registrar em `docs/decisions.md` as decisões pendentes: destino da solution atual, stack do Portal/Backoffice, catálogo de planos (dimensões/ciclo), e ratificar as decisões da revisão de documentos de 2026-07-01 (D-2026-07-01-01..10).
 
-**Critério de saída:** matriz aprovada pelo dono do produto.
+**Critério de saída:** matriz aprovada pelo dono do produto e decisões acima registradas.
 
 ---
 
@@ -44,7 +48,9 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 - Biblioteca Outbox/Inbox por módulo: publicação transacional, dispatcher in-process por módulo, dedupe por `messageId`; testes com entrega duplicada e fora de ordem.
 - Middleware de `Idempotency-Key` (armazenamento por conta+key+hash do payload; replay devolve resposta original; conflito → 409).
 - Auditoria append-only alimentada por eventos de integração.
-- Suite NetArchTest: referências permitidas entre módulos (§2.5 do spec), DTOs nos contratos, proibição de entidade cruzando fronteira.
+- Suite NetArchTest: referências permitidas entre módulos (§2.5 do spec, incl. a exceção host/kernel → Contas & Planos), DTOs nos contratos, proibição de entidade cruzando fronteira.
+- Observabilidade fundacional no kernel: logging estruturado sem PII, `CorrelationId` propagado via outbox, OTel básico (métricas de negócio, alertas e dashboards ficam na Fase 7).
+- Provisionamento AWS mínimo (KMS, buckets S3 com Object Lock, RDS de não-produção) como trilha paralela — entregáveis das Fases 2 e 4 dependem dele.
 - CI: build → testes unidade+arquitetura → integração (Testcontainers).
 
 ## Fase 1 — Contas & Planos
@@ -54,14 +60,16 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 - Entidades: Conta, UsuarioPortal (identidade separada), ApiKey (hash, prefixo live/test, allowlist de empresas), Plano, AssinaturaConta, ConsumoPeriodo, WebhookConfig (config apenas; entrega na Fase 4).
 - Pipeline de autenticação: resolve key uma vez na borda → `conta_id` + escopo de empresas no contexto.
 - Metering: handler de `NotaAutorizada`/`NotaCancelada`/`DocumentoArmazenado` (consome eventos que passarão a existir nas fases 3–4; testado com eventos sintéticos).
-- Flags replicáveis: eventos `CotaExcedida`/`ContaSuspensa` publicados quando o agregado cruza limite.
+- Flags replicáveis: eventos `CotaExcedida` (cruzou limite do plano) e `ContaSuspensa` (ação administrativa do backoffice) publicados; semântica de resposta da API em §3.4 do spec.
+- API administrativa interina para conta/plano: autenticação de operador provisória declarada (AdminKey de escopo restrito — nunca o pipeline de API key), registrada como dívida com quitação na Fase 6.
+- Seed/bootstrap: catálogo de planos, operador inicial, conta piloto (VISU).
 
 ## Fase 2 — Empresas & Certificados
 
 **Entregável testável:** empresa cadastrada com `tpAmb`, upload de A1 validado (senha, titularidade CNPJ, validade), XML de teste assinado via `AssinarXml` sem a chave sair do módulo, alerta de expiração emitido.
 
 - Entidades: Empresa, Certificado (PFX cifrado com envelope encryption/KMS, DEK por empresa), CscConfig (cifrado, por ambiente), SerieConfig.
-- Contratos: `AssinarXml(empresaId, xml)`, `CertificadoValido(empresaId)`, leitura de CSC (para o Motor).
+- Contratos: `AssinarXml(empresaId, xml)`, `CertificadoValido(empresaId)`, `GerarQrCode(empresaId, dadosQr)` (hash v2 com CSC / assinatura v3 — CSC não sai do módulo).
 - Ciclo de validade: job do Worker publica `CertificadoProximoDoVencimento` (30/15/7/1 dias) e `CertificadoExpirado`.
 - Eventos `EmpresaCriada`/`EmpresaAtualizada`/`EmpresaDesativada` (alimentam read model da Emissão na Fase 3).
 - Endpoints: `POST /v1/empresas`, `POST /v1/empresas/{id}/certificado`, `PUT /v1/empresas/{id}/series/{modelo}`, `POST /v1/empresas/{id}/csc` (contrato §3.2 do spec).
@@ -70,21 +78,23 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 
 **Entregável testável:** NFC-e autorizada ponta a ponta no ambiente de **homologação da SEFAZ-SE**, incluindo contingência simulada e cancelamento dentro do prazo.
 
-- Máquina de estados completa (`Rascunho→EmProcessamento→Autorizada|Rejeitada|Denegada|EmContingencia→…`), com `Denegada` consumindo número e `Rejeitada` liberando.
-- `ContadorNumeracao` com alocação na transação (teste de concorrência: N emissões paralelas, zero duplicata/buraco).
+- Máquina de estados completa (`Rascunho→EmProcessamento→Autorizada|Rejeitada|Denegada|EmContingencia`; `EmContingencia→Transmitida→Autorizada|RejeitadaAposContingencia|Denegada`; `Cancelada` só de `Autorizada`), com `Denegada` consumindo número e `Rejeitada` devolvendo ao pool do contador.
+- `ContadorNumeracao` com alocação em transação curta (commit antes de transmitir) + pool de números liberados por rejeição (teste de concorrência: N emissões paralelas com rejeições intercaladas — zero duplicata; buraco só por crash, detectado para inutilização).
 - Read model `EmpresaLocal` alimentado pelos eventos da Fase 2.
-- Motor NFC-e: montagem do XML (layout SE), QR Code com CSC, assinatura via contrato da Fase 2, transporte SOAP SEFAZ-SE, classificação por `cStat` (`Autorizada|RejeiçãoDefinitiva|FalhaTransitória|Denegada`), `ConsultarStatus`.
-- Golden files de XML validados contra XSD; SEFAZ fake para integração (autorização, rejeição, timeout).
-- Contingência (`tpEmis=9`): decisão na Emissão, DANFE de contingência, regularização pelo Worker, reconciliação por consulta no caso ambíguo.
-- Eventos fiscais: cancelamento (prazo legal validado), inutilização de faixa.
-- Endpoint mínimo `POST /v1/nfce` + `GET /v1/nfce/{id}` (contrato §3 do spec) para fechar o ciclo.
+- Motor NFC-e: montagem do XML (layout SE), QR Code v2/v3 via `GerarQrCode` (contrato da Fase 2), assinatura via contrato da Fase 2, transporte SOAP SEFAZ-SE (`NFeAutorizacao4`, `indSinc=1`), classificação pelo `cStat` do `protNFe` (`Autorizada|RejeiçãoDefinitiva|FalhaTransitória|Denegada`), `ConsultarStatus`.
+- Itens fiscais do Gate 0 como tarefas nomeadas com teste de aceite: decisão pelo `cStat` do `protNFe` (bug #1), `<Signature>` irmã de `infNFe` (bug #2) e posicionamento correto no evento (bug #3), `cIdToken` no QR v2; upgrade/mitigação de `System.Security.Cryptography.Xml` (NU1903) junto do porte da assinatura.
+- Golden files de XML validados contra XSD — incl. contingência (`tpEmis=9`, `dhCont`/`xJust`) e QR v2/v3; SEFAZ fake para integração (autorização, rejeição, timeout, regularização rejeitada).
+- Contingência completa: regeração do XML (`tpEmis=9`, `dhCont`/`xJust`, nova chave, reassinatura, QR v3), consulta da chave original antes de transmitir (caso ambíguo), prazo de 24h com alerta, 202 com dados estruturados de impressão (sem PDF síncrono).
+- Eventos fiscais: cancelamento (30 min parametrizado por UF+modelo), inutilização de faixa (prazo dia 10 validado).
+- Endpoints `POST /v1/nfce`, `GET /v1/nfce/{id}`, `POST /v1/nfce/{id}/cancelamento` e `POST /v1/inutilizacoes` (contrato §3 do spec) para fechar o ciclo.
 
 ## Fase 4 — Documentos, read model de consulta e webhooks
 
 **Entregável testável:** fluxo completo — nota autorizada → XML/DANFE no S3 → listagem em 1 query → webhook assinado entregue com retry.
 
 - Guarda S3 (SSE-KMS, versionamento, Object Lock, retenção ≥ 5 anos, por ambiente), hash SHA-256, URLs pré-assinadas com revalidação de tenant.
-- Renderização DANFE NFC-e (PDF).
+- Renderização DANFE NFC-e (PDF) para guarda/download — a impressão no PDV usa os dados estruturados do 201/202 (sem PDF no caminho crítico).
+- Detector de lacunas de numeração no Worker com alerta antes do prazo de inutilização (dia 10 do mês subsequente).
 - Projeção `NotaConsulta` + `GET /v1/notas` com filtros e paginação.
 - Entrega de webhooks: HMAC + timestamp, retry com backoff ~24h, histórico `WebhookEntrega`, validação anti-SSRF no registro.
 
@@ -94,15 +104,18 @@ O repositório já contém implementação prévia (fases 1–16 documentadas em
 
 ## Fase 6 — Portal do Emissor + Backoffice
 
-**Entregável testável:** a "farmácia sem TI" opera sozinha — onboarding, certificado com banner de expiração, séries/CSC, consulta/download/cancelamento, consumo, webhooks; backoffice separado (MFA + RBAC) habilita contas e planos.
+**Entregável testável:** a "farmácia sem TI" opera sozinha — onboarding, certificado com banner de expiração, séries/CSC, consulta/download/cancelamento, fila de tratamento de contingência rejeitada, consumo, webhooks; gestão de usuários da conta (convite, reset de senha, MFA, papel por empresa); backoffice separado (MFA + RBAC) habilita contas e planos, substituindo a autenticação interina da Fase 1.
+
+- Stack do Portal/Backoffice definida em `docs/decisions.md` antes do detalhamento desta fase.
 
 ## Fase 7 — Observabilidade e go-live
 
 **Entregável testável:** produção com o primeiro tenant piloto (VISU) emitindo NFC-e real em SE.
 
-- Métricas/alertas do §4.3 do spec (contingência agora = alerta nº 1), dashboards, CorrelationId ponta a ponta.
-- Deploy AWS (2 containers, RDS, S3, KMS), pipeline com smoke de homologação SEFAZ-SE.
-- Checklist go-live (skill go-live-checklist) + runbook de incidente fiscal.
+- Métricas/alertas do §4.3 do spec (contingência agora e a vencer 24h = alerta nº 1), dashboards de negócio (fundação de observabilidade vem da Fase 0), CorrelationId ponta a ponta verificado.
+- Deploy AWS de produção (2 containers, RDS, S3, KMS — não-produção provisionada desde a Fase 0), pipeline com smoke de homologação SEFAZ-SE (empresas `tpAmb=2`; pré-requisito: credenciamento de produção iniciado no Gate 0).
+- Backup/restore: RDS PITR com RPO/RTO alvo e teste de restore no runbook (restore × `ContadorNumeracao`: reconciliar por `ConsultarStatus` antes de reabrir emissão).
+- Checklist go-live (skill go-live-checklist) + runbook de incidente fiscal (incl. contingência rejeitada e prazo de 24h).
 
 ---
 
