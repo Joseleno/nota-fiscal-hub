@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -10,13 +11,21 @@ namespace VisuFiscalHub.Tests.Api;
 
 public class GlobalExceptionHandlerTests
 {
+    private static IHostEnvironment CriarAmbiente(string nome = "Production")
+    {
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns(nome);
+        return environment;
+    }
+
     [Fact]
     public async Task TryHandleAsync_ComCorrelationIdEmItems_IncluiNoExtensions()
     {
         var problemDetailsService = Substitute.For<IProblemDetailsService>();
         var handler = new GlobalExceptionHandler(
             problemDetailsService,
-            NullLogger<GlobalExceptionHandler>.Instance);
+            NullLogger<GlobalExceptionHandler>.Instance,
+            CriarAmbiente());
 
         var context = new DefaultHttpContext();
         context.Items["CorrelationId"] = "abc123";
@@ -39,7 +48,8 @@ public class GlobalExceptionHandlerTests
         var problemDetailsService = Substitute.For<IProblemDetailsService>();
         var handler = new GlobalExceptionHandler(
             problemDetailsService,
-            NullLogger<GlobalExceptionHandler>.Instance);
+            NullLogger<GlobalExceptionHandler>.Instance,
+            CriarAmbiente());
 
         var context = new DefaultHttpContext();
 
