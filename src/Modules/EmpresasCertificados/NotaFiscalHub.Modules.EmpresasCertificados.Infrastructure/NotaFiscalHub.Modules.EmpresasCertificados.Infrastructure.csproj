@@ -5,6 +5,7 @@
     <ProjectReference Include="..\NotaFiscalHub.Modules.EmpresasCertificados.Contracts\NotaFiscalHub.Modules.EmpresasCertificados.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging\NotaFiscalHub.BuildingBlocks.Messaging.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
+using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Persistence;
 
 namespace NotaFiscalHub.Modules.Documentos.Infrastructure;
@@ -11,5 +12,6 @@ public sealed class DocumentosDbContext(DbContextOptions<DocumentosDbContext> op
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasDefaultSchema("documentos");
+        modelBuilder.AplicarOutboxInbox("documentos");
     }
 }

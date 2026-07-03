@@ -2,22 +2,25 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using NotaFiscalHub.Modules.ContasPlanos.Infrastructure;
+using NotaFiscalHub.Modules.Documentos.Infrastructure;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace NotaFiscalHub.Modules.ContasPlanos.Infrastructure.Migrations
+namespace NotaFiscalHub.Modules.Documentos.Infrastructure.Migrations
 {
-    [DbContext(typeof(ContasPlanosDbContext))]
-    partial class ContasPlanosDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(DocumentosDbContext))]
+    [Migration("20260703142905_AddOutboxInbox")]
+    partial class AddOutboxInbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("contas")
+                .HasDefaultSchema("documentos")
                 .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -44,7 +47,7 @@ namespace NotaFiscalHub.Modules.ContasPlanos.Infrastructure.Migrations
 
                     b.HasKey("MessageId", "Handler");
 
-                    b.ToTable("inbox", "contas");
+                    b.ToTable("inbox", "documentos");
                 });
 
             modelBuilder.Entity("NotaFiscalHub.BuildingBlocks.Messaging.OutboxMessage", b =>
@@ -102,7 +105,7 @@ namespace NotaFiscalHub.Modules.ContasPlanos.Infrastructure.Migrations
                     b.HasIndex("Status", "ProximaTentativaEm")
                         .HasFilter("status = 'Pendente'");
 
-                    b.ToTable("outbox", "contas");
+                    b.ToTable("outbox", "documentos");
                 });
 #pragma warning restore 612, 618
         }

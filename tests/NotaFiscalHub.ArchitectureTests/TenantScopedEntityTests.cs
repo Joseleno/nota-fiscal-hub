@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
+using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Persistence;
 using NotaFiscalHub.Modules.ContasPlanos.Infrastructure;
 using NotaFiscalHub.Modules.Documentos.Infrastructure;
@@ -15,13 +16,17 @@ namespace NotaFiscalHub.ArchitectureTests;
 /// silenciosamente isenta. Cada item da allowlist EXIGE justificativa em comentário; crescimento
 /// silencioso da allowlist anula a garantia de isolamento (spec B2, "Riscos").
 ///
-/// Allowlist atual (candidatos previstos na spec B2, nenhum ainda existe no código — Fase 0 apenas
-/// estabelece o mecanismo): "Plano" (catálogo global, sem dono por conta), "Outbox"/"Inbox"
-/// (infraestrutura de mensageria, correlação por payload, não por tenant).
+/// Allowlist atual: "Plano" (catálogo global, sem dono por conta — ainda não existe no código, candidato
+/// da spec B2). <see cref="OutboxMessage"/>/<see cref="InboxMessage"/> (Tarefa 3, spec B3): o dispatcher
+/// precisa fazer polling entre tenants (uma mensagem "Pendente" de qualquer conta deve ser visível ao
+/// <c>SELECT ... FOR UPDATE SKIP LOCKED</c>) — por isso <c>ContaId</c> é uma coluna simples (nullable,
+/// para eventos de plataforma) e NÃO um filtro global de tenant. O isolamento por tenant dessas linhas é
+/// aplicado no nível de negócio pelo próprio dispatcher (<c>BeginTenantScope(ContaId)</c> antes de invocar
+/// o handler), não pelo query filter — ver regra de escopo de tenant no dispatch (spec B3 passo 4).
 /// </summary>
 public class TenantScopedEntityTests
 {
-    private static readonly HashSet<Type> AllowlistEntidadesGlobais = [];
+    private static readonly HashSet<Type> AllowlistEntidadesGlobais = [typeof(OutboxMessage), typeof(InboxMessage)];
 
     [Fact]
     public void TenantScoped_ExigeContaId()

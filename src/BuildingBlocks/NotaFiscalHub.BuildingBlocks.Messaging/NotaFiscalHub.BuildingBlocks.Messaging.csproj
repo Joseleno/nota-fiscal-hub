@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Permite que Messaging.UnitTests exercite OutboxSql (construção das strings SQL cruas do
+         dispatcher) diretamente, sem depender de PostgreSQL real para verificar forma/conteúdo. -->
+    <InternalsVisibleTo Include="NotaFiscalHub.BuildingBlocks.Messaging.UnitTests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

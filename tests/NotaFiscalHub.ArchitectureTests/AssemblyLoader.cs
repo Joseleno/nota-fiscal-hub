@@ -40,6 +40,8 @@ public static class AssemblyLoader
         typeof(Modules.Documentos.Infrastructure.AssemblyMarker),
         typeof(BuildingBlocks.Kernel.AssemblyMarker),
         typeof(BuildingBlocks.Persistence.AssemblyMarker),
+        typeof(BuildingBlocks.Messaging.Abstractions.AssemblyMarker),
+        typeof(BuildingBlocks.Messaging.AssemblyMarker),
     ];
 
     /// <summary>

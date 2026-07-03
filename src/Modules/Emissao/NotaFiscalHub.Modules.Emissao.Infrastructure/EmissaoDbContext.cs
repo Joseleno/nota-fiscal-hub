@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
+using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Persistence;
 
 namespace NotaFiscalHub.Modules.Emissao.Infrastructure;
@@ -13,5 +14,6 @@ public sealed class EmissaoDbContext(DbContextOptions<EmissaoDbContext> options,
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasDefaultSchema("emissao");
+        modelBuilder.AplicarOutboxInbox("emissao");
     }
 }

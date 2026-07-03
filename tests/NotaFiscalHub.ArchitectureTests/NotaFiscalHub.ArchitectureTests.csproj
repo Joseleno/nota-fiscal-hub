@@ -50,6 +50,8 @@
     <!-- BuildingBlocks -->
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging\NotaFiscalHub.BuildingBlocks.Messaging.csproj" />
   </ItemGroup>
 
 </Project>
