@@ -25,7 +25,7 @@ public class OutboxPublisherTests
         var tenantContext = new AmbientTenantContext();
         using var _ = tenantContext.BeginTenantScope(ContaId);
         using var db = NovoDbContext(tenantContext);
-        var publisher = new OutboxPublisher<TestDbContext>(db, tenantContext, new OutboxTypeRegistry());
+        var publisher = new OutboxPublisher<TestDbContext>(db, tenantContext, new OutboxTypeRegistry<TestDbContext>());
 
         Assert.Throws<InvalidOperationException>(() =>
             publisher.Publicar(new EventoDeTeste { ContaId = ContaId }));

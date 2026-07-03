@@ -19,14 +19,14 @@ public sealed class OutboxDispatcher<TDbContext> : BackgroundService
     where TDbContext : DbContext
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly OutboxTypeRegistry _registry;
+    private readonly OutboxTypeRegistry<TDbContext> _registry;
     private readonly OutboxInboxOptions _options;
     private readonly ILogger<OutboxDispatcher<TDbContext>> _logger;
     private readonly IOutboxMetrics _metrics;
 
     public OutboxDispatcher(
         IServiceScopeFactory scopeFactory,
-        OutboxTypeRegistry registry,
+        OutboxTypeRegistry<TDbContext> registry,
         IOptions<OutboxInboxOptions> options,
         ILogger<OutboxDispatcher<TDbContext>> logger,
         IOutboxMetrics? metrics = null)

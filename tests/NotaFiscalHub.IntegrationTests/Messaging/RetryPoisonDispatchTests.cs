@@ -26,8 +26,8 @@ public class RetryPoisonDispatchTests : IAsyncLifetime
     {
         await using var provider = _fixture.ConstruirProvedor(services =>
         {
-            services.AddInboxHandler<EventoDeTeste, HandlerQueSempreLanca>();
-            services.AddInboxHandler<OutroEventoDeTeste, HandlerOk>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerQueSempreLanca>();
+            services.AddInboxHandler<MensageriaDbContext, OutroEventoDeTeste, HandlerOk>();
         }, seedDeJitter: 123, maxTentativas: 10);
 
         var idA = await PublicarAsync(provider, new EventoDeTeste { ContaId = _contaId, Rotulo = "A" });
@@ -58,7 +58,7 @@ public class RetryPoisonDispatchTests : IAsyncLifetime
     {
         await using var provider = _fixture.ConstruirProvedor(services =>
         {
-            services.AddInboxHandler<EventoDeTeste, HandlerQueSempreLanca>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerQueSempreLanca>();
         }, seedDeJitter: 7, maxTentativas: 10);
 
         var id = await PublicarAsync(provider, new EventoDeTeste { ContaId = _contaId, Rotulo = "retry-unico" });
@@ -81,7 +81,7 @@ public class RetryPoisonDispatchTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(_contaId);
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);

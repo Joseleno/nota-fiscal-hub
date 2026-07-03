@@ -10,8 +10,11 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registra a infraestrutura de Outbox/Inbox para o <typeparamref name="TDbContext"/> de um módulo:
-    /// <see cref="IOutboxPublisher"/> scoped, o <see cref="OutboxTypeRegistry"/> singleton do módulo, o
-    /// dispatcher e o serviço de retenção como <see cref="Microsoft.Extensions.Hosting.BackgroundService"/>.
+    /// <see cref="IOutboxPublisher"/> scoped, o <see cref="OutboxTypeRegistry{TDbContext}"/> singleton
+    /// ISOLADO do módulo (parametrizado por <typeparamref name="TDbContext"/> — nunca compartilhado com
+    /// outro módulo mesmo que ambos chamem esta extensão no mesmo <c>IServiceCollection</c>, ex.: o
+    /// Worker), o dispatcher e o serviço de retenção como
+    /// <see cref="Microsoft.Extensions.Hosting.BackgroundService"/>.
     /// <paramref name="schema"/> é só documental aqui (o schema já está fixado no
     /// <c>OnModelCreating</c> do próprio <typeparamref name="TDbContext"/> via <c>AplicarOutboxInbox</c>)
     /// — mantido no parâmetro para deixar explícito, na chamada, qual módulo está sendo ligado.
@@ -26,7 +29,7 @@ public static class ServiceCollectionExtensions
         if (opcoes is not null)
             services.Configure(opcoes);
 
-        services.TryAddSingleton<OutboxTypeRegistry>();
+        services.TryAddSingleton<OutboxTypeRegistry<TDbContext>>();
         services.TryAddSingleton<IOutboxMetrics, OutboxMetrics>();
 
         services.AddScoped<IOutboxPublisher, OutboxPublisher<TDbContext>>();
@@ -38,32 +41,39 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Inscreve <typeparamref name="THandler"/> para consumir <typeparamref name="TEvento"/>: registra a
-    /// implementação em DI (scoped — resolve dependências por escopo, ex.: o <c>TDbContext</c> do
-    /// próprio dispatch) e no <see cref="OutboxTypeRegistry"/> do processo. Múltiplos handlers para o
+    /// Inscreve <typeparamref name="THandler"/> para consumir <typeparamref name="TEvento"/> NO MÓDULO
+    /// <typeparamref name="TDbContext"/>: registra a implementação em DI (scoped — resolve dependências
+    /// por escopo, ex.: o <c>TDbContext</c> do próprio dispatch) e no
+    /// <see cref="OutboxTypeRegistry{TDbContext}"/> desse módulo especificamente — nunca no de outro
+    /// módulo que porventura compartilhe o mesmo <c>IServiceCollection</c>. Múltiplos handlers para o
     /// mesmo evento são suportados (cada um deduplicado independentemente na Inbox).
     /// </summary>
-    public static IServiceCollection AddInboxHandler<TEvento, THandler>(this IServiceCollection services)
+    public static IServiceCollection AddInboxHandler<TDbContext, TEvento, THandler>(this IServiceCollection services)
+        where TDbContext : DbContext
         where TEvento : EventoIntegracao
         where THandler : class, IInboxHandler<TEvento>
     {
         services.AddScoped<THandler>();
 
-        services.AddSingleton<IStartupRegistroDeHandler>(new StartupRegistroDeHandler<TEvento, THandler>());
+        services.AddSingleton<IStartupRegistroDeHandler<TDbContext>>(
+            new StartupRegistroDeHandler<TDbContext, TEvento, THandler>());
 
         return services;
     }
 
     /// <summary>
-    /// Declara <typeparamref name="TEvento"/> como evento de PLATAFORMA — o único tipo autorizado a ser
-    /// publicado com <c>ContaId = null</c> (spec B3 passo 4). Uso restrito a eventos de infraestrutura
-    /// sem tenant (ex.: manutenção agendada); todo registro deve vir acompanhado de um comentário no
-    /// call-site justificando a ausência de tenant.
+    /// Declara <typeparamref name="TEvento"/> como evento de PLATAFORMA do módulo
+    /// <typeparamref name="TDbContext"/> — o único tipo autorizado a ser publicado com <c>ContaId = null</c>
+    /// (spec B3 passo 4) NESSE módulo. Uso restrito a eventos de infraestrutura sem tenant (ex.:
+    /// manutenção agendada); todo registro deve vir acompanhado de um comentário no call-site justificando
+    /// a ausência de tenant.
     /// </summary>
-    public static IServiceCollection AddEventoDePlataforma<TEvento>(this IServiceCollection services)
+    public static IServiceCollection AddEventoDePlataforma<TDbContext, TEvento>(this IServiceCollection services)
+        where TDbContext : DbContext
         where TEvento : EventoIntegracao
     {
-        services.AddSingleton<IStartupRegistroDeHandler>(new StartupRegistroDeEventoDePlataforma<TEvento>());
+        services.AddSingleton<IStartupRegistroDeHandler<TDbContext>>(
+            new StartupRegistroDeEventoDePlataforma<TDbContext, TEvento>());
 
         return services;
     }

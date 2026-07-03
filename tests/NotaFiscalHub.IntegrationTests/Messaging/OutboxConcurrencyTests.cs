@@ -32,12 +32,12 @@ public class OutboxConcurrencyTests : IAsyncLifetime
         await using var provider1 = _fixture.ConstruirProvedor(services =>
         {
             services.AddSingleton(contador);
-            services.AddInboxHandler<EventoDeTeste, HandlerQueIncrementaComAtraso>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerQueIncrementaComAtraso>();
         });
         await using var provider2 = _fixture.ConstruirProvedor(services =>
         {
             services.AddSingleton(contador);
-            services.AddInboxHandler<EventoDeTeste, HandlerQueIncrementaComAtraso>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerQueIncrementaComAtraso>();
         });
 
         await PublicarUmEventoAsync(provider1);
@@ -55,7 +55,7 @@ public class OutboxConcurrencyTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(_contaId);
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);

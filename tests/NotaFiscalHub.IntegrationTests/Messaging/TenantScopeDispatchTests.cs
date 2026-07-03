@@ -28,7 +28,7 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         await using var provider = _fixture.ConstruirProvedor(services =>
         {
             services.AddSingleton(contador);
-            services.AddInboxHandler<EventoDeTeste, HandlerQueIncrementa>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerQueIncrementa>();
         });
 
         await PublicarEventoTenantScopedComContaIdNulo(provider);
@@ -55,10 +55,10 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         {
             services.AddSingleton(observador);
             services.AddScoped<HandlerObservadorDeTenant>();
-            services.AddInboxHandler<EventoDePlataformaDeTeste, HandlerObservadorDeTenant>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDePlataformaDeTeste, HandlerObservadorDeTenant>();
             // Justificativa: evento de teste que representa manutenção/infra agendada sem tenant (spec B3
             // passo 4) — usado apenas para provar que o dispatcher não abre BeginTenantScope neste caso.
-            services.AddEventoDePlataforma<EventoDePlataformaDeTeste>();
+            services.AddEventoDePlataforma<MensageriaDbContext, EventoDePlataformaDeTeste>();
         });
 
         await PublicarEventoDePlataforma(provider);
@@ -75,7 +75,7 @@ public class TenantScopeDispatchTests : IAsyncLifetime
     {
         await using var provider = _fixture.ConstruirProvedor(services =>
         {
-            services.AddEventoDePlataforma<EventoDePlataformaComContaIdDeTeste>();
+            services.AddEventoDePlataforma<MensageriaDbContext, EventoDePlataformaComContaIdDeTeste>();
         });
 
         var contaId = Guid.NewGuid();
@@ -96,7 +96,7 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         // Escopo de sistema só para permitir a escrita (TenantWriteInterceptor não estampa ContaId em
         // escopo de sistema) — o evento em si é publicado deliberadamente com ContaId = null.
@@ -114,7 +114,7 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginSystemScope("teste", nameof(TenantScopeDispatchTests));
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
@@ -130,7 +130,7 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(contaId);
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);

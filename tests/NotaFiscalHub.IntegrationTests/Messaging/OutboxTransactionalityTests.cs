@@ -24,7 +24,7 @@ public class OutboxTransactionalityTests : IAsyncLifetime
         using var _ = tenantContext.BeginTenantScope(_contaId);
         await using var db = _fixture.NovoDbContext(tenantContext);
 
-        var registry = new OutboxTypeRegistry();
+        var registry = new OutboxTypeRegistry<MensageriaDbContext>();
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
 
         using var transacao = await db.Database.BeginTransactionAsync();
@@ -43,7 +43,7 @@ public class OutboxTransactionalityTests : IAsyncLifetime
         using var _ = tenantContext.BeginTenantScope(_contaId);
         await using var db = _fixture.NovoDbContext(tenantContext);
 
-        var registry = new OutboxTypeRegistry();
+        var registry = new OutboxTypeRegistry<MensageriaDbContext>();
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
 
         using var transacao = await db.Database.BeginTransactionAsync();
@@ -62,7 +62,7 @@ public class OutboxTransactionalityTests : IAsyncLifetime
         using var _ = tenantContext.BeginTenantScope(_contaId);
         await using var db = _fixture.NovoDbContext(tenantContext);
 
-        var registry = new OutboxTypeRegistry();
+        var registry = new OutboxTypeRegistry<MensageriaDbContext>();
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
 
         Assert.Throws<InvalidOperationException>(() =>

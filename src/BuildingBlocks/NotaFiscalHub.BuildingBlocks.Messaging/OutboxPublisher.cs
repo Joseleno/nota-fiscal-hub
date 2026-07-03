@@ -13,7 +13,7 @@ namespace NotaFiscalHub.BuildingBlocks.Messaging;
 /// agregado) que persiste evento e efeito de domínio atomicamente. Publicar fora de uma transação ativa
 /// lança <see cref="InvalidOperationException"/>: nunca existe publicação "solta".
 /// </summary>
-public sealed class OutboxPublisher<TDbContext>(TDbContext db, ITenantContext tenantContext, OutboxTypeRegistry registry)
+public sealed class OutboxPublisher<TDbContext>(TDbContext db, ITenantContext tenantContext, OutboxTypeRegistry<TDbContext> registry)
     : IOutboxPublisher
     where TDbContext : DbContext
 {

@@ -42,7 +42,7 @@ public class OrphanEventDispatchTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(_contaId);
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);

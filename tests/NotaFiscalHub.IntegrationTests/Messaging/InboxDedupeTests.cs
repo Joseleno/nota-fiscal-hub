@@ -28,7 +28,7 @@ public class InboxDedupeTests : IAsyncLifetime
         await using var provider = _fixture.ConstruirProvedor(services =>
         {
             services.AddSingleton(contador);
-            services.AddInboxHandler<EventoDeTeste, HandlerQueIncrementa>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerQueIncrementa>();
         });
 
         var messageId = await PublicarEventoAsync(provider);
@@ -71,8 +71,8 @@ public class InboxDedupeTests : IAsyncLifetime
             services.AddKeyedSingleton("B", contadorB);
             services.AddScoped<HandlerA>(sp => new HandlerA(sp.GetRequiredKeyedService<ContadorDeExecucoes>("A")));
             services.AddScoped<HandlerB>(sp => new HandlerB(sp.GetRequiredKeyedService<ContadorDeExecucoes>("B")));
-            services.AddInboxHandler<EventoDeTeste, HandlerA>();
-            services.AddInboxHandler<EventoDeTeste, HandlerB>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerA>();
+            services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerB>();
         });
 
         await PublicarEventoAsync(provider);
@@ -89,7 +89,7 @@ public class InboxDedupeTests : IAsyncLifetime
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
-        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry>();
+        var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(_contaId);
         var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);

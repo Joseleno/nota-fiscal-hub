@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Messaging.Abstractions;
+using NotaFiscalHub.BuildingBlocks.Persistence;
 
 namespace NotaFiscalHub.BuildingBlocks.Messaging.UnitTests;
 
@@ -8,16 +11,16 @@ namespace NotaFiscalHub.BuildingBlocks.Messaging.UnitTests;
 /// engolidos pelo OutboxRelayJob central"). Cobre, isoladamente e sem I/O: (a) a regra de decisão
 /// (<see cref="OutboxDispatchRules.Classificar"/>) nunca resulta em "Executar" com zero handlers — já
 /// coberto em detalhe por <c>OutboxDispatchRulesTests</c>, revalidado aqui do ponto de vista específico
-/// de "evento órfão"; (b) o <see cref="OutboxTypeRegistry"/> reporta corretamente zero handlers para um
-/// tipo nunca inscrito, e a lista cresce independentemente por tipo de evento (inscrever um handler para
-/// <c>EventoA</c> não "vaza" para <c>EventoB</c>).
+/// de "evento órfão"; (b) o <see cref="OutboxTypeRegistry{TDbContext}"/> reporta corretamente zero handlers
+/// para um tipo nunca inscrito, e a lista cresce independentemente por tipo de evento (inscrever um handler
+/// para <c>EventoA</c> não "vaza" para <c>EventoB</c>).
 /// </summary>
 public class OrphanEventPolicyTests
 {
     [Fact]
     public void Registry_TipoDeEventoNuncaInscrito_HandlersRegistrados_RetornaListaVazia()
     {
-        var registry = new OutboxTypeRegistry();
+        var registry = new OutboxTypeRegistry<TestDbContext>();
 
         var handlers = registry.HandlersRegistrados(typeof(EventoA));
 
@@ -27,7 +30,7 @@ public class OrphanEventPolicyTests
     [Fact]
     public void Registry_HandlerInscritoParaOutroTipo_NaoVazaParaTipoOrfao()
     {
-        var registry = new OutboxTypeRegistry();
+        var registry = new OutboxTypeRegistry<TestDbContext>();
         registry.RegistrarHandler<EventoA, HandlerDeA>();
 
         var handlersDeA = registry.HandlersRegistrados(typeof(EventoA));
@@ -43,7 +46,7 @@ public class OrphanEventPolicyTests
         // Tipo nunca visto por RegistrarTipoDeEvento (ex.: OutboxPublisher.Publicar nunca foi chamado
         // para esse tipo neste processo) — o dispatcher trata isso como Poison imediato (tipo não
         // desserializável), nunca como "ignorar e seguir em frente".
-        var registry = new OutboxTypeRegistry();
+        var registry = new OutboxTypeRegistry<TestDbContext>();
 
         var tipo = registry.ResolverTipoClr("tipo.jamais.publicado.v1");
 
@@ -73,5 +76,19 @@ public class OrphanEventPolicyTests
     private sealed class HandlerDeA : IInboxHandler<EventoA>
     {
         public Task HandleAsync(EventoA evento, MensagemContexto ctx, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// DbContext mínimo só para dar um <c>TDbContext</c> concreto ao <see cref="OutboxTypeRegistry{TDbContext}"/>
+    /// nestes testes — nunca é usado para acessar dados (os testes deste arquivo não fazem I/O).
+    /// </summary>
+    private sealed class TestDbContext(DbContextOptions<TestDbContext> options, ITenantContext tenantContext)
+        : TenantDbContext(options, tenantContext)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            modelBuilder.AplicarOutboxInbox("teste_orfao");
+        }
     }
 }
