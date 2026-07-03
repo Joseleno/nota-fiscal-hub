@@ -62,6 +62,12 @@ Tarefa A5 concluída (passos 1-4, 6, 7 da spec; passo 5 — sync ClickUp — for
 |---|---|---|---|---|---|
 | D-2026-07-02-04 | **Plano-mestre ajustado com a matriz A2 aprovado; plano bite-sized da Fase 0 aprovado.** `docs/superpowers/plans/2026-07-01-nota-fiscal-hub-mvp-plano-mestre.md` (Gate 0 marcado fechado; Fases 0-4 e "Fora deste plano" ganham blockquote de rastreabilidade citando a linha da matriz que motivou cada ajuste; D-2026-07-01-08 refletida nas Fases 1/2). `docs/superpowers/plans/2026-07-02-fase-00-fundacao-kernel.md` criado — 9 tarefas sequenciadas (B1→B9) cobrindo estrutura da solution, tenant context, outbox/inbox, idempotência, auditoria, NetArchTest, observabilidade, AWS não-produção e CI. Ambos revisados adversarialmente em 2 passadas com Opus 4.8 antes da aprovação (achados críticos e menores corrigidos; dívidas remanescentes registradas nos próprios documentos). | Formaliza a saída do Gate 0 como plano executável, conforme exigido pela spec `docs/superpowers/specs/tarefas/A5-ajuste-plano-pos-gate.md`. | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
 
+### 0.4 Fase 0 em execução — Tarefa 2 (tenant context): decisão arquitetural sobre ciclo de vida de DI
+
+| ID | Decisão | Racional | Status | Data | Decisor |
+|---|---|---|---|---|---|
+| D-2026-07-02-05 | **`ITenantContext`/`ITenantScopeFactory` (`AmbientTenantContext`) são registrados como singleton no DI dos dois hosts (Api e Worker), nunca scoped.** O isolamento por request/fluxo assíncrono continua garantido pelo `AsyncLocal` interno (mesmo padrão de `System.Transactions.Transaction.Current`), independente do tempo de vida da instância de DI. | O cache de modelo compilado do EF Core (`IModelCacheKeyFactory`) é por TIPO de DbContext, não por instância — corrigido nesta tarefa com `TenantModelCacheKeyFactory` (chave inclui a identidade da instância de `ITenantContext`). Registrar `ITenantContext` como Scoped não reabre uma falha de isolamento (o fix da chave de cache é robusto a múltiplas instâncias), mas reintroduz recompilação de modelo por request (custo de performance/memória) — revisão adversarial confirmou o raciocínio antes da ratificação. | Ratificada | 2026-07-02 | Joseleno D. M. dos Santos (dono) |
+
 ---
 
 ## Sumário
