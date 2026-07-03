@@ -17,11 +17,37 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Domain\NotaFiscalHub.Modules.Emissao.Domain.csproj" />
+    <!-- ContasPlanos -->
+    <ProjectReference Include="..\..\src\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Domain\NotaFiscalHub.Modules.ContasPlanos.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Application\NotaFiscalHub.Modules.ContasPlanos.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Contracts\NotaFiscalHub.Modules.ContasPlanos.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Infrastructure\NotaFiscalHub.Modules.ContasPlanos.Infrastructure.csproj" />
+
+    <!-- EmpresasCertificados -->
+    <ProjectReference Include="..\..\src\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Domain\NotaFiscalHub.Modules.EmpresasCertificados.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Application\NotaFiscalHub.Modules.EmpresasCertificados.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Contracts\NotaFiscalHub.Modules.EmpresasCertificados.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure.csproj" />
+
+    <!-- Emissao -->
+    <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Domain\NotaFiscalHub.Modules.Emissao.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Application\NotaFiscalHub.Modules.Emissao.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Contracts\NotaFiscalHub.Modules.Emissao.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Infrastructure\NotaFiscalHub.Modules.Emissao.Infrastructure.csproj" />
+
+    <!-- MotorNfce -->
+    <ProjectReference Include="..\..\src\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Domain\NotaFiscalHub.Modules.MotorNfce.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Application\NotaFiscalHub.Modules.MotorNfce.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Contracts\NotaFiscalHub.Modules.MotorNfce.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Infrastructure\NotaFiscalHub.Modules.MotorNfce.Infrastructure.csproj" />
+
+    <!-- Documentos -->
+    <ProjectReference Include="..\..\src\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Domain\NotaFiscalHub.Modules.Documentos.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Application\NotaFiscalHub.Modules.Documentos.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Contracts\NotaFiscalHub.Modules.Documentos.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Infrastructure\NotaFiscalHub.Modules.Documentos.Infrastructure.csproj" />
+
+    <!-- BuildingBlocks -->
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
   </ItemGroup>
