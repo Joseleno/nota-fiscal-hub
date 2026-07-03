@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Infrastructure\NotaFiscalHub.Modules.ContasPlanos.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Contracts\NotaFiscalHub.Modules.ContasPlanos.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Contracts\NotaFiscalHub.Modules.EmpresasCertificados.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Infrastructure\NotaFiscalHub.Modules.Emissao.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Contracts\NotaFiscalHub.Modules.Emissao.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Infrastructure\NotaFiscalHub.Modules.Documentos.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Contracts\NotaFiscalHub.Modules.Documentos.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Infrastructure\NotaFiscalHub.Modules.MotorNfce.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Contracts\NotaFiscalHub.Modules.MotorNfce.Contracts.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+</Project>

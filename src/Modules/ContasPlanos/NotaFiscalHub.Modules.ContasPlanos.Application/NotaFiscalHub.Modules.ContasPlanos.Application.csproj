@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.Modules.ContasPlanos.Domain\NotaFiscalHub.Modules.ContasPlanos.Domain.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.Modules.ContasPlanos.Contracts\NotaFiscalHub.Modules.ContasPlanos.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+  </ItemGroup>
+</Project>

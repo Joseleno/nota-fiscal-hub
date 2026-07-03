@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.Modules.ContasPlanos.Application\NotaFiscalHub.Modules.ContasPlanos.Application.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.Modules.ContasPlanos.Domain\NotaFiscalHub.Modules.ContasPlanos.Domain.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.Modules.ContasPlanos.Contracts\NotaFiscalHub.Modules.ContasPlanos.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+</Project>

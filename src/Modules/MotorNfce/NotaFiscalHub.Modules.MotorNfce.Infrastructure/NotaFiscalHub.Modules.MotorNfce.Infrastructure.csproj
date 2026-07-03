@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.Modules.MotorNfce.Application\NotaFiscalHub.Modules.MotorNfce.Application.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.Modules.MotorNfce.Domain\NotaFiscalHub.Modules.MotorNfce.Domain.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.Modules.MotorNfce.Contracts\NotaFiscalHub.Modules.MotorNfce.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+  </ItemGroup>
+</Project>
