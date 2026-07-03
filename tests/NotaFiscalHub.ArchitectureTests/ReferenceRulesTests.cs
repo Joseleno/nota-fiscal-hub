@@ -98,6 +98,21 @@ public class ReferenceRulesTests
     }
 
     /// <summary>
+    /// Restrição dura complementar (Tarefa 1: MotorNfce é stateless — nenhum DbContext próprio).
+    /// <c>MotorNfce.Infrastructure</c> nunca deve referenciar <c>BuildingBlocks.Persistence</c>: não há
+    /// entidade/DbContext no módulo, então nada ali deveria precisar de EF Core/TenantDbContext.
+    /// </summary>
+    [Fact]
+    public void Fronteiras_MotorNfceInfrastructure_NaoReferenciaPersistence()
+    {
+        var result = Types.InAssembly(AssemblyLoader.AssemblyInfrastructureDoModulo(ModuleNames.MotorNfce))
+            .ShouldNot().HaveDependencyOnAny($"{ModuleNames.BuildingBlocks}.Persistence")
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    /// <summary>
     /// Regra dura complementar (§2.5, última seta): nenhum módulo de NEGÓCIO referencia ContasPlanos,
     /// em nenhuma camada — só o kernel/host entram na exceção codificada em
     /// <see cref="ArchitectureExceptions"/> (T1: BuildingBlocks → ContasPlanos.Contracts).
