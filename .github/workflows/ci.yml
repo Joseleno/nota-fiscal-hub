@@ -23,5 +23,11 @@ jobs:
       - name: Build
         run: dotnet build NotaFiscalHub.sln --no-restore --configuration Release
 
+      - name: Test (Kernel.UnitTests)
+        run: dotnet test tests/NotaFiscalHub.BuildingBlocks.Kernel.UnitTests --no-build --configuration Release
+
       - name: Test (ArchitectureTests)
         run: dotnet test tests/NotaFiscalHub.ArchitectureTests --no-build --configuration Release
+
+      - name: Test (IntegrationTests)
+        run: dotnet test tests/NotaFiscalHub.IntegrationTests --no-build --configuration Release

@@ -9,6 +9,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,6 +18,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Domain\NotaFiscalHub.Modules.Emissao.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Infrastructure\NotaFiscalHub.Modules.ContasPlanos.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Emissao\NotaFiscalHub.Modules.Emissao.Infrastructure\NotaFiscalHub.Modules.Emissao.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Documentos\NotaFiscalHub.Modules.Documentos.Infrastructure\NotaFiscalHub.Modules.Documentos.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
   </ItemGroup>
 
 </Project>

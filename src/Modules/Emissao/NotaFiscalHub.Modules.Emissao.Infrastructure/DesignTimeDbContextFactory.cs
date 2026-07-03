@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 
 namespace NotaFiscalHub.Modules.Emissao.Infrastructure;
 
@@ -13,6 +14,11 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Emi
         var optionsBuilder = new DbContextOptionsBuilder<EmissaoDbContext>();
         optionsBuilder.UseNpgsql(connectionString, o => o.MigrationsHistoryTable("__ef_migrations_history", "emissao"));
 
-        return new EmissaoDbContext(optionsBuilder.Options);
+        // Design-time (dotnet ef migrations) só monta o model — nunca executa query real —
+        // então um escopo de sistema é suficiente para satisfazer o construtor de TenantDbContext.
+        var tenantContext = new AmbientTenantContext();
+        tenantContext.BeginSystemScope("design-time", "dotnet-ef");
+
+        return new EmissaoDbContext(optionsBuilder.Options, tenantContext);
     }
 }
