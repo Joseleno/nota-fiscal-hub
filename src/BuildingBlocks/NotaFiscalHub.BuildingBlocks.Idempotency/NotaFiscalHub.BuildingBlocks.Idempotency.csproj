@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Microsoft.Extensions.Hosting e Logging.Abstractions já vêm via FrameworkReference
+         Microsoft.AspNetCore.App — referenciá-los também como PackageReference dispara NU1510
+         (pruning) neste SDK. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Permite que Idempotency.UnitTests exercite IdempotencySql (construção das strings SQL cruas do
+         takeover de órfão) diretamente, sem depender de PostgreSQL real para verificar forma/conteúdo. -->
+    <InternalsVisibleTo Include="NotaFiscalHub.BuildingBlocks.Idempotency.UnitTests" />
+  </ItemGroup>
+
+</Project>

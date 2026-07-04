@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +25,7 @@
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging\NotaFiscalHub.BuildingBlocks.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Idempotency\NotaFiscalHub.BuildingBlocks.Idempotency.csproj" />
   </ItemGroup>
 
   <ItemGroup>
