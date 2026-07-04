@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- IAuditoriaEventCatalog.TryMap recebe EventoIntegracao (tipo base de todo evento de integração) —
+         única dependência externa deste projeto de contratos, e ela própria não referencia EF/Npgsql
+         (mesmo desenho de Messaging.Abstractions, que este projeto espelha). -->
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

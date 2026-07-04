@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.Api.Authentication;
 using NotaFiscalHub.Api.Testing;
+using NotaFiscalHub.BuildingBlocks.Auditoria;
 using NotaFiscalHub.BuildingBlocks.Idempotency;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 
@@ -21,6 +22,15 @@ var idempotencyConnectionString = builder.Configuration.GetConnectionString("Ide
     ?? "Host=localhost;Database=nota_fiscal_hub_placeholder;Username=postgres;Password=postgres";
 builder.Services.AddDbContext<IdempotencyDbContext>(o => o.UseNpgsql(idempotencyConnectionString));
 builder.Services.AddIdempotency();
+
+// Auditoria append-only (Tarefa 5/spec B5): AuditoriaDbContext é registrado pelo HOST, mesmo desenho de
+// IdempotencyDbContext — o kernel não deve acoplar a um driver de banco específico. Diferente de
+// IdempotencyDbContext, NÃO estende TenantDbContext (ver comentário de classe de AuditoriaDbContext), então
+// não precisa de ITenantContext no registro.
+var auditoriaConnectionString = builder.Configuration.GetConnectionString("Auditoria")
+    ?? "Host=localhost;Database=nota_fiscal_hub_placeholder;Username=postgres;Password=postgres";
+builder.Services.AddDbContext<AuditoriaDbContext>(o => o.UseNpgsql(auditoriaConnectionString));
+builder.Services.AddAuditoria();
 
 builder.Services.AddSingleton<ContadorDoHandlerFake>();
 

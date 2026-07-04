@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Auditoria.Contracts\NotaFiscalHub.BuildingBlocks.Auditoria.Contracts.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Messaging\NotaFiscalHub.BuildingBlocks.Messaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Permite que Auditoria.UnitTests exercite os tipos de evento sintéticos do catálogo
+         (ContaCriada, ApiKeyRevogada, etc.) e os test-doubles do brief diretamente. -->
+    <InternalsVisibleTo Include="NotaFiscalHub.BuildingBlocks.Auditoria.UnitTests" />
+    <InternalsVisibleTo Include="NotaFiscalHub.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

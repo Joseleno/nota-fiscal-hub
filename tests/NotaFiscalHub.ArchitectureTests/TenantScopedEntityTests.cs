@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NotaFiscalHub.BuildingBlocks.Auditoria;
 using NotaFiscalHub.BuildingBlocks.Idempotency;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
@@ -32,10 +33,28 @@ namespace NotaFiscalHub.ArchitectureTests;
 /// <c>IgnoreQueryFilters(["Tenant"])</c> dentro de um <c>BeginSystemScope</c> explícito (uso restrito ao
 /// kernel, ver <see cref="IgnoreQueryFilters_ProibidoForaDoKernel"/>), em vez de a entidade ficar isenta do
 /// filtro por padrão.
+///
+/// <c>RegistroAuditoriaEntity</c> (Tarefa 5, spec B5) ESTÁ na allowlist, pela mesma classe de exceção de
+/// <c>OutboxMessage</c>/<c>InboxMessage</c> — mas por um motivo de NEGÓCIO, não só técnico: registros de
+/// auditoria de eventos de ESCOPO DE SISTEMA (ações administrativas/backoffice sem tenant, ex.:
+/// <c>ContaSuspensa</c> disparada pelo sistema) são gravados deliberadamente com <c>ContaId == null</c>
+/// sob <c>BeginSystemScope</c> — um recurso exigido pela spec B5 (§Abordagem passo 6/Assunção A4), não um
+/// acidente de implementação. <c>RegistroAuditoriaEntity.ContaId</c> é <c>Guid?</c> (anulável) — não
+/// implementa <see cref="ITenantScopedEntity"/> (cujo contrato exige <c>Guid</c> não anulável) e por isso
+/// <c>AuditoriaDbContext</c> estende <c>ModuleDbContext</c> diretamente, não <c>TenantDbContext</c> (ver
+/// comentário de classe de ambos). O isolamento por tenant destas linhas é aplicado EXCLUSIVAMENTE no nível
+/// de aplicação/consulta: <c>ConsultaAuditoria</c> (que implementa <c>IConsultaAuditoria</c>, cujo
+/// <c>FiltroAuditoria.ContaId</c> é obrigatório/não anulável) aplica <c>WHERE conta_id = @contaId</c>
+/// incondicionalmente e portanto NUNCA retorna registros de escopo de sistema (<c>ContaId == null</c>) nem
+/// de outro tenant — não há filtro global de EF Core aqui como rede de segurança adicional (ver
+/// <see cref="TenantScoped_ExigeContaId"/> abaixo, que também não varre <c>AuditoriaDbContext</c>, já que
+/// ele deliberadamente não aparece na lista de DbContexts varrida por este teste — não é um
+/// <c>TenantDbContext</c>).
 /// </summary>
 public class TenantScopedEntityTests
 {
-    private static readonly HashSet<Type> AllowlistEntidadesGlobais = [typeof(OutboxMessage), typeof(InboxMessage)];
+    private static readonly HashSet<Type> AllowlistEntidadesGlobais =
+        [typeof(OutboxMessage), typeof(InboxMessage), typeof(RegistroAuditoriaEntity)];
 
     [Fact]
     public void TenantScoped_ExigeContaId()

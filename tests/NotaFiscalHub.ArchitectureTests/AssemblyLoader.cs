@@ -43,6 +43,8 @@ public static class AssemblyLoader
         typeof(BuildingBlocks.Messaging.Abstractions.AssemblyMarker),
         typeof(BuildingBlocks.Messaging.AssemblyMarker),
         typeof(BuildingBlocks.Idempotency.AssemblyMarker),
+        typeof(BuildingBlocks.Auditoria.AssemblyMarker),
+        typeof(BuildingBlocks.Auditoria.Contracts.AssemblyMarker),
     ];
 
     /// <summary>
