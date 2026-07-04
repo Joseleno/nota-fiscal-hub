@@ -23,7 +23,12 @@ public sealed class IdempotencyDbContext(DbContextOptions<IdempotencyDbContext> 
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
+        // AplicarIdempotency() precisa rodar ANTES de base.OnModelCreating: é ela quem introduz
+        // IdempotencyRecordEntity no ModelBuilder (via modelBuilder.Entity&lt;T&gt;() — não há DbSet
+        // convencional). TenantDbContext.OnModelCreating aplica o query filter "Tenant" iterando
+        // modelBuilder.Model.GetEntityTypes() — se rodasse antes, a entidade ainda não existiria no
+        // model e ficaria silenciosamente sem o filtro.
         modelBuilder.AplicarIdempotency();
+        base.OnModelCreating(modelBuilder);
     }
 }

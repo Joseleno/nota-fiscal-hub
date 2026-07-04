@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NotaFiscalHub.BuildingBlocks.Idempotency;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Persistence;
@@ -23,6 +24,14 @@ namespace NotaFiscalHub.ArchitectureTests;
 /// para eventos de plataforma) e NÃO um filtro global de tenant. O isolamento por tenant dessas linhas é
 /// aplicado no nível de negócio pelo próprio dispatcher (<c>BeginTenantScope(ContaId)</c> antes de invocar
 /// o handler), não pelo query filter — ver regra de escopo de tenant no dispatch (spec B3 passo 4).
+///
+/// <c>IdempotencyRecordEntity</c> (Tarefa 4, spec B4) NÃO está na allowlist: implementa
+/// <see cref="ITenantScopedEntity"/> com <c>ContaId</c> não anulável, então recebe o filtro "Tenant"
+/// normalmente como qualquer entidade de módulo — o job de expiração
+/// (<c>IdempotencyExpirationJob</c>) contorna esse filtro pontualmente com
+/// <c>IgnoreQueryFilters(["Tenant"])</c> dentro de um <c>BeginSystemScope</c> explícito (uso restrito ao
+/// kernel, ver <see cref="IgnoreQueryFilters_ProibidoForaDoKernel"/>), em vez de a entidade ficar isenta do
+/// filtro por padrão.
 /// </summary>
 public class TenantScopedEntityTests
 {
@@ -70,6 +79,7 @@ public class TenantScopedEntityTests
             typeof(EmpresasCertificadosDbContext),
             typeof(EmissaoDbContext),
             typeof(DocumentosDbContext),
+            typeof(IdempotencyDbContext),
         ];
 
         var ofensores = dbContextsDeModulo.Where(t => !typeof(TenantDbContext).IsAssignableFrom(t)).ToList();
@@ -113,6 +123,7 @@ public class TenantScopedEntityTests
         yield return NovoContexto<EmpresasCertificadosDbContext>(tenantContext, (o, tc) => new EmpresasCertificadosDbContext(o, tc));
         yield return NovoContexto<EmissaoDbContext>(tenantContext, (o, tc) => new EmissaoDbContext(o, tc));
         yield return NovoContexto<DocumentosDbContext>(tenantContext, (o, tc) => new DocumentosDbContext(o, tc));
+        yield return NovoContexto<IdempotencyDbContext>(tenantContext, (o, tc) => new IdempotencyDbContext(o, tc));
     }
 
     private static TContext NovoContexto<TContext>(

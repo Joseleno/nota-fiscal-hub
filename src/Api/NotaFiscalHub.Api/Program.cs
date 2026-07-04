@@ -30,10 +30,14 @@ app.MapGet("/alive", () => Results.Ok());
 app.MapGet("/health", () => Results.Ok());
 
 app.UseMiddleware<TenantResolutionMiddleware>();
-app.UseMiddleware<StubAmbienteMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
+    // StubAmbienteMiddleware só é válido em Development/testes de integração (ver seu próprio
+    // comentário de classe) — a Fase 1 substitui isso pela derivação real a partir do prefixo da API
+    // key, então não deve ser registrado fora deste guard.
+    app.UseMiddleware<StubAmbienteMiddleware>();
+
     // Endpoint de diagnóstico usado pelo teste de integração de concorrência (2 requests não vazam
     // AsyncLocal entre si). Não existe fora de Development. O delay antes de ler ContaId amplia
     // deliberadamente a janela de sobreposição entre as duas requisições concorrentes do teste,
