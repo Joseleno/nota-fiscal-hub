@@ -8,6 +8,15 @@
   </PropertyGroup>
 
   <!--
+    Tarefa 9 / spec B9 (CI): habilita packages.lock.json por projeto, consumido pelo cache de NuGet do
+    workflow (`actions/setup-dotnet` com `cache-dependency-path: '**/packages.lock.json'`). Sem isso o
+    setup-dotnet não tem chave de cache determinística e reinstala os pacotes a cada run.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('NotaFiscalHub'))">
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <!--
     Tarefa 7 / spec B7 passo 2 (Camada 2 da política anti-PII): CA2254 como erro fecha a rota de
     interpolação de string em chamada de log (`_logger.LogInformation($"...")`), que (a) quebra logging
     estruturado e (b) pode vazar PII direto no TEXTO da mensagem — a Camada 1 (PiiMaskingEnricher) só
@@ -18,4 +27,5 @@
   <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('NotaFiscalHub'))">
     <WarningsAsErrors>$(WarningsAsErrors);CA2254</WarningsAsErrors>
   </PropertyGroup>
+
 </Project>

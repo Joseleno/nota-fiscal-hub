@@ -2,32 +2,73 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    # Branch principal real deste repositorio e' `master` (default do remoto) + `dev` (onde a Fase 0
+    # esta em execucao) - o exemplo do brief usa `main`, que nao existe aqui (`git remote show origin`).
+    branches: [master, dev]
   pull_request:
-    branches: [main, dev]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
-      - name: Restore
+      - name: restore
         run: dotnet restore NotaFiscalHub.sln
 
-      - name: Build
+      - name: build
         run: dotnet build NotaFiscalHub.sln --no-restore --configuration Release
 
-      - name: Test (Kernel.UnitTests)
-        run: dotnet test tests/NotaFiscalHub.BuildingBlocks.Kernel.UnitTests --no-build --configuration Release
+      # Tarefa 9 / spec B9, Step 7: evita que a suite de arquitetura fique vazia e o gate passe em
+      # silencio (ex.: alguem apaga os testes ou o glob para de bater com os arquivos reais).
+      - name: guard-arquitetura-nao-vazia
+        run: |
+          COUNT=$(find tests -path "*ArchitectureTests*" -name "*.cs" -print0 | xargs -0 grep -l "\[Fact\]" | wc -l)
+          if [ "$COUNT" -eq 0 ]; then echo "Nenhum teste de arquitetura encontrado - gate vazio!"; exit 1; fi
 
-      - name: Test (ArchitectureTests)
-        run: dotnet test tests/NotaFiscalHub.ArchitectureTests --no-build --configuration Release
+      - name: test-unidade
+        run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName~UnitTests" --logger "trx;LogFileName=unit.trx" --collect:"XPlat Code Coverage"
 
-      - name: Test (IntegrationTests)
-        run: dotnet test tests/NotaFiscalHub.IntegrationTests --no-build --configuration Release
+      - name: test-arquitetura
+        run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName~ArchitectureTests" --logger "trx;LogFileName=architecture.trx" --collect:"XPlat Code Coverage"
+
+      - name: test-integracao
+        run: dotnet test --no-build --configuration Release --filter "FullyQualifiedName~IntegrationTests" --logger "trx;LogFileName=integration.trx" --collect:"XPlat Code Coverage"
+
+      - name: artefatos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/*.trx'
+
+      - name: cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: '**/coverage.cobertura.xml'
+
+      # Estagios futuros (Fase 7, design Secao 4.5 - pipeline completo: build -> unidade+arquitetura ->
+      # integracao -> homologacao (tpAmb=2) -> smoke SEFAZ-SE -> producao). B9 implementa so os 3
+      # primeiros estagios acima; os itens abaixo sao reserva de nome/lugar, NAO implementados agora:
+      #
+      # - name: homologacao-tpamb2
+      #   run: echo "reservado para a Fase 7 - smoke tests contra empresas tpAmb=2"
+      #
+      # - name: smoke-sefaz
+      #   run: echo "reservado para a Fase 7 - smoke test real contra SEFAZ-SE sandbox"
+      #
+      # - name: deploy
+      #   run: echo "reservado para a Fase 7 - deploy do ambiente produtivo unico (D-2026-07-01-07)"

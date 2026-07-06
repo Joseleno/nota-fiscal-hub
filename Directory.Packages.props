@@ -33,5 +33,8 @@
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.16.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.Npgsql" Version="9.0.0" />
+
+    <!-- Tarefa 9 / spec B9 (CI): coletor de cobertura usado por "dotnet test -\-collect:XPlat Code Coverage". -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
 </Project>

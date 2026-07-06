@@ -1,0 +1,9 @@
+<Project>
+  <!--
+    Tarefa 9 / spec B9 (CI): todo projeto de teste (por convenção, nome termina em "Tests") ganha
+    coverlet.collector, exigido por "dotnet test -\-collect:XPlat Code Coverage" no ci.yml/ci-local.sh.
+  -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+</Project>
