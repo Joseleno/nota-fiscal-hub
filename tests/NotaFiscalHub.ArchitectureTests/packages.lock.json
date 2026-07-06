@@ -629,6 +629,7 @@
         "type": "Project",
         "dependencies": {
           "NotaFiscalHub.BuildingBlocks.Kernel": "[1.0.0, )",
+          "NotaFiscalHub.Modules.ContasPlanos.Contracts": "[1.0.0, )",
           "NotaFiscalHub.Modules.Documentos.Contracts": "[1.0.0, )",
           "NotaFiscalHub.Modules.Documentos.Domain": "[1.0.0, )"
         }

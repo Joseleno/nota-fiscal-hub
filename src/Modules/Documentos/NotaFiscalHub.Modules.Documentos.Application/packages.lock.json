@@ -13,6 +13,9 @@
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.9, )"
         }
       },
+      "notafiscalhub.modules.contasplanos.contracts": {
+        "type": "Project"
+      },
       "notafiscalhub.modules.documentos.contracts": {
         "type": "Project"
       },

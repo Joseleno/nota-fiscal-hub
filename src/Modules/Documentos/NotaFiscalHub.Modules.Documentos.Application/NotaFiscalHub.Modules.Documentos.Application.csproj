@@ -3,5 +3,7 @@
     <ProjectReference Include="..\NotaFiscalHub.Modules.Documentos.Domain\NotaFiscalHub.Modules.Documentos.Domain.csproj" />
     <ProjectReference Include="..\NotaFiscalHub.Modules.Documentos.Contracts\NotaFiscalHub.Modules.Documentos.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
+    <!-- VIOLACAO-ISCA (Tarefa 9 / prova RED do gate test-arquitetura, revertida antes do merge) -->
+    <ProjectReference Include="..\..\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Contracts\NotaFiscalHub.Modules.ContasPlanos.Contracts.csproj" />
   </ItemGroup>
 </Project>
