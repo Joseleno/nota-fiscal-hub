@@ -33,8 +33,11 @@ public class TenantResolutionMiddlewareTests : IClassFixture<WebApplicationFacto
         var respostaA = await tarefaA;
         var respostaB = await tarefaB;
 
-        Assert.Equal(contaA.ToString(), await respostaA.Content.ReadAsStringAsync());
-        Assert.Equal(contaB.ToString(), await respostaB.Content.ReadAsStringAsync());
+        // VIOLACAO-ISCA (Tarefa 9 / prova RED do gate test-integracao, revertida antes do merge):
+        // assert invertido (compara respostaA com contaB e vice-versa) - simula um vazamento de
+        // escopo de tenant entre requisicoes concorrentes.
+        Assert.Equal(contaB.ToString(), await respostaA.Content.ReadAsStringAsync());
+        Assert.Equal(contaA.ToString(), await respostaB.Content.ReadAsStringAsync());
     }
 
     [Fact]
