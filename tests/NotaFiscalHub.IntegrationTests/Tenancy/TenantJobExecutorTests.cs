@@ -1,6 +1,8 @@
+extern alias WorkerHost;
+
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
-using NotaFiscalHub.Worker;
 using Xunit;
+using TenantJobExecutor = WorkerHost::NotaFiscalHub.Worker.TenantJobExecutor;
 
 namespace NotaFiscalHub.IntegrationTests.Tenancy;
 

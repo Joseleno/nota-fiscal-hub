@@ -84,9 +84,11 @@ public class TenantIsolationTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ModuloProdutorDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
         var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<ModuloProdutorDbContext>>();
+        var correlationContext = scope.ServiceProvider.GetRequiredService<NotaFiscalHub.BuildingBlocks.Observability.CorrelationContext>();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(evento.ContaId!.Value);
-        var publisher = new OutboxPublisher<ModuloProdutorDbContext>(db, tenantContext, registry);
+        var publisher = new OutboxPublisher<ModuloProdutorDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(evento);

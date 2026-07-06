@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging.Abstractions;
+using NotaFiscalHub.BuildingBlocks.Observability;
+using Serilog.Context;
 
 namespace NotaFiscalHub.BuildingBlocks.Messaging;
 
@@ -190,6 +193,17 @@ public sealed class OutboxDispatcher<TDbContext> : BackgroundService
             await transacao.CommitAsync(ct);
             return;
         }
+
+        // Tarefa 7 (spec B7 passo 3): abre o escopo de correlação (ICorrelationContext + LogContext + tag
+        // no Activity) ANTES de invocar o handler — usando o CorrelationId da MENSAGEM (gravado pelo
+        // publisher a partir do ICorrelationContext da requisição original), nunca herdado do ciclo de
+        // dispatch anterior. Cada mensagem processada abre e fecha seu PRÓPRIO escopo (CorrelationContext
+        // é opcional aqui — pode não estar registrado em composições de DI que não usam AddNfhObservability,
+        // ex. testes que só montam Outbox/Inbox isoladamente).
+        var correlationContext = scope.ServiceProvider.GetService<CorrelationContext>();
+        using var escopoDeCorrelacao = correlationContext?.Definir(contexto.CorrelationId);
+        using var escopoDeLogDeCorrelacao = LogContext.PushProperty("CorrelationId", contexto.CorrelationId);
+        Activity.Current?.SetTag("correlation_id", contexto.CorrelationId);
 
         IDisposable? escopoDeTenant = null;
         try

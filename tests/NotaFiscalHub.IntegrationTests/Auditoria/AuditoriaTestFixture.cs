@@ -4,6 +4,7 @@ using NotaFiscalHub.BuildingBlocks.Auditoria;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Messaging.Abstractions;
+using NotaFiscalHub.BuildingBlocks.Observability;
 using NotaFiscalHub.BuildingBlocks.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -103,6 +104,11 @@ public sealed class AuditoriaTestFixture : IAsyncLifetime
         services.AddSingleton(new AmbientTenantContext());
         services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<AmbientTenantContext>());
         services.AddSingleton<ITenantScopeFactory>(sp => sp.GetRequiredService<AmbientTenantContext>());
+
+        // Tarefa 7: OutboxPublisher<TDbContext> resolve ICorrelationContext via DI (fim da dívida técnica
+        // da Tarefa 3) — precisa estar registrado para qualquer teste que publique através do provider.
+        services.AddSingleton<CorrelationContext>();
+        services.AddSingleton<ICorrelationContext>(sp => sp.GetRequiredService<CorrelationContext>());
 
         services.AddDbContext<ModuloProdutorDbContext>(o => o.UseNpgsql(ConnectionString));
         services.AddOutboxInbox<ModuloProdutorDbContext>("teste_auditoria_outbox", o =>

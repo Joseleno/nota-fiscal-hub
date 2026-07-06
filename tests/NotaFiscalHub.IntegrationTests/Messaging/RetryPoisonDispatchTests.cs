@@ -82,9 +82,11 @@ public class RetryPoisonDispatchTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
         var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
+        var correlationContext = scope.ServiceProvider.GetRequiredService<NotaFiscalHub.BuildingBlocks.Observability.CorrelationContext>();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(_contaId);
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(evento);

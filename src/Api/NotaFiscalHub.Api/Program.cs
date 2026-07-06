@@ -4,8 +4,19 @@ using NotaFiscalHub.Api.Testing;
 using NotaFiscalHub.BuildingBlocks.Auditoria;
 using NotaFiscalHub.BuildingBlocks.Idempotency;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
+using NotaFiscalHub.BuildingBlocks.Observability;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Tarefa 7 / spec B7: fundação de observabilidade — Serilog+PII, CorrelationId, OTel, health checks.
+// Único ponto de bootstrap consumido pelos 2 hosts (ver ObservabilityExtensions). O health check de
+// Postgres (AddNpgSql) reaproveita a MESMA connection string do módulo de Idempotency — não há um banco
+// "da observabilidade" à parte; "Postgres no ar" é uma pergunta sobre a infra compartilhada dos módulos.
+builder.Configuration[ObservabilityExtensions.ChaveConfigPostgresHealthCheck] =
+    builder.Configuration.GetConnectionString("Idempotency")
+    ?? "Host=localhost;Database=nota_fiscal_hub_placeholder;Username=postgres;Password=postgres";
+builder.AddNfhObservability("nfh-api");
 
 // ITenantContext/ITenantScopeFactory são singleton: o mesmo objeto ambiente serve toda a aplicação,
 // variando por AsyncLocal internamente (por request/fluxo assíncrono). Registrar como Scoped criaria
@@ -36,8 +47,8 @@ builder.Services.AddSingleton<ContadorDoHandlerFake>();
 
 var app = builder.Build();
 
-app.MapGet("/alive", () => Results.Ok());
-app.MapGet("/health", () => Results.Ok());
+// Tarefa 7: CorrelationIdMiddleware (ANTES da resolução de tenant, spec B7 passo 3) + /alive + /health.
+app.UseNfhObservability();
 
 app.UseMiddleware<TenantResolutionMiddleware>();
 
@@ -97,9 +108,53 @@ if (app.Environment.IsDevelopment())
         contador.Resetar();
         return Results.Ok();
     });
+
+    // Endpoints de diagnóstico da Tarefa 7 (spec B7) — usados pelos testes de integração de
+    // tests/NotaFiscalHub.IntegrationTests/Observability para exercitar o guardrail anti-PII (T3) e a
+    // supressão de valor de parâmetro SQL em traces OTel (T5) contra um host real.
+
+    // T3: corpo com CPF/nome de consumidor — loga UM identificador seguro (notaId) e, deliberadamente,
+    // tenta logar o payload inteiro num cenário de exceção simulada — a Camada 1 (PiiMaskingEnricher)
+    // precisa mascarar mesmo esse caminho de log de exceção para o guardrail (PiiLogAssertions) passar.
+    app.MapPost("/teste/emissao-fake", async (HttpContext http, ILogger<Program> logger) =>
+    {
+        var payload = await http.Request.ReadFromJsonAsync<EmissaoFakeRequest>();
+        var notaId = Guid.NewGuid();
+
+        logger.LogInformation(
+            "EmissaoFakeRecebida: NotaId={NotaId} Cpf={Cpf} Nome={Nome}",
+            notaId, payload?.Cpf, payload?.Nome);
+
+        try
+        {
+            throw new InvalidOperationException($"Falha simulada ao processar nota {notaId}");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "EmissaoFakeFalhou: NotaId={NotaId} Cpf={Cpf} Nome={Nome}",
+                notaId, payload?.Cpf, payload?.Nome);
+        }
+
+        return Results.Ok(new { notaId });
+    });
+
+    // T5: consulta EF Core parametrizada — prova que o span de trace do Npgsql não carrega o VALOR do
+    // parâmetro (só o texto do statement com placeholder), mesmo quando o parâmetro contém um CPF.
+    app.MapGet("/teste/consulta-com-parametro", async (string cpf, IdempotencyDbContext db, ITenantContext tenantContext) =>
+    {
+        _ = await db.Set<IdempotencyRecordEntity>()
+            .Where(r => r.PayloadHashSha256 == cpf)
+            .ToListAsync();
+
+        return Results.Ok();
+    });
 }
 
 app.Run();
+
+/// <summary>Corpo de teste do endpoint de diagnóstico <c>/teste/emissao-fake</c> (Tarefa 7).</summary>
+internal sealed record EmissaoFakeRequest(string? Cpf, string? Nome);
 
 // Necessário para que o WebApplicationFactory<Program> dos testes de integração enxergue o entry point.
 public partial class Program;

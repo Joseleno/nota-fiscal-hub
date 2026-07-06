@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
+using NotaFiscalHub.BuildingBlocks.Observability;
 using NotaFiscalHub.BuildingBlocks.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -69,6 +70,11 @@ public sealed class MessagingTestFixture : IAsyncLifetime
         services.AddSingleton(new AmbientTenantContext());
         services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<AmbientTenantContext>());
         services.AddSingleton<ITenantScopeFactory>(sp => sp.GetRequiredService<AmbientTenantContext>());
+
+        // Tarefa 7: OutboxPublisher<TDbContext> resolve ICorrelationContext via DI (fim da dívida técnica
+        // da Tarefa 3) — precisa estar registrado para qualquer teste que publique através do provider.
+        services.AddSingleton<CorrelationContext>();
+        services.AddSingleton<ICorrelationContext>(sp => sp.GetRequiredService<CorrelationContext>());
 
         services.AddDbContext<MensageriaDbContext>(o => o.UseNpgsql(ConnectionString));
 

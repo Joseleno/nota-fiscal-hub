@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
 using NotaFiscalHub.BuildingBlocks.Messaging.Abstractions;
+using NotaFiscalHub.BuildingBlocks.Observability;
 using NotaFiscalHub.BuildingBlocks.Persistence;
 
 namespace NotaFiscalHub.BuildingBlocks.Messaging.UnitTests;
@@ -25,7 +26,10 @@ public class OutboxPublisherTests
         var tenantContext = new AmbientTenantContext();
         using var _ = tenantContext.BeginTenantScope(ContaId);
         using var db = NovoDbContext(tenantContext);
-        var publisher = new OutboxPublisher<TestDbContext>(db, tenantContext, new OutboxTypeRegistry<TestDbContext>());
+        var correlationContext = new CorrelationContext();
+        using var __ = correlationContext.Definir("corr-teste-unitario");
+        var publisher = new OutboxPublisher<TestDbContext>(
+            db, tenantContext, new OutboxTypeRegistry<TestDbContext>(), correlationContext);
 
         Assert.Throws<InvalidOperationException>(() =>
             publisher.Publicar(new EventoDeTeste { ContaId = ContaId }));

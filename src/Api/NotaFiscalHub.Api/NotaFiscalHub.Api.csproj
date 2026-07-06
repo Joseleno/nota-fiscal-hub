@@ -15,6 +15,9 @@
     <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Idempotency\NotaFiscalHub.BuildingBlocks.Idempotency.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Auditoria\NotaFiscalHub.BuildingBlocks.Auditoria.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Auditoria.Contracts\NotaFiscalHub.BuildingBlocks.Auditoria.Contracts.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Observability\NotaFiscalHub.BuildingBlocks.Observability.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging\NotaFiscalHub.BuildingBlocks.Messaging.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

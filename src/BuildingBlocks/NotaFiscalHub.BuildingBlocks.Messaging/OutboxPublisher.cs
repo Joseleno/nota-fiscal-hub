@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging.Abstractions;
+using NotaFiscalHub.BuildingBlocks.Observability;
 
 namespace NotaFiscalHub.BuildingBlocks.Messaging;
 
@@ -13,7 +13,8 @@ namespace NotaFiscalHub.BuildingBlocks.Messaging;
 /// agregado) que persiste evento e efeito de domínio atomicamente. Publicar fora de uma transação ativa
 /// lança <see cref="InvalidOperationException"/>: nunca existe publicação "solta".
 /// </summary>
-public sealed class OutboxPublisher<TDbContext>(TDbContext db, ITenantContext tenantContext, OutboxTypeRegistry<TDbContext> registry)
+public sealed class OutboxPublisher<TDbContext>(
+    TDbContext db, ITenantContext tenantContext, OutboxTypeRegistry<TDbContext> registry, ICorrelationContext correlationContext)
     : IOutboxPublisher
     where TDbContext : DbContext
 {
@@ -50,7 +51,7 @@ public sealed class OutboxPublisher<TDbContext>(TDbContext db, ITenantContext te
             // tenant-scoped, o oposto do que a whitelist AddEventoDePlataforma garante.
             ContaId = evento.ContaId,
 
-            CorrelationId = CorrelationIdAtual(),
+            CorrelationId = correlationContext.CorrelationId,
             OcorridoEm = evento.OcorridoEm,
             Status = OutboxStatus.Pendente,
             Tentativas = 0,
@@ -83,11 +84,4 @@ public sealed class OutboxPublisher<TDbContext>(TDbContext db, ITenantContext te
     /// quando quiser introduzir uma nova versão incompatível (tipo CLR novo).
     /// </summary>
     private static string TipoEventoDe(Type tipoEvento) => $"{tipoEvento.FullName}.v1";
-
-    /// <summary>
-    /// Interface provisória de CorrelationId (dívida registrada — Tarefa 7 ainda não rodou):
-    /// <c>Activity.Current?.RootId</c>, com fallback para um GUID novo quando não há Activity ativa.
-    /// Ver task-3-report.md, seção "Dívida técnica".
-    /// </summary>
-    private static string CorrelationIdAtual() => Activity.Current?.RootId ?? Guid.NewGuid().ToString("N");
 }

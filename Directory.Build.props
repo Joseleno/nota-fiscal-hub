@@ -6,4 +6,16 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <!--
+    Tarefa 7 / spec B7 passo 2 (Camada 2 da política anti-PII): CA2254 como erro fecha a rota de
+    interpolação de string em chamada de log (`_logger.LogInformation($"...")`), que (a) quebra logging
+    estruturado e (b) pode vazar PII direto no TEXTO da mensagem — a Camada 1 (PiiMaskingEnricher) só
+    mascara PROPRIEDADES estruturadas, nunca o texto livre do template. TreatWarningsAsErrors acima já
+    cobre isso via CS-level, mas o item é explícito aqui (WarningsAsErrors) para documentar a intenção e
+    sobreviver a uma eventual mudança de TreatWarningsAsErrors para false no futuro.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('NotaFiscalHub'))">
+    <WarningsAsErrors>$(WarningsAsErrors);CA2254</WarningsAsErrors>
+  </PropertyGroup>
 </Project>

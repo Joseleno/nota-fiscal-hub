@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 using NotaFiscalHub.BuildingBlocks.Messaging;
+using NotaFiscalHub.BuildingBlocks.Observability;
 using Xunit;
 
 namespace NotaFiscalHub.IntegrationTests.Messaging;
@@ -25,7 +26,9 @@ public class OutboxTransactionalityTests : IAsyncLifetime
         await using var db = _fixture.NovoDbContext(tenantContext);
 
         var registry = new OutboxTypeRegistry<MensageriaDbContext>();
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var correlationContext = new CorrelationContext();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(new EventoDeTeste { ContaId = _contaId, Rotulo = "rollback" });
@@ -44,7 +47,9 @@ public class OutboxTransactionalityTests : IAsyncLifetime
         await using var db = _fixture.NovoDbContext(tenantContext);
 
         var registry = new OutboxTypeRegistry<MensageriaDbContext>();
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var correlationContext = new CorrelationContext();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(new EventoDeTeste { ContaId = _contaId, Rotulo = "commit" });
@@ -63,7 +68,9 @@ public class OutboxTransactionalityTests : IAsyncLifetime
         await using var db = _fixture.NovoDbContext(tenantContext);
 
         var registry = new OutboxTypeRegistry<MensageriaDbContext>();
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var correlationContext = new CorrelationContext();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         Assert.Throws<InvalidOperationException>(() =>
             publisher.Publicar(new EventoDeTeste { ContaId = _contaId, Rotulo = "sem-transacao" }));

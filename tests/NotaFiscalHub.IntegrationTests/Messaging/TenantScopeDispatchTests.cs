@@ -97,11 +97,13 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
         var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
+        var correlationContext = scope.ServiceProvider.GetRequiredService<NotaFiscalHub.BuildingBlocks.Observability.CorrelationContext>();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
 
         // Escopo de sistema só para permitir a escrita (TenantWriteInterceptor não estampa ContaId em
         // escopo de sistema) — o evento em si é publicado deliberadamente com ContaId = null.
         using var _ = ((AmbientTenantContext)tenantContext).BeginSystemScope("teste", nameof(TenantScopeDispatchTests));
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(new EventoDeTeste { ContaId = null, Rotulo = "sem-conta" });
@@ -115,9 +117,11 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
         var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
+        var correlationContext = scope.ServiceProvider.GetRequiredService<NotaFiscalHub.BuildingBlocks.Observability.CorrelationContext>();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginSystemScope("teste", nameof(TenantScopeDispatchTests));
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(new EventoDePlataformaDeTeste { ContaId = null });
@@ -131,9 +135,11 @@ public class TenantScopeDispatchTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<MensageriaDbContext>();
         var tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContext>();
         var registry = scope.ServiceProvider.GetRequiredService<OutboxTypeRegistry<MensageriaDbContext>>();
+        var correlationContext = scope.ServiceProvider.GetRequiredService<NotaFiscalHub.BuildingBlocks.Observability.CorrelationContext>();
+        using var escopoDeCorrelacao = correlationContext.Definir("corr-teste-integracao");
 
         using var _ = ((AmbientTenantContext)tenantContext).BeginTenantScope(contaId);
-        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry);
+        var publisher = new OutboxPublisher<MensageriaDbContext>(db, tenantContext, registry, correlationContext);
 
         using var transacao = await db.Database.BeginTransactionAsync();
         publisher.Publicar(new EventoDePlataformaComContaIdDeTeste { ContaId = contaId });

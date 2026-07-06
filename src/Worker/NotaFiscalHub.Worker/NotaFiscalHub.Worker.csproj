@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
   <ItemGroup>
+    <!-- Tarefa 7 / spec B7 passo 5: Worker sobe um WebApplication mínimo só para /alive e /health —
+         precisa do framework ASP.NET Core explicitamente (Sdk.Worker não o inclui por padrão). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Infrastructure\NotaFiscalHub.Modules.ContasPlanos.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\ContasPlanos\NotaFiscalHub.Modules.ContasPlanos.Contracts\NotaFiscalHub.Modules.ContasPlanos.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\EmpresasCertificados\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure\NotaFiscalHub.Modules.EmpresasCertificados.Infrastructure.csproj" />
@@ -12,8 +17,6 @@
     <ProjectReference Include="..\..\Modules\MotorNfce\NotaFiscalHub.Modules.MotorNfce.Contracts\NotaFiscalHub.Modules.MotorNfce.Contracts.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <ProjectReference Include="..\..\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Observability\NotaFiscalHub.BuildingBlocks.Observability.csproj" />
   </ItemGroup>
 </Project>

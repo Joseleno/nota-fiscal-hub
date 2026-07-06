@@ -11,6 +11,9 @@
     <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
     <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
     <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
+    <!-- Tarefa 7: OutboxPublisher lê o CorrelationId de ICorrelationContext (fim da dívida técnica
+         registrada na Tarefa 3 — ver OutboxPublisher.Publicar). -->
+    <ProjectReference Include="..\NotaFiscalHub.BuildingBlocks.Observability\NotaFiscalHub.BuildingBlocks.Observability.csproj" />
   </ItemGroup>
 
   <ItemGroup>

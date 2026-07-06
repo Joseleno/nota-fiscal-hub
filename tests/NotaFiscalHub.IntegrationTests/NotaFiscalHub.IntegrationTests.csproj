@@ -12,6 +12,9 @@
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.InMemory" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,7 +23,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Api\NotaFiscalHub.Api\NotaFiscalHub.Api.csproj" />
-    <ProjectReference Include="..\..\src\Worker\NotaFiscalHub.Worker\NotaFiscalHub.Worker.csproj" />
+    <!-- Alias necessário a partir da Tarefa 7: o Worker também passou a expor um `Program` público (host
+         HTTP mínimo p/ health checks, spec B7 passo 5), que colide (CS0433) com o `Program` público do
+         Api no namespace global quando ambos os hosts são referenciados pelo mesmo assembly de teste.
+         Sem "global" no Aliases, o acesso não seria mais implícito — por isso todo arquivo que usa um
+         tipo do Worker (incl. TenantJobExecutor, que não tem nada a ver com o `Program` ambíguo) precisa
+         de `extern alias WorkerHost;` no topo (ver TenantJobExecutorTests, TenantResolutionMiddlewareTests
+         não precisa pois só usa o host Api). -->
+    <ProjectReference Include="..\..\src\Worker\NotaFiscalHub.Worker\NotaFiscalHub.Worker.csproj" Aliases="WorkerHost" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Kernel\NotaFiscalHub.BuildingBlocks.Kernel.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Persistence\NotaFiscalHub.BuildingBlocks.Persistence.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions\NotaFiscalHub.BuildingBlocks.Messaging.Abstractions.csproj" />
@@ -28,6 +38,7 @@
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Idempotency\NotaFiscalHub.BuildingBlocks.Idempotency.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Auditoria\NotaFiscalHub.BuildingBlocks.Auditoria.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Auditoria.Contracts\NotaFiscalHub.BuildingBlocks.Auditoria.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\NotaFiscalHub.BuildingBlocks.Observability\NotaFiscalHub.BuildingBlocks.Observability.csproj" />
   </ItemGroup>
 
   <ItemGroup>
