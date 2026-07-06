@@ -17,9 +17,11 @@ namespace NotaFiscalHub.IntegrationTests.Observability;
 /// <c>Predicate = _ =&gt; false</c> não avalia dependências); <c>/health</c> 200 com Postgres no ar e 503
 /// com Postgres derrubado (readiness real via <c>AddNpgSql</c>).
 ///
-/// NÃO EXECUTA neste ambiente: requer PostgreSQL real via Testcontainers/Docker — em particular, este
-/// teste precisa PARAR o container no meio do teste (<c>StopAsync</c>), o que é o cenário mais dependente
-/// de Docker real de toda a Tarefa 7. Mesma lacuna documentada nas Tarefas 1-6.
+/// Requer PostgreSQL real via Testcontainers/Docker — em particular, este teste precisa PARAR o container
+/// no meio do teste (<c>StopAsync</c>), o que é o cenário mais dependente de Docker real de toda a Tarefa 7.
+/// Docker estava disponível neste ambiente quando esta suíte foi escrita e verificada — estes testes rodam
+/// de fato e passam, incluindo a derrubada real do container, ao contrário da lacuna documentada nas
+/// Tarefas 1-6.
 ///
 /// Nos cenários contra o host Api, <see cref="IdempotencyExpirationJob"/> (Tarefa 4) é removido do host de
 /// teste: esse job faz polling do Postgres SEM try/catch ao redor da chamada ao banco em seu loop

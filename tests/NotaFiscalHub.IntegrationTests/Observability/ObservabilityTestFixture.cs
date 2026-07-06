@@ -31,9 +31,10 @@ public sealed class ObsDbContext(DbContextOptions<ObsDbContext> options, ITenant
 /// + <see cref="ICorrelationContext"/> registrados — a mesma composição usada pelos hosts reais via
 /// <c>AddNfhObservability</c>.
 ///
-/// NÃO roda neste ambiente de desenvolvimento (Docker Desktop indisponível — mesma lacuna já documentada
-/// nas Tarefas 1/2/3/4/5/6): a fixture falha em <see cref="InitializeAsync"/> na construção/start do
-/// <see cref="PostgreSqlContainer"/>.
+/// Requer Docker (via Testcontainers) para subir o <see cref="PostgreSqlContainer"/> real em
+/// <see cref="InitializeAsync"/>. Docker estava disponível neste ambiente quando esta suíte foi escrita e
+/// verificada — os testes rodam de fato e passam contra Postgres real, e não apenas escritos para uma CI
+/// futura.
 /// </summary>
 public sealed class ObservabilityTestFixture : IAsyncLifetime
 {

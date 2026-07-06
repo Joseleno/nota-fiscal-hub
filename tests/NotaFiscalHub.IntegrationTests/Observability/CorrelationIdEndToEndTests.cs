@@ -15,9 +15,9 @@ namespace NotaFiscalHub.IntegrationTests.Observability;
 /// (<c>OutboxPublisher.CorrelationIdAtual</c> antes usava <c>Activity.Current?.RootId</c> direto; agora lê
 /// de <see cref="ICorrelationContext"/> injetado).
 ///
-/// NÃO EXECUTA neste ambiente: requer PostgreSQL real via Testcontainers/Docker, indisponível aqui (mesma
-/// lacuna documentada nas Tarefas 1-6). A fixture falha em <c>InitializeAsync</c> ao subir o container —
-/// o teste está escrito e revisado para rodar em CI/ambiente com Docker.
+/// Requer PostgreSQL real via Testcontainers/Docker. Docker estava disponível neste ambiente quando este
+/// teste foi escrito e verificado — ele roda de fato e passa contra o container real, ao contrário da
+/// lacuna documentada nas Tarefas 1-6.
 /// </summary>
 public class CorrelationIdEndToEndTests : IClassFixture<ObservabilityTestFixture>
 {

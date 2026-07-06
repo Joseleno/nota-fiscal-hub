@@ -16,9 +16,10 @@ namespace NotaFiscalHub.IntegrationTests.Observability;
 /// ou fragmento de XML fiscal, verificado por <see cref="PiiLogAssertions.AssertNoPii"/> sobre um sink em
 /// memória plugado no MESMO pipeline Serilog do host real (<c>AddNfhObservability</c>).
 ///
-/// NÃO EXECUTA neste ambiente: requer PostgreSQL real via Testcontainers/Docker para o host completo subir
-/// (IdempotencyDbContext/AuditoriaDbContext são registrados incondicionalmente em Program.cs), indisponível
-/// aqui (mesma lacuna documentada nas Tarefas 1-6).
+/// Requer PostgreSQL real via Testcontainers/Docker para o host completo subir (IdempotencyDbContext/
+/// AuditoriaDbContext são registrados incondicionalmente em Program.cs). Docker estava disponível neste
+/// ambiente quando este teste foi escrito e verificado — ele roda de fato e passa contra o host completo,
+/// ao contrário da lacuna documentada nas Tarefas 1-6.
 /// </summary>
 public class PiiGuardrailTests : IAsyncLifetime
 {

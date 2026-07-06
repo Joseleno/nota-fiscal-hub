@@ -16,8 +16,9 @@ namespace NotaFiscalHub.IntegrationTests.Observability;
 /// carrega VALOR de parâmetro SQL (só o texto do statement, com placeholder — spec B7 passo 4); <c>/health</c>
 /// e <c>/alive</c> não geram span (filtro de ruído do AddAspNetCoreInstrumentation).
 ///
-/// NÃO EXECUTA neste ambiente: requer PostgreSQL real via Testcontainers/Docker (mesma lacuna documentada
-/// nas Tarefas 1-6).
+/// Requer PostgreSQL real via Testcontainers/Docker. Docker estava disponível neste ambiente quando esta
+/// suíte foi escrita e verificada — os testes rodam de fato e passam contra Postgres real, ao contrário da
+/// lacuna documentada nas Tarefas 1-6.
 /// </summary>
 public class OtelTests : IAsyncLifetime
 {
