@@ -88,16 +88,6 @@ public sealed class ObservabilityTestFixture : IAsyncLifetime
             o.TamanhoDoLote = 100;
         });
 
-        // AddOutboxInbox<TDbContext> registra OutboxDispatcher<TDbContext> só como IHostedService
-        // (AddHostedService<T>) — nesta versão do Microsoft.Extensions.Hosting, isso NÃO deixa o tipo
-        // concreto resolvível via GetRequiredService<OutboxDispatcher<TDbContext>>() (comportamento
-        // confirmado também nos testes pré-existentes da Tarefa 3, ex. InboxDedupeTests — não é uma
-        // regressão desta tarefa). Testes que precisam disparar um ciclo de dispatch determinístico
-        // (em vez de esperar o timer do BackgroundService) registram o tipo concreto explicitamente aqui.
-        services.AddSingleton(sp => sp.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
-            .OfType<OutboxDispatcher<ObsDbContext>>()
-            .Single());
-
         registrar(services);
 
         return services.BuildServiceProvider();

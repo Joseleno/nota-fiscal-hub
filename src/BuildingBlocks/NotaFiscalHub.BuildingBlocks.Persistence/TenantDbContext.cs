@@ -2,8 +2,6 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Query;
 using NotaFiscalHub.BuildingBlocks.Kernel.Tenancy;
 
 namespace NotaFiscalHub.BuildingBlocks.Persistence;
@@ -18,7 +16,10 @@ namespace NotaFiscalHub.BuildingBlocks.Persistence;
 /// Fail-closed: <see cref="ITenantContext.ContaId"/> lança <see cref="TenantNaoResolvidoException"/>
 /// quando não há escopo ativo, e essa exceção é lançada exatamente na avaliação do filtro — ou seja,
 /// qualquer query em entidade tenant-scoped sem escopo ativo lança em vez de retornar linhas (nunca
-/// "tudo" nem "nada" silenciosamente).
+/// "tudo" nem "nada" silenciosamente). O EF Core funcletiza essa leitura ao compilar a query (parte da
+/// parametrização padrão), então a exceção chega ao chamador embrulhada em <see cref="InvalidOperationException"/>
+/// (<c>InnerException</c> é o <see cref="TenantNaoResolvidoException"/> real) — ver
+/// <c>TenantDbContextTests.QueryFilter_SemEscopo_LancaAoConsultar</c>.
 ///
 /// O nome "Tenant" do filtro é o que permite bypass seletivo via
 /// <c>IgnoreQueryFilters(["Tenant"])</c> (uso restrito ao kernel) e é o que o teste de arquitetura
@@ -52,15 +53,18 @@ public abstract class TenantDbContext(DbContextOptions options, ITenantContext t
     {
         base.OnConfiguring(optionsBuilder);
         optionsBuilder.AddInterceptors(new TenantWriteInterceptor(tenantContext));
-        optionsBuilder.ReplaceService<IEvaluatableExpressionFilter, TenantFilterEvaluatableExpressionFilter>();
         optionsBuilder.ReplaceService<IModelCacheKeyFactory, TenantModelCacheKeyFactory>();
     }
 
     /// <summary>
-    /// Monta a expressão lambda <c>e => tenantContext.ContaId == e.ContaId</c> para o tipo concreto.
-    /// A leitura de <c>tenantContext.ContaId</c> acontece a cada avaliação do filtro (fechamento sobre
-    /// a instância ambiente) — sem escopo ativo, essa leitura já lança <see cref="TenantNaoResolvidoException"/>
-    /// antes de qualquer SQL ser gerado/executado: é isso que torna o comportamento fail-closed.
+    /// Monta a expressão lambda <c>e => tenantContext.IsSystemScope || tenantContext.ContaId == e.ContaId</c>
+    /// para o tipo concreto. <c>IsSystemScope</c> vem primeiro no <c>||</c> para curto-circuitar a leitura de
+    /// <c>ContaId</c> em escopo de sistema (que veio como <see cref="Guid.Empty"/> e nunca bateria com dado
+    /// real) — é o bypass cross-tenant do <see cref="ITenantScopeFactory.BeginSystemScope"/> sem precisar de
+    /// <c>IgnoreQueryFilters</c> explícito em todo call-site. Fora de escopo de sistema, a leitura de
+    /// <c>tenantContext.ContaId</c> acontece a cada avaliação do filtro (fechamento sobre a instância
+    /// ambiente) — sem escopo ativo, essa leitura já lança <see cref="TenantNaoResolvidoException"/> antes
+    /// de qualquer SQL ser gerado/executado: é isso que torna o comportamento fail-closed.
     /// </summary>
     private LambdaExpression BuildTenantFilter(Type entityClrType)
     {
@@ -68,9 +72,11 @@ public abstract class TenantDbContext(DbContextOptions options, ITenantContext t
         var contaIdDaEntidade = Expression.Property(parametro, nameof(ITenantScopedEntity.ContaId));
 
         var tenantContextConstante = Expression.Constant(tenantContext);
+        var isSystemScope = Expression.Property(tenantContextConstante, nameof(ITenantContext.IsSystemScope));
         var contaIdDoContexto = Expression.Property(tenantContextConstante, nameof(ITenantContext.ContaId));
 
         var igualdade = Expression.Equal(contaIdDoContexto, contaIdDaEntidade);
-        return Expression.Lambda(igualdade, parametro);
+        var comBypassDeSistema = Expression.OrElse(isSystemScope, igualdade);
+        return Expression.Lambda(comBypassDeSistema, parametro);
     }
 }

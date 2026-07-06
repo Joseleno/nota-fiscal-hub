@@ -26,7 +26,12 @@ public class TenantDbContextTests
         }
 
         using var db = CriarContextoDeTeste(new AmbientTenantContext(), dbName);
-        Assert.Throws<TenantNaoResolvidoException>(() => db.EntidadesDeTeste.ToList());
+
+        // O EF Core funcletiza a leitura de ContaId ao compilar a query (parametrização) — a exceção
+        // fail-closed é lançada durante essa avaliação isolada e chega ao chamador embrulhada em
+        // InvalidOperationException, nunca como TenantNaoResolvidoException solta.
+        var ex = Assert.Throws<InvalidOperationException>(() => db.EntidadesDeTeste.ToList());
+        Assert.IsType<TenantNaoResolvidoException>(ex.InnerException);
     }
 
     [Fact]
@@ -47,6 +52,28 @@ public class TenantDbContextTests
             var resultado = db.EntidadesDeTeste.ToList();
             Assert.Single(resultado);
             Assert.Equal(ContaA, resultado[0].ContaId);
+        }
+    }
+
+    [Fact]
+    public void QueryFilter_EmEscopoDeSistema_RetornaDeTodasAsContas()
+    {
+        var tenantContext = new AmbientTenantContext();
+        var dbName = nameof(QueryFilter_EmEscopoDeSistema_RetornaDeTodasAsContas);
+
+        using (tenantContext.BeginSystemScope("seed", "teste"))
+        {
+            using var dbSeed = CriarContextoDeTeste(tenantContext, dbName);
+            dbSeed.EntidadesDeTeste.Add(new EntidadeDeTeste { ContaId = ContaA });
+            dbSeed.EntidadesDeTeste.Add(new EntidadeDeTeste { ContaId = ContaB });
+            dbSeed.SaveChanges();
+        }
+
+        using (tenantContext.BeginSystemScope("consulta-cross-tenant", "teste"))
+        {
+            using var db = CriarContextoDeTeste(tenantContext, dbName);
+            var resultado = db.EntidadesDeTeste.ToList();
+            Assert.Equal(2, resultado.Count);
         }
     }
 

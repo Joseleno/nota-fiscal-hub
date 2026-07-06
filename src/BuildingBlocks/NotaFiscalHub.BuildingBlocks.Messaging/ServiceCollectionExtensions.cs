@@ -13,8 +13,11 @@ public static class ServiceCollectionExtensions
     /// <see cref="IOutboxPublisher"/> scoped, o <see cref="OutboxTypeRegistry{TDbContext}"/> singleton
     /// ISOLADO do módulo (parametrizado por <typeparamref name="TDbContext"/> — nunca compartilhado com
     /// outro módulo mesmo que ambos chamem esta extensão no mesmo <c>IServiceCollection</c>, ex.: o
-    /// Worker), o dispatcher e o serviço de retenção como
-    /// <see cref="Microsoft.Extensions.Hosting.BackgroundService"/>.
+    /// Worker), o dispatcher e o serviço de retenção como singleton concreto (resolvível diretamente via
+    /// <c>GetRequiredService&lt;OutboxDispatcher&lt;TDbContext&gt;&gt;()</c> — necessário para testes
+    /// dispararem um ciclo determinístico — <c>AddHostedService&lt;T&gt;()</c> sozinho só exporia o tipo
+    /// como <see cref="Microsoft.Extensions.Hosting.IHostedService"/>) registrado também como
+    /// <see cref="Microsoft.Extensions.Hosting.IHostedService"/> pela mesma instância singleton.
     /// <paramref name="schema"/> é só documental aqui (o schema já está fixado no
     /// <c>OnModelCreating</c> do próprio <typeparamref name="TDbContext"/> via <c>AplicarOutboxInbox</c>)
     /// — mantido no parâmetro para deixar explícito, na chamada, qual módulo está sendo ligado.
@@ -34,8 +37,11 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IOutboxPublisher, OutboxPublisher<TDbContext>>();
 
-        services.AddHostedService<OutboxDispatcher<TDbContext>>();
-        services.AddHostedService<RetentionCleanupService<TDbContext>>();
+        services.AddSingleton<OutboxDispatcher<TDbContext>>();
+        services.AddHostedService(sp => sp.GetRequiredService<OutboxDispatcher<TDbContext>>());
+
+        services.AddSingleton<RetentionCleanupService<TDbContext>>();
+        services.AddHostedService(sp => sp.GetRequiredService<RetentionCleanupService<TDbContext>>());
 
         return services;
     }

@@ -61,8 +61,14 @@ public sealed class AuditoriaTestFixture : IAsyncLifetime
         await using var dbProdutor = NovoModuloProdutorDbContext(tenantContext);
         await dbProdutor.Database.EnsureCreatedAsync();
 
+        // NÃO EnsureCreatedAsync aqui: o EF Core decide se cria as tabelas checando se "o banco já
+        // existe" (não por schema/tabela) — como dbProdutor.EnsureCreatedAsync() já criou o banco físico
+        // acima, uma segunda chamada para outro DbContext (schema diferente, mesmo banco) acha que já
+        // existe e PULA a criação, deixando auditoria.registro_auditoria de fora. GenerateCreateScript()
+        // + execução direta contorna essa checagem, aplicando o script de criação do model incondicionalmente.
         await using var dbAuditoria = NovoAuditoriaDbContext();
-        await dbAuditoria.Database.EnsureCreatedAsync();
+        var scriptDeCriacao = dbAuditoria.Database.GenerateCreateScript();
+        await dbAuditoria.Database.ExecuteSqlRawAsync(scriptDeCriacao);
     }
 
     public async Task DisposeAsync() => await _postgres.DisposeAsync();
@@ -83,11 +89,15 @@ public sealed class AuditoriaTestFixture : IAsyncLifetime
     /// Aplica as migrations reais (não <c>EnsureCreatedAsync</c>) — necessário para
     /// <see cref="ImmutabilityTests"/> exercitar o trigger de bloqueio (Step 4), que só existe via
     /// <c>migrationBuilder.Sql(...)</c>, nunca via <c>EnsureCreatedAsync</c> (que só lê o model, não as
-    /// migrations).
+    /// migrations). Derruba a tabela criada por <see cref="InitializeAsync"/> antes: os dois caminhos
+    /// materializam a mesma tabela de formas incompatíveis (uma via script do model, sem o trigger; a
+    /// outra via migration real, com o trigger) e <c>MigrateAsync</c> falha com "already exists" se a
+    /// tabela já estiver lá.
     /// </summary>
     public async Task AplicarMigrationsReaisAsync()
     {
         await using var db = NovoAuditoriaDbContext();
+        await db.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS {AuditoriaModelBuilderExtensions.Schema}.registro_auditoria");
         await db.Database.MigrateAsync();
     }
 
