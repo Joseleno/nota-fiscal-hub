@@ -32,11 +32,11 @@ public class ConcurrencyTests : IClassFixture<IdempotencyTestFixture>
 
         var contaId = Guid.NewGuid();
 
-        var tarefas = Enumerable.Range(0, 8).Select(_ =>
+        var tarefas = Enumerable.Range(0, 8).Select(async _ =>
         {
             using var cliente = IdempotencyTestFixture.ClienteComTenant(factory, contaId);
             cliente.DefaultRequestHeaders.Add("Idempotency-Key", "y");
-            return cliente.PostAsync("/v1/nfce", JsonContent.Create(new { valor = 1 }));
+            return await cliente.PostAsync("/v1/nfce", JsonContent.Create(new { valor = 1 }));
         });
 
         var respostas = await Task.WhenAll(tarefas);
@@ -59,11 +59,11 @@ public class ConcurrencyTests : IClassFixture<IdempotencyTestFixture>
 
         var contaId = Guid.NewGuid();
 
-        var tarefas = Enumerable.Range(0, 8).Select(_ =>
+        var tarefas = Enumerable.Range(0, 8).Select(async _ =>
         {
             using var cliente = IdempotencyTestFixture.ClienteComTenant(factory, contaId);
             cliente.DefaultRequestHeaders.Add("Idempotency-Key", "y2");
-            return cliente.PostAsync("/v1/nfce", JsonContent.Create(new { valor = 1 }));
+            return await cliente.PostAsync("/v1/nfce", JsonContent.Create(new { valor = 1 }));
         });
 
         var respostas = await Task.WhenAll(tarefas);

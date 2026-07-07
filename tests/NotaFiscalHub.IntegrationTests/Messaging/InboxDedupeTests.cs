@@ -69,10 +69,17 @@ public class InboxDedupeTests : IAsyncLifetime
         {
             services.AddKeyedSingleton("A", contadorA);
             services.AddKeyedSingleton("B", contadorB);
-            services.AddScoped<HandlerA>(sp => new HandlerA(sp.GetRequiredKeyedService<ContadorDeExecucoes>("A")));
-            services.AddScoped<HandlerB>(sp => new HandlerB(sp.GetRequiredKeyedService<ContadorDeExecucoes>("B")));
+
+            // AddInboxHandler<TDbContext,TEvento,THandler> já registra THandler via AddScoped<THandler>()
+            // (sem factory, resolvendo dependências via DI padrão) — chamado ANTES daqui de propósito: a
+            // sobrescrita abaixo (mesma API AddScoped, sem TryAdd) acumula uma segunda entrada que o
+            // container resolve por último, "vencendo" a primeira. Ordem trocada (factory antes de
+            // AddInboxHandler) faz o container resolver o genérico sem factory, que falha ao injetar
+            // ContadorDeExecucoes NÃO-keyed (não registrado dessa forma neste teste).
             services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerA>();
             services.AddInboxHandler<MensageriaDbContext, EventoDeTeste, HandlerB>();
+            services.AddScoped<HandlerA>(sp => new HandlerA(sp.GetRequiredKeyedService<ContadorDeExecucoes>("A")));
+            services.AddScoped<HandlerB>(sp => new HandlerB(sp.GetRequiredKeyedService<ContadorDeExecucoes>("B")));
         });
 
         await PublicarEventoAsync(provider);

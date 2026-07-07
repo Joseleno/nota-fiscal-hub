@@ -20,6 +20,14 @@ public sealed class FakeIdempotencyStore : IIdempotencyStore
     public Task<IdempotencyBeginResult> BeginAsync(IdempotencyRecord novo, CancellationToken ct)
     {
         var chave = (novo.ContaId, novo.Ambiente, novo.Rota, novo.Key);
+        var agora = DateTimeOffset.UtcNow;
+
+        // IdempotencyEndpointFilter passa CriadaEm/ExpiraEm como placeholders (default) — o
+        // IdempotencyStore real recalcula os dois a partir do seu TimeProvider antes de salvar (ver
+        // comentário em IdempotencyEndpointFilter). Este fake precisa fazer o mesmo: sem isso, ExpiraEm
+        // fica default (DateTimeOffset.MinValue), sempre "vencido" comparado a qualquer agora real, e
+        // IdempotencyDecisionRules.Decidir trataria todo registro salvo como se não existisse.
+        var novoComExpiracaoRecalculada = novo with { CriadaEm = agora, ExpiraEm = agora + _ttl };
 
         IdempotencyBeginResult resultado = default!;
         _registros.AddOrUpdate(
@@ -27,17 +35,19 @@ public sealed class FakeIdempotencyStore : IIdempotencyStore
             _ =>
             {
                 resultado = new IdempotencyBeginResult(IdempotencyBeginOutcome.Inserted, null);
-                return novo;
+                return novoComExpiracaoRecalculada;
             },
             (_, existenteEntity) =>
             {
-                var decisao = IdempotencyDecisionRules.Decidir(existenteEntity, novo.PayloadHashSha256, orfaoVencido: false);
+                var decisao = IdempotencyDecisionRules.Decidir(existenteEntity, novo.PayloadHashSha256, orfaoVencido: false, agora);
                 resultado = decisao;
-                return decisao.Outcome == IdempotencyBeginOutcome.Inserted ? novo : existenteEntity;
+                return decisao.Outcome == IdempotencyBeginOutcome.Inserted ? novoComExpiracaoRecalculada : existenteEntity;
             });
 
         return Task.FromResult(resultado);
     }
+
+    private static readonly TimeSpan _ttl = TimeSpan.FromHours(24);
 
     public Task CompleteAsync(
         Guid contaId, string ambiente, string rota, string key,

@@ -18,9 +18,14 @@ public static class IdempotencyDecisionRules
     /// tratado como abandonado e reaproveitado (takeover) independentemente do hash armazenado (spec B4
     /// §Abordagem passo 5): o crash anterior nunca produziu uma resposta para comparar.
     /// </param>
-    public static IdempotencyBeginResult Decidir(IdempotencyRecord? existente, string hashNovo, bool orfaoVencido)
+    /// <param name="agora">
+    /// Relógio da chamada (spec B4 §Abordagem passo 4/critério de aceite 8): um <paramref name="existente"/>
+    /// com <c>ExpiraEm</c> vencido é tratado como se não existisse — o handler executa de novo IMEDIATAMENTE,
+    /// sem depender do <c>IdempotencyExpirationJob</c> (que roda de hora em hora) já ter deletado a linha.
+    /// </param>
+    public static IdempotencyBeginResult Decidir(IdempotencyRecord? existente, string hashNovo, bool orfaoVencido, DateTimeOffset agora)
     {
-        if (existente is null)
+        if (existente is null || existente.ExpiraEm <= agora)
             return new IdempotencyBeginResult(IdempotencyBeginOutcome.Inserted, null);
 
         if (existente.Estado == IdempotencyState.EmProcessamento && orfaoVencido)

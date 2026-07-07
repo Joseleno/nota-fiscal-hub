@@ -71,7 +71,7 @@ public sealed class IdempotencyStore(
         var orfaoVencido = existente is { Estado: IdempotencyState.EmProcessamento } &&
                             EstaOrfaoVencido(existente.CriadaEm, agora);
 
-        return IdempotencyDecisionRules.Decidir(existente, novo.PayloadHashSha256, orfaoVencido);
+        return IdempotencyDecisionRules.Decidir(existente, novo.PayloadHashSha256, orfaoVencido, agora);
     }
 
     public async Task CompleteAsync(

@@ -56,11 +56,11 @@ public class OrphanTakeoverTests : IClassFixture<IdempotencyTestFixture>
         await PlantarRegistroEmProcessamentoAsync(
             factory, contaId, "orfa2", criadaEm: _fixture.Relogio.GetUtcNow() - TimeSpan.FromSeconds(61));
 
-        var tarefas = Enumerable.Range(0, 4).Select(_ =>
+        var tarefas = Enumerable.Range(0, 4).Select(async _ =>
         {
             using var cliente = IdempotencyTestFixture.ClienteComTenant(factory, contaId);
             cliente.DefaultRequestHeaders.Add("Idempotency-Key", "orfa2");
-            return cliente.PostAsync("/v1/nfce", JsonContent.Create(new { valor = 1 }));
+            return await cliente.PostAsync("/v1/nfce", JsonContent.Create(new { valor = 1 }));
         });
 
         var respostas = await Task.WhenAll(tarefas);
@@ -108,7 +108,11 @@ public class OrphanTakeoverTests : IClassFixture<IdempotencyTestFixture>
             Ambiente = "producao",
             Rota = "POST /v1/nfce",
             Key = key,
-            PayloadHashSha256 = "hash-fake-do-request-que-travou",
+            // Precisa ser o hash REAL do corpo que os testes enviam (new { valor = 1 }) — um hash
+            // arbitrário faz IdempotencyDecisionRules.Decidir ver "hash diferente" e retornar
+            // ConflitoHashDiferente em vez de CorridaEmProcessamento/takeover, mascarando o cenário que
+            // este helper deveria plantar.
+            PayloadHashSha256 = PayloadHasher.Sha256(System.Text.Encoding.UTF8.GetBytes("{\"valor\":1}")),
             Estado = IdempotencyState.EmProcessamento,
             CriadaEm = criadaEm,
             ExpiraEm = criadaEm.AddHours(24),

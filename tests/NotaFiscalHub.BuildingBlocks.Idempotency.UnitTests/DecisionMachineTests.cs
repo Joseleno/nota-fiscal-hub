@@ -20,7 +20,7 @@ public class DecisionMachineTests
         string estadoExistente, string hashNovo, IdempotencyBeginOutcome esperado)
     {
         var existente = FakeRegistro(estadoExistente);
-        var resultado = IdempotencyDecisionRules.Decidir(existente, hashNovo, orfaoVencido: false);
+        var resultado = IdempotencyDecisionRules.Decidir(existente, hashNovo, orfaoVencido: false, DateTimeOffset.UtcNow);
 
         Assert.Equal(esperado, resultado.Outcome);
     }
@@ -28,7 +28,7 @@ public class DecisionMachineTests
     [Fact]
     public void Decidir_ExistenteNulo_RetornaInsertedSemRegistroExistente()
     {
-        var resultado = IdempotencyDecisionRules.Decidir(existente: null, "hash-novo", orfaoVencido: false);
+        var resultado = IdempotencyDecisionRules.Decidir(existente: null, "hash-novo", orfaoVencido: false, DateTimeOffset.UtcNow);
 
         Assert.Equal(IdempotencyBeginOutcome.Inserted, resultado.Outcome);
         Assert.Null(resultado.Existente);
@@ -41,7 +41,7 @@ public class DecisionMachineTests
         // o crash anterior nunca terminou de processar, então não há "resposta" para comparar — o novo
         // request simplesmente assume o registro (spec B4 §Abordagem passo 5).
         var existente = FakeRegistro("EmProcessamento-hash-igual");
-        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-igual", orfaoVencido: true);
+        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-igual", orfaoVencido: true, DateTimeOffset.UtcNow);
 
         Assert.Equal(IdempotencyBeginOutcome.Inserted, resultado.Outcome);
     }
@@ -50,7 +50,7 @@ public class DecisionMachineTests
     public void Decidir_EmProcessamentoOrfaoVencido_HashDiferente_RetornaInsertedViaTakeover()
     {
         var existente = FakeRegistro("EmProcessamento-hash-igual");
-        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-outro", orfaoVencido: true);
+        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-outro", orfaoVencido: true, DateTimeOffset.UtcNow);
 
         Assert.Equal(IdempotencyBeginOutcome.Inserted, resultado.Outcome);
     }
@@ -59,12 +59,24 @@ public class DecisionMachineTests
     public void Decidir_ConcluidaHashIgual_RetornaExistenteParaReplay()
     {
         var existente = FakeRegistro("Concluida-hash-igual");
-        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-igual", orfaoVencido: false);
+        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-igual", orfaoVencido: false, DateTimeOffset.UtcNow);
 
         Assert.Same(existente, resultado.Existente);
     }
 
-    private static IdempotencyRecord? FakeRegistro(string estadoExistente)
+    [Fact]
+    public void Decidir_ConcluidaExpirada_HashIgual_RetornaInsertedSemDependerDoJobDeExpiracao()
+    {
+        // Critério de aceite 8 (spec B4): mesma key + mesmo corpo, ExpiraEm já vencido, executa o handler
+        // de novo IMEDIATAMENTE — não pode depender do IdempotencyExpirationJob (roda de hora em hora) já
+        // ter deletado a linha primeiro.
+        var existente = FakeRegistro("Concluida-hash-igual", expirado: true);
+        var resultado = IdempotencyDecisionRules.Decidir(existente, "hash-igual", orfaoVencido: false, DateTimeOffset.UtcNow);
+
+        Assert.Equal(IdempotencyBeginOutcome.Inserted, resultado.Outcome);
+    }
+
+    private static IdempotencyRecord? FakeRegistro(string estadoExistente, bool expirado = false)
     {
         // Convenção do brief (Step 4): "inexistente" → sem registro; caso contrário, o prefixo antes do
         // hífen é o IdempotencyState e o restante é o hash armazenado.
@@ -92,6 +104,6 @@ public class DecisionMachineTests
             RespostaContentType: estado == IdempotencyState.Concluida ? "application/json" : null,
             RespostaLocation: null,
             CriadaEm: DateTimeOffset.UtcNow,
-            ExpiraEm: DateTimeOffset.UtcNow.AddHours(24));
+            ExpiraEm: expirado ? DateTimeOffset.UtcNow.AddMinutes(-1) : DateTimeOffset.UtcNow.AddHours(24));
     }
 }
